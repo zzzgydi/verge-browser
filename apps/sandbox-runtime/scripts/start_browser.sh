@@ -9,13 +9,16 @@ BROWSER_DOWNLOAD_DIR="${BROWSER_DOWNLOAD_DIR:-/workspace/downloads}"
 DEFAULT_URL="${DEFAULT_URL:-about:blank}"
 
 mkdir -p "${BROWSER_USER_DATA_DIR}" "${BROWSER_DOWNLOAD_DIR}" /tmp/chrome-cache
+rm -f "${BROWSER_USER_DATA_DIR}"/Singleton{Cookie,Lock,Socket} || true
 
 exec chromium \
   --display="${DISPLAY_NUM}" \
+  --no-sandbox \
   --no-first-run \
   --no-default-browser-check \
   --disable-background-networking \
   --disable-dev-shm-usage \
+  --disable-gpu \
   --disable-popup-blocking \
   --disable-features=TranslateUI \
   --window-size="${BROWSER_WINDOW_WIDTH},${BROWSER_WINDOW_HEIGHT}" \
@@ -26,4 +29,3 @@ exec chromium \
   --force-color-profile=srgb \
   --lang=en-US \
   "${DEFAULT_URL}"
-

@@ -10,13 +10,14 @@ router = APIRouter(prefix="/sandboxes", tags=["sandboxes"])
 
 def _to_response(request: Request, sandbox) -> SandboxResponse:
     base_url = get_base_url(request)
+    ws_base_url = base_url.replace("http://", "ws://").replace("https://", "wss://")
     return SandboxResponse(
         id=sandbox.id,
         status=sandbox.status,
         created_at=sandbox.created_at,
         container_id=sandbox.container_id,
         browser=BrowserInfo(
-            cdp_url=f"{base_url}/sandboxes/{sandbox.id}/browser/cdp/browser",
+            cdp_url=f"{ws_base_url}/sandboxes/{sandbox.id}/browser/cdp/browser",
             vnc_entry_base_url=f"{base_url}/sandboxes/{sandbox.id}/vnc/",
             vnc_ticket_endpoint=f"{base_url}/sandboxes/{sandbox.id}/vnc/tickets",
             viewport=ViewportInfo(width=1280, height=1024),
@@ -31,7 +32,7 @@ async def create_sandbox(
     subject: str = Depends(get_current_subject),
 ) -> SandboxResponse:
     del subject
-    sandbox = lifecycle_service.create(payload)
+    sandbox = await lifecycle_service.create(payload)
     version = await browser_service.browser_version(sandbox)
     response = _to_response(request, sandbox)
     response.browser.browser_version = version.get("Browser")
@@ -65,4 +66,3 @@ async def restart_browser(
     del sandbox, payload
     ok = lifecycle_service.restart_browser(sandbox_id)
     return {"ok": ok, "level": "hard"}
-

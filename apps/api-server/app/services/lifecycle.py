@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import secrets
 import shutil
 from pathlib import Path
@@ -7,12 +8,13 @@ from pathlib import Path
 from app.config import get_settings
 from app.models.sandbox import RuntimeEndpoint, SandboxRecord, SandboxStatus, utcnow
 from app.schemas.sandbox import CreateSandboxRequest
+from app.services.browser import browser_service
 from app.services.docker_adapter import docker_adapter
 from app.services.registry import registry
 
 
 class SandboxLifecycleService:
-    def create(self, req: CreateSandboxRequest) -> SandboxRecord:
+    async def create(self, req: CreateSandboxRequest) -> SandboxRecord:
         settings = get_settings()
         sandbox_id = f"sb_{secrets.token_hex(6)}"
         root = (settings.sandbox_base_dir / sandbox_id).resolve()
@@ -23,16 +25,23 @@ class SandboxLifecycleService:
         for path in (downloads, uploads, profile):
             path.mkdir(parents=True, exist_ok=True)
 
-        container_id, host = docker_adapter.create_container(
-            sandbox_id=sandbox_id,
-            workspace_dir=workspace,
-            width=req.width,
-            height=req.height,
-            default_url=req.default_url,
-            image=req.image,
-        )
+        metadata = dict(req.metadata)
+        container_id = None
+        host = "127.0.0.1"
+        status = SandboxStatus.FAILED
+        if docker_adapter.is_available():
+            container_id, host = docker_adapter.create_container(
+                sandbox_id=sandbox_id,
+                workspace_dir=workspace,
+                width=req.width,
+                height=req.height,
+                default_url=req.default_url,
+                image=req.image,
+            )
+            status = SandboxStatus.STARTING if container_id else SandboxStatus.FAILED
+        else:
+            metadata["runtime_error"] = "docker daemon unavailable"
 
-        status = SandboxStatus.RUNNING if container_id else SandboxStatus.STARTING
         sandbox = SandboxRecord(
             id=sandbox_id,
             status=status,
@@ -43,9 +52,12 @@ class SandboxLifecycleService:
             browser_profile_dir=profile,
             container_id=container_id,
             runtime=RuntimeEndpoint(host=host),
-            metadata=req.metadata,
+            metadata=metadata,
         )
-        return registry.put(sandbox)
+        registry.put(sandbox)
+        if container_id:
+            await self._wait_until_ready(sandbox_id, timeout_sec=settings.sandbox_start_timeout_sec)
+        return registry.get(sandbox_id) or sandbox
 
     def destroy(self, sandbox_id: str) -> bool:
         sandbox = registry.delete(sandbox_id)
@@ -70,6 +82,29 @@ class SandboxLifecycleService:
         registry.put(sandbox)
         return ok
 
+    async def _wait_until_ready(self, sandbox_id: str, *, timeout_sec: int) -> None:
+        deadline = asyncio.get_running_loop().time() + timeout_sec
+        while asyncio.get_running_loop().time() < deadline:
+            sandbox = registry.get(sandbox_id)
+            if sandbox is None:
+                return
+            version = await browser_service.browser_version(sandbox)
+            try:
+                window = browser_service.get_viewport(sandbox)
+            except Exception:
+                window = {"window_viewport": {"width": 0}}
+            if version.get("webSocketDebuggerUrl") and window["window_viewport"]["width"] > 0:
+                sandbox.status = SandboxStatus.RUNNING
+                sandbox.updated_at = utcnow()
+                registry.put(sandbox)
+                return
+            await asyncio.sleep(1)
+        sandbox = registry.get(sandbox_id)
+        if sandbox is not None:
+            sandbox.status = SandboxStatus.DEGRADED
+            sandbox.metadata["runtime_error"] = "sandbox readiness timed out"
+            sandbox.updated_at = utcnow()
+            registry.put(sandbox)
+
 
 lifecycle_service = SandboxLifecycleService()
-

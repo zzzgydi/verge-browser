@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     shell_exec_timeout_sec: int = 30
     shell_exec_output_limit: int = 1024 * 1024
     file_upload_limit_bytes: int = 100 * 1024 * 1024
+    sandbox_start_timeout_sec: int = 30
 
     model_config = SettingsConfigDict(
         env_prefix="VERGE_",
@@ -46,4 +47,3 @@ def get_settings() -> Settings:
     settings = Settings()
     settings.sandbox_base_dir.mkdir(parents=True, exist_ok=True)
     return settings
-

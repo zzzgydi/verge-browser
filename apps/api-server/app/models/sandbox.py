@@ -24,9 +24,10 @@ class SandboxStatus(StrEnum):
 
 class RuntimeEndpoint(BaseModel):
     host: str = "127.0.0.1"
-    cdp_port: int = 9222
+    cdp_port: int = 9223
     vnc_port: int = 6080
     display: str = ":99"
+    browser_port: int = 5900
 
 
 class SandboxRecord(BaseModel):
@@ -41,4 +42,3 @@ class SandboxRecord(BaseModel):
     container_id: str | None = None
     runtime: RuntimeEndpoint = Field(default_factory=RuntimeEndpoint)
     metadata: dict[str, Any] = Field(default_factory=dict)
-

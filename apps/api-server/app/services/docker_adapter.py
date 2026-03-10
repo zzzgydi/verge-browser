@@ -8,6 +8,13 @@ from app.config import get_settings
 
 
 class DockerAdapter:
+    def is_available(self) -> bool:
+        try:
+            proc = subprocess.run(["docker", "info"], check=False, capture_output=True, text=True)
+        except FileNotFoundError:
+            return False
+        return proc.returncode == 0
+
     def create_container(self, *, sandbox_id: str, workspace_dir: Path, width: int, height: int, default_url: str | None, image: str | None) -> tuple[str | None, str]:
         settings = get_settings()
         image_name = image or settings.sandbox_runtime_image
@@ -74,6 +81,21 @@ class DockerAdapter:
             return False
         return proc.returncode == 0
 
+    def exec(self, container_id: str, argv: list[str], *, text: bool = True, check: bool = False) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["docker", "exec", container_id, *argv],
+            check=check,
+            capture_output=True,
+            text=text,
+        )
+
+    def exec_shell(self, container_id: str, script: str, *, text: bool = True, check: bool = False) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["docker", "exec", container_id, "/bin/bash", "-lc", script],
+            check=check,
+            capture_output=True,
+            text=text,
+        )
+
 
 docker_adapter = DockerAdapter()
-

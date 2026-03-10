@@ -73,6 +73,7 @@ class ScreenshotMetadata(BaseModel):
     height: int
     page_viewport: dict[str, int]
     window_viewport: dict[str, int]
+    window_id: str | None = None
 
 
 class ScreenshotEnvelope(BaseModel):
@@ -81,4 +82,3 @@ class ScreenshotEnvelope(BaseModel):
     media_type: str
     metadata: ScreenshotMetadata
     data_base64: str
-

@@ -16,7 +16,16 @@ It provides a single-session isolated runtime with:
 
 This repository is in active build-out.
 
-The current codebase includes a working FastAPI service skeleton, sandbox lifecycle primitives, browser/files/shell/VNC route scaffolding, runtime container assets, and baseline tests. Some capabilities are intentionally still stubbed or partial, especially around real screenshot capture, full noVNC integration, and production-grade runtime orchestration.
+The current codebase now includes a working runtime image and a live end-to-end control path for the main browser sandbox loop:
+
+- runtime container boot with Chromium, Xvfb, Openbox, x11vnc, websockify, and a CDP relay
+- sandbox creation through the API
+- real window screenshots
+- real page screenshots through CDP
+- GUI action execution through `xdotool`
+- ticket-based VNC entry with noVNC asset proxying
+
+Some parts are still not production-hard yet, especially long-term lifecycle management, restart recovery semantics, and broader integration / E2E coverage.
 
 ## Why This Exists
 
@@ -61,16 +70,18 @@ Client / Agent / Human
 The repository currently implements:
 
 - FastAPI application bootstrap and configuration
-- sandbox create / get / delete flow with an in-memory registry
-- browser routes for info, screenshot, actions, restart, and CDP metadata
-- CDP browser WebSocket proxy skeleton
-- VNC ticket issuance and VNC WebSocket proxy skeleton
+- sandbox create / get / delete flow with an in-memory registry and Docker-backed runtime startup
+- browser routes for info, viewport, screenshot, actions, restart, and CDP metadata
+- real window screenshots through X11 `import`
+- real page screenshots through CDP `Page.captureScreenshot`
+- CDP browser WebSocket proxy
+- VNC ticket issuance, noVNC asset proxying, and VNC WebSocket proxy
 - shell one-shot command execution
 - interactive shell session creation with WebSocket streaming
 - file list, read, write, upload, download, and delete APIs
 - `/workspace` path safety checks
 - ticket signing, verification, and one-time consumption
-- runtime Dockerfile, supervisor configuration, and startup scripts
+- runtime Dockerfile, supervisor configuration, startup scripts, and smoke-tested Chromium runtime
 
 ## Repository Layout
 
@@ -99,21 +110,27 @@ pip install -e ".[dev]"
 uvicorn app.main:app --app-dir apps/api-server --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 3. Run tests
-
-```bash
-PYTHONPATH=apps/api-server pytest
-```
-
-## Runtime Image
-
-Build the sandbox runtime image with:
+### 3. Build the runtime image
 
 ```bash
 docker build -f docker/runtime/Dockerfile -t verge-browser-runtime:latest .
 ```
 
-The runtime image is intended to host:
+### 4. Run tests
+
+```bash
+PYTHONPATH=apps/api-server pytest
+```
+
+To include Docker-backed integration coverage:
+
+```bash
+PYTHONPATH=apps/api-server pytest -m integration
+```
+
+## Runtime Image
+
+The runtime image hosts:
 
 - Chromium
 - Xvfb
@@ -123,6 +140,8 @@ The runtime image is intended to host:
 - tmux
 - xdotool
 - supervisor
+
+It also includes a small TCP relay so the platform can expose a stable CDP entrypoint even though Chromium itself listens on the internal debugging port.
 
 ## API Surface
 
@@ -155,12 +174,10 @@ Representative endpoints:
 
 The following areas still need deeper implementation work before the project reaches the full V1 target described in [`docs/tech.md`](./docs/tech.md):
 
-- real browser window capture instead of placeholder screenshots
-- full page screenshot support through live CDP target selection
-- complete noVNC static asset serving and session handoff flow
 - stronger Docker lifecycle management and health-driven state transitions
 - production-ready browser restart and degraded-state recovery
-- broader integration and end-to-end coverage
+- shell/files/browser cross-feature integration coverage
+- broader end-to-end and failure-mode coverage
 
 ## Development Notes
 
@@ -175,10 +192,10 @@ The following areas still need deeper implementation work before the project rea
 The intended implementation order remains:
 
 1. Harden the runtime container until Chromium, CDP, and VNC are reliable.
-2. Replace placeholder browser services with real screenshot and window-inspection logic.
-3. Complete CDP proxy behavior and Playwright compatibility validation.
-4. Finish VNC ticket-to-session flow and noVNC delivery.
-5. Expand shell, file, and integration testing coverage.
+2. Expand Playwright / CDP compatibility validation beyond low-level smoke checks.
+3. Strengthen VNC session management and WebSocket lifecycle behavior.
+4. Expand shell, file, and integration testing coverage.
+5. Add failure injection tests for browser restarts and runtime degradation.
 6. Add deployment polish, observability, and production hardening.
 
 ## License

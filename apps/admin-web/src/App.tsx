@@ -22,9 +22,14 @@ type Sandbox = {
 
 const API_URL_KEY = "verge-browser.admin.api-url";
 const TOKEN_KEY = "verge-browser.admin.token";
+const DEFAULT_API_URL = window.location.origin;
 
-async function api<T>(path: string, token: string, init?: RequestInit): Promise<T> {
-  const baseUrl = localStorage.getItem(API_URL_KEY) || "http://127.0.0.1:8000";
+async function api<T>(
+  path: string,
+  token: string,
+  init?: RequestInit,
+): Promise<T> {
+  const baseUrl = localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL;
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
@@ -38,8 +43,12 @@ async function api<T>(path: string, token: string, init?: RequestInit): Promise<
     throw new Error("Unauthorized. Check the admin token.");
   }
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(payload?.detail || `Request failed with ${response.status}`);
+    const payload = (await response.json().catch(() => null)) as {
+      detail?: string;
+    } | null;
+    throw new Error(
+      payload?.detail || `Request failed with ${response.status}`,
+    );
   }
   if (response.status === 204) {
     return undefined as T;
@@ -48,8 +57,18 @@ async function api<T>(path: string, token: string, init?: RequestInit): Promise<
 }
 
 export function App() {
+  // Saved state (used for API calls)
   const [token, setToken] = useState(localStorage.getItem(TOKEN_KEY) || "");
-  const [apiUrl, setApiUrl] = useState(localStorage.getItem(API_URL_KEY) || "http://127.0.0.1:8000");
+  const [apiUrl, setApiUrl] = useState(
+    localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL,
+  );
+
+  // Form input state (separate from saved state)
+  const savedToken = localStorage.getItem(TOKEN_KEY) || "";
+  const savedApiUrl = localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL;
+  const [inputToken, setInputToken] = useState(savedToken);
+  const [inputApiUrl, setInputApiUrl] = useState(savedApiUrl);
+
   const [sandboxes, setSandboxes] = useState<Sandbox[]>([]);
   const [selected, setSelected] = useState<Sandbox | null>(null);
   const [error, setError] = useState("");
@@ -70,10 +89,13 @@ export function App() {
     setLoading(true);
     setError("");
     try {
-      const items = await api<Sandbox[]>("/sandboxes", currentToken, { method: "GET" });
+      const items = await api<Sandbox[]>("/sandboxes", currentToken, {
+        method: "GET",
+      });
       setSandboxes(items);
       if (selected) {
-        const nextSelected = items.find((item) => item.id === selected.id) || null;
+        const nextSelected =
+          items.find((item) => item.id === selected.id) || null;
         setSelected(nextSelected);
       }
     } catch (err) {
@@ -87,7 +109,9 @@ export function App() {
     setLoading(true);
     setError("");
     try {
-      const detail = await api<Sandbox>(`/sandboxes/${idOrAlias}`, token, { method: "GET" });
+      const detail = await api<Sandbox>(`/sandboxes/${idOrAlias}`, token, {
+        method: "GET",
+      });
       setSelected(detail);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
@@ -98,9 +122,10 @@ export function App() {
 
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(API_URL_KEY, apiUrl);
-    await refreshList(token);
+    localStorage.setItem(TOKEN_KEY, inputToken);
+    localStorage.setItem(API_URL_KEY, inputApiUrl);
+    setToken(inputToken);
+    setApiUrl(inputApiUrl);
   }
 
   async function createSandbox() {
@@ -125,7 +150,10 @@ export function App() {
     }
   }
 
-  async function runAction(action: "pause" | "resume" | "delete" | "vnc", sandbox: Sandbox) {
+  async function runAction(
+    action: "pause" | "resume" | "delete" | "vnc",
+    sandbox: Sandbox,
+  ) {
     setLoading(true);
     setError("");
     try {
@@ -133,13 +161,23 @@ export function App() {
         await api(`/sandboxes/${sandbox.id}`, token, { method: "DELETE" });
         setSelected(null);
       } else if (action === "vnc") {
-        const ticket = await api<{ ticket: string }>(`/sandboxes/${sandbox.id}/vnc/tickets`, token, {
-          method: "POST",
-          body: JSON.stringify({ mode: "one_time" }),
-        });
-        window.open(`${sandbox.browser.vnc_entry_base_url}?ticket=${ticket.ticket}`, "_blank", "noopener,noreferrer");
+        const ticket = await api<{ ticket: string }>(
+          `/sandboxes/${sandbox.id}/vnc/tickets`,
+          token,
+          {
+            method: "POST",
+            body: JSON.stringify({ mode: "one_time" }),
+          },
+        );
+        window.open(
+          `${sandbox.browser.vnc_entry_base_url}?ticket=${ticket.ticket}`,
+          "_blank",
+          "noopener,noreferrer",
+        );
       } else {
-        await api(`/sandboxes/${sandbox.id}/${action}`, token, { method: "POST" });
+        await api(`/sandboxes/${sandbox.id}/${action}`, token, {
+          method: "POST",
+        });
       }
       await refreshList(token);
       if (action !== "delete") {
@@ -155,6 +193,7 @@ export function App() {
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
     setToken("");
+    setInputToken("");
     setSelected(null);
     setSandboxes([]);
   }
@@ -165,15 +204,27 @@ export function App() {
         <section className="login-card">
           <p className="eyebrow">Verge Browser</p>
           <h1>Admin Console</h1>
-          <p className="muted">Use the shared admin token to manage every sandbox on this control plane.</p>
+          <p className="muted">
+            Use the shared admin token to manage every sandbox on this control
+            plane.
+          </p>
           <form onSubmit={handleLogin} className="stack">
             <label>
               API URL
-              <input value={apiUrl} onChange={(event) => setApiUrl(event.target.value)} placeholder="http://127.0.0.1:8000" />
+              <input
+                value={inputApiUrl}
+                onChange={(event) => setInputApiUrl(event.target.value)}
+                placeholder={DEFAULT_API_URL}
+              />
             </label>
             <label>
               Admin Token
-              <input value={token} onChange={(event) => setToken(event.target.value)} placeholder="Bearer token value" type="password" />
+              <input
+                value={inputToken}
+                onChange={(event) => setInputToken(event.target.value)}
+                placeholder="Bearer token value"
+                type="password"
+              />
             </label>
             <button type="submit">Open Console</button>
           </form>
@@ -191,10 +242,18 @@ export function App() {
           <h1>Sandbox Control</h1>
         </div>
         <div className="toolbar-actions">
-          <input value={createAlias} onChange={(event) => setCreateAlias(event.target.value)} placeholder="alias (optional)" />
+          <input
+            value={createAlias}
+            onChange={(event) => setCreateAlias(event.target.value)}
+            placeholder="alias (optional)"
+          />
           <button onClick={() => void createSandbox()}>Create Sandbox</button>
-          <button className="ghost" onClick={() => void refreshList()}>Refresh</button>
-          <button className="ghost" onClick={logout}>Logout</button>
+          <button className="ghost" onClick={() => void refreshList()}>
+            Refresh
+          </button>
+          <button className="ghost" onClick={logout}>
+            Logout
+          </button>
         </div>
       </section>
 
@@ -208,13 +267,19 @@ export function App() {
           </div>
           <div className="list">
             {sandboxes.map((sandbox) => (
-              <button key={sandbox.id} className={`list-item ${selected?.id === sandbox.id ? "active" : ""}`} onClick={() => void loadDetail(sandbox.id)}>
+              <button
+                key={sandbox.id}
+                className={`list-item ${selected?.id === sandbox.id ? "active" : ""}`}
+                onClick={() => void loadDetail(sandbox.id)}
+              >
                 <strong>{sandbox.alias || sandbox.id}</strong>
                 <span>{sandbox.id}</span>
                 <span>{sandbox.status}</span>
               </button>
             ))}
-            {!sandboxes.length ? <p className="muted">No sandboxes yet.</p> : null}
+            {!sandboxes.length ? (
+              <p className="muted">No sandboxes yet.</p>
+            ) : null}
           </div>
         </article>
 
@@ -226,13 +291,19 @@ export function App() {
                   <h2>{selected.alias || selected.id}</h2>
                   <p className="muted">{selected.id}</p>
                 </div>
-                <span className={`status status-${selected.status.toLowerCase()}`}>{selected.status}</span>
+                <span
+                  className={`status status-${selected.status.toLowerCase()}`}
+                >
+                  {selected.status}
+                </span>
               </div>
 
               <div className="detail-grid">
                 <div>
                   <label>Viewport</label>
-                  <p>{selected.width} x {selected.height}</p>
+                  <p>
+                    {selected.width} x {selected.height}
+                  </p>
                 </div>
                 <div>
                   <label>Created</label>
@@ -249,10 +320,21 @@ export function App() {
               </div>
 
               <div className="action-row">
-                <button onClick={() => void runAction("pause", selected)}>Pause</button>
-                <button onClick={() => void runAction("resume", selected)}>Resume</button>
-                <button onClick={() => void runAction("vnc", selected)}>Open VNC</button>
-                <button className="danger" onClick={() => void runAction("delete", selected)}>Delete</button>
+                <button onClick={() => void runAction("pause", selected)}>
+                  Pause
+                </button>
+                <button onClick={() => void runAction("resume", selected)}>
+                  Resume
+                </button>
+                <button onClick={() => void runAction("vnc", selected)}>
+                  Open VNC
+                </button>
+                <button
+                  className="danger"
+                  onClick={() => void runAction("delete", selected)}
+                >
+                  Delete
+                </button>
               </div>
 
               <div className="metadata">
@@ -264,7 +346,10 @@ export function App() {
             <div className="empty-state">
               <p className="eyebrow">Details</p>
               <h2>Select a sandbox</h2>
-              <p className="muted">The right panel shows CDP, timestamps and action entry points for the selected sandbox.</p>
+              <p className="muted">
+                The right panel shows CDP, timestamps and action entry points
+                for the selected sandbox.
+              </p>
             </div>
           )}
         </article>

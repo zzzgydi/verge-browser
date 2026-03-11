@@ -30,8 +30,6 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     ticket_secret: str = "ticket-secret"
     ticket_ttl_sec: int = 60
-    shell_exec_timeout_sec: int = 30
-    shell_exec_output_limit: int = 1024 * 1024
     file_upload_limit_bytes: int = 100 * 1024 * 1024
     sandbox_start_timeout_sec: int = 30
 

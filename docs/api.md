@@ -224,56 +224,6 @@ Proxy for noVNC static assets. Requires a valid `vnc_session` cookie.
 
 WebSocket proxy for the VNC data channel. Requires a valid `vnc_session` cookie.
 
-## Shell
-
-### `POST /sandboxes/{sandbox_id}/shell/exec`
-
-Run a one-shot shell command in the sandbox workspace.
-
-Exactly one of `argv` or `command` must be provided.
-
-Request with `argv`:
-
-```json
-{
-  "argv": ["bash", "-lc", "pwd && ls -la"],
-  "cwd": "/workspace",
-  "timeout_sec": 30
-}
-```
-
-Response:
-
-```json
-{
-  "exit_code": 0,
-  "stdout": "/workspace\n...",
-  "stderr": "",
-  "duration_ms": 18
-}
-```
-
-### `POST /sandboxes/{sandbox_id}/shell/sessions`
-
-Create an interactive shell session.
-
-Query parameters:
-
-- `cwd`: working directory, default `/workspace`
-
-Response:
-
-```json
-{
-  "session_id": "abcd1234",
-  "ws_url": "/sandboxes/{sandbox_id}/shell/sessions/abcd1234/ws"
-}
-```
-
-### `WS /sandboxes/{sandbox_id}/shell/sessions/{session_id}/ws`
-
-Interactive shell stream. Send text frames as stdin and receive text frames as stdout.
-
 ## Files
 
 ### `GET /sandboxes/{sandbox_id}/files/list?path=/workspace`

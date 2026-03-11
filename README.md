@@ -11,7 +11,6 @@ It provides a single-session isolated runtime with:
 - VNC / noVNC human takeover
 - GUI-level screenshots and input automation
 - a shared `/workspace` file system
-- shell execution and interactive terminal sessions
 - a unified REST and WebSocket control plane
 
 ## Status
@@ -38,16 +37,16 @@ Most browser automation systems focus on headless page control. That is not enou
 - browser automation through CDP
 - visual reasoning over the full browser window
 - human takeover when automation stalls
-- shared files and shell access inside the same environment
+- shared files inside the same environment
 
-Verge Browser is designed to close that gap with a runtime model that keeps browser, GUI, shell, and files in one isolated sandbox.
+Verge Browser is designed to close that gap with a runtime model that keeps browser, GUI, and files in one isolated sandbox.
 
 ## Architecture
 
 At a high level, the platform is split into two parts:
 
 1. API server
-   Exposes REST and WebSocket endpoints for sandbox lifecycle, browser control, shell access, files, CDP proxying, and ticket-based VNC access.
+   Exposes REST and WebSocket endpoints for sandbox lifecycle, browser control, files, CDP proxying, and ticket-based VNC access.
 
 2. Sandbox runtime
    Runs Chromium, Xvfb, Openbox, x11vnc, websockify, and supervisor inside a single isolated container with a shared `/workspace`.
@@ -64,7 +63,7 @@ Client / Agent / Human
         v
 +-----------------------------------------------+
 | Sandbox Runtime Container                     |
-| Xvfb + Openbox + Chromium + x11vnc + tmux     |
+| Xvfb + Openbox + Chromium + x11vnc            |
 | websockify + supervisor + /workspace          |
 +-----------------------------------------------+
 ```
@@ -77,7 +76,6 @@ The repository currently implements:
 - persisted workspace metadata and startup recovery for stopped sandboxes
 - browser info, viewport, screenshot, actions, restart, and CDP proxying
 - ticket-based VNC entry with noVNC asset proxying
-- shell one-shot execution and interactive shell sessions
 - workspace-scoped file list, read, write, upload, download, and delete operations
 - runtime Dockerfile, supervisor configuration, startup scripts, and Docker-backed integration coverage
 
@@ -159,6 +157,51 @@ docker compose -f deployments/docker-compose.yml build api runtime-image
 docker compose -f deployments/docker-compose.yml up api
 ```
 
+### Cleanup Development Containers
+
+During local development, you may accumulate many sandbox containers. Here are several ways to clean them up:
+
+**Quick cleanup - remove all verge sandbox containers:**
+
+```bash
+# List all verge browser runtime containers
+docker ps -a --filter "ancestor=verge-browser-runtime:latest" --format "table {{.ID}}\t{{.Status}}\t{{.CreatedAt}}"
+
+# Stop and remove all verge browser runtime containers
+docker ps -q --filter "ancestor=verge-browser-runtime:latest" | xargs -r docker rm -f
+
+# Also cleanup the API server container if running in Docker
+docker rm -f verge-api 2>/dev/null || true
+```
+
+**Full cleanup - remove containers and persisted data:**
+
+```bash
+# Remove all runtime containers
+docker ps -q --filter "ancestor=verge-browser-runtime:latest" | xargs -r docker rm -f
+
+# Remove persisted sandbox data (⚠️ Warning: this deletes all sandbox files)
+rm -rf .local/sandboxes
+```
+
+**Using Docker Compose:**
+
+```bash
+# Stop and remove all containers
+docker compose -f deployments/docker-compose.yml down
+
+# To also remove volumes and persisted data
+docker compose -f deployments/docker-compose.yml down -v
+```
+
+**⚠️ One-liner for full development reset (DANGEROUS):**
+
+> **WARNING: This will permanently delete ALL sandbox files in `.local/sandboxes/` including downloads, uploads, and browser profiles. Make sure you have backed up any important data before running this command.**
+
+```bash
+docker ps -q --filter "ancestor=verge-browser-runtime:latest" | xargs -r docker rm -f && rm -rf .local/sandboxes
+```
+
 ### Run Tests
 
 ```bash
@@ -183,12 +226,10 @@ Common flows:
   Always creates a fresh sandbox and prints a browser-ready noVNC URL that you can open directly.
 - `tests/scripts/browser-smoke.sh`
   Saves browser metadata plus window and page screenshots under `tests/scripts/.artifacts/`.
-- `tests/scripts/file-shell-smoke.sh`
-  Verifies that `/workspace` files are visible from both the file API and shell exec.
 - `tests/scripts/restart-browser.sh`
   Restarts Chromium and saves browser info before and after.
 - `tests/scripts/full-manual-tour.sh`
-  Runs the most useful create + screenshot + shell/files + VNC flow end to end.
+  Runs the most useful create + screenshot + files + VNC flow end to end.
 - `tests/scripts/cleanup-sandbox.sh`
   Deletes a sandbox when you pass `SANDBOX_ID=...`.
 
@@ -219,7 +260,6 @@ The runtime image hosts:
 - Openbox
 - x11vnc
 - noVNC / websockify
-- tmux
 - xdotool
 - supervisor
 
@@ -231,13 +271,24 @@ The API follows the `/sandboxes/{sandbox_id}/...` routing model from [`docs/tech
 
 Detailed endpoint documentation lives in [`docs/api.md`](./docs/api.md).
 
+## Scope
+
+Verge Browser focuses purely on browser control:
+- Browser lifecycle (create, pause, resume, delete)
+- Browser automation via CDP
+- GUI screenshots and input actions
+- VNC human takeover
+- File system for sharing data with the browser
+
+Arbitrary command execution is intentionally excluded to keep the surface area minimal and the focus sharp.
+
 ## What Is Still In Progress
 
 The following areas still need deeper implementation work before the project reaches the full V1 target described in [`docs/tech.md`](./docs/tech.md):
 
 - stronger Docker lifecycle management and health-driven state transitions
 - production-ready browser crash recovery and degraded-state handling
-- shell/files/browser cross-feature integration coverage
+- file/browser integration coverage
 - broader end-to-end and failure-mode coverage
 
 ## Development Notes
@@ -256,7 +307,7 @@ The intended implementation order remains:
 1. Harden the runtime container until Chromium, CDP, and VNC are reliable.
 2. Expand Playwright / CDP compatibility validation beyond low-level smoke checks.
 3. Strengthen VNC session management and WebSocket lifecycle behavior.
-4. Expand shell, file, and integration testing coverage.
+4. Expand file and integration testing coverage.
 5. Add failure injection tests for browser restarts and runtime degradation.
 6. Add deployment polish, observability, and production hardening.
 

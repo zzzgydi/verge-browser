@@ -10,7 +10,7 @@ Verge Browser is a browser sandbox system for agent workflows. The current repos
 - take real window and page screenshots
 - execute GUI actions
 - open a ticketed VNC entry
-- run shell and file APIs inside the same workspace
+- run file APIs inside the same workspace
 
 ## Repository Conventions
 

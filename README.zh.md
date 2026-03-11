@@ -11,7 +11,6 @@ Verge Browser 是一个面向智能体工作流的浏览器沙箱平台。
 - VNC / noVNC 人工接管
 - GUI 级截图和输入自动化
 - 共享的 `/workspace` 文件系统
-- Shell 执行和交互式终端会话
 - 统一的 REST 和 WebSocket 控制平面
 
 ## 状态
@@ -38,16 +37,16 @@ Verge Browser 是一个面向智能体工作流的浏览器沙箱平台。
 - 通过 CDP 进行浏览器自动化
 - 对整个浏览器窗口进行视觉推理
 - 自动化卡住时的人工接管
-- 在同一环境内共享文件和 Shell 访问
+- 在同一环境内共享文件
 
-Verge Browser 旨在通过一种运行时模型来弥合这一差距，该模型将浏览器、GUI、Shell 和文件整合在一个隔离的沙箱中。
+Verge Browser 旨在通过一种运行时模型来弥合这一差距，该模型将浏览器、GUI 和文件整合在一个隔离的沙箱中。
 
 ## 架构
 
 从高层次看，平台分为两部分：
 
 1. API 服务器
-   暴露 REST 和 WebSocket 端点，用于沙箱生命周期、浏览器控制、Shell 访问、文件、CDP 代理和基于票据的 VNC 访问。
+   暴露 REST 和 WebSocket 端点，用于沙箱生命周期、浏览器控制、文件、CDP 代理和基于票据的 VNC 访问。
 
 2. 沙箱运行时
    在单个隔离容器中运行 Chromium、Xvfb、Openbox、x11vnc、websockify 和 supervisor，并共享 `/workspace`。
@@ -64,7 +63,7 @@ Verge Browser 旨在通过一种运行时模型来弥合这一差距，该模型
         v
 +-----------------------------------------------+
 | 沙箱运行时容器                                |
-| Xvfb + Openbox + Chromium + x11vnc + tmux     |
+| Xvfb + Openbox + Chromium + x11vnc            |
 | websockify + supervisor + /workspace          |
 +-----------------------------------------------+
 ```
@@ -77,7 +76,6 @@ Verge Browser 旨在通过一种运行时模型来弥合这一差距，该模型
 - 工作目录元数据持久化，以及停止态沙箱的启动恢复
 - 浏览器信息、视口、截图、操作、重启和 CDP 代理
 - 基于票据的 VNC 入口，支持 noVNC 资源代理
-- Shell 一次性执行和交互式 Shell 会话
 - 工作空间范围的文件列表、读取、写入、上传、下载和删除操作
 - 运行时 Dockerfile、supervisor 配置、启动脚本和基于 Docker 的集成测试
 
@@ -159,6 +157,51 @@ docker compose -f deployments/docker-compose.yml build api runtime-image
 docker compose -f deployments/docker-compose.yml up api
 ```
 
+### 清理开发容器
+
+在本地开发过程中，你可能会积累大量沙箱容器。以下是几种清理方法：
+
+**快速清理 - 移除所有 verge sandbox 容器：**
+
+```bash
+# 列出所有 verge browser runtime 容器
+docker ps -a --filter "ancestor=verge-browser-runtime:latest" --format "table {{.ID}}\t{{.Status}}\t{{.CreatedAt}}"
+
+# 停止并移除所有 verge browser runtime 容器
+docker ps -q --filter "ancestor=verge-browser-runtime:latest" | xargs -r docker rm -f
+
+# 如果使用 Docker 运行 API 服务器，也一并清理
+docker rm -f verge-api 2>/dev/null || true
+```
+
+**完整清理 - 移除容器和持久化数据：**
+
+```bash
+# 移除所有运行时容器
+docker ps -q --filter "ancestor=verge-browser-runtime:latest" | xargs -r docker rm -f
+
+# 移除持久化的沙箱数据（⚠️ 警告：这会删除所有沙箱文件）
+rm -rf .local/sandboxes
+```
+
+**使用 Docker Compose：**
+
+```bash
+# 停止并移除所有容器
+docker compose -f deployments/docker-compose.yml down
+
+# 同时移除卷和持久化数据
+docker compose -f deployments/docker-compose.yml down -v
+```
+
+**⚠️ 一键重置开发环境（危险操作）：**
+
+> **警告：此命令会永久删除 `.local/sandboxes/` 目录下的所有沙箱文件，包括下载文件、上传文件和浏览器配置文件。运行前请确保已备份重要数据。**
+
+```bash
+docker ps -q --filter "ancestor=verge-browser-runtime:latest" | xargs -r docker rm -f && rm -rf .local/sandboxes
+```
+
 ### 运行测试
 
 ```bash
@@ -183,12 +226,10 @@ PYTHONPATH=apps/api-server pytest -m integration
   始终创建一个新沙箱并打印可直接打开的浏览器就绪 noVNC URL。
 - `tests/scripts/browser-smoke.sh`
   将浏览器元数据以及窗口和页面截图保存到 `tests/scripts/.artifacts/`。
-- `tests/scripts/file-shell-smoke.sh`
-  验证 `/workspace` 文件是否可从文件 API 和 Shell 执行中访问。
 - `tests/scripts/restart-browser.sh`
   重启 Chromium 并在重启前后保存浏览器信息。
 - `tests/scripts/full-manual-tour.sh`
-  运行最有用的创建 + 截图 + Shell/文件 + VNC 端到端流程。
+  运行最有用的创建 + 截图 + 文件 + VNC 端到端流程。
 - `tests/scripts/cleanup-sandbox.sh`
   当传入 `SANDBOX_ID=...` 时删除沙箱。
 
@@ -219,7 +260,6 @@ export AUTH_TOKEN="<jwt>"
 - Openbox
 - x11vnc
 - noVNC / websockify
-- tmux
 - xdotool
 - supervisor
 
@@ -237,7 +277,7 @@ API 遵循 [`docs/tech.md`](./docs/tech.md) 中的 `/sandboxes/{sandbox_id}/...`
 
 - 更强的 Docker 生命周期管理和基于健康检查的状态转换
 - 生产就绪的浏览器崩溃恢复和降级状态处理
-- Shell/文件/浏览器跨功能集成覆盖
+- 文件/浏览器集成覆盖
 - 更广泛的端到端和故障模式覆盖
 
 ## 开发说明
@@ -256,7 +296,7 @@ API 遵循 [`docs/tech.md`](./docs/tech.md) 中的 `/sandboxes/{sandbox_id}/...`
 1. 强化运行时容器，直到 Chromium、CDP 和 VNC 稳定可靠。
 2. 将 Playwright / CDP 兼容性验证扩展到低级冒烟检查之外。
 3. 加强 VNC 会话管理和 WebSocket 生命周期行为。
-4. 扩展 Shell、文件和集成测试覆盖。
+4. 扩展文件和集成测试覆盖。
 5. 为浏览器重启和运行时降级添加故障注入测试。
 6. 添加部署优化、可观测性和生产加固。
 

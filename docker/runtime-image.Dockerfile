@@ -25,7 +25,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wmctrl \
     x11-utils \
     imagemagick \
-    tmux \
     curl \
     supervisor \
     fonts-noto-core \

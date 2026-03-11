@@ -18,6 +18,8 @@ Verge Browser is a browser sandbox system for agent workflows. The current repos
 - Runtime scripts live in `apps/sandbox-runtime/scripts`.
 - Supervisor wiring lives in `apps/sandbox-runtime/supervisor`.
 - Integration tests that require Docker live under `tests/integration`.
+- Use **Conventional Commits** for all `git commit` messages.
+- Do not leak local developer information in generated code or `git commit` messages, including machine-specific paths, usernames, home directories, or other local environment details.
 
 ## Development Workflow
 

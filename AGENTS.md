@@ -16,6 +16,8 @@ The source of truth for product and system design is `docs/tech.md`.
 - Keep the API contract aligned with the `/sandboxes/{sandbox_id}/...` routing model.
 - Treat the runtime container and the API server as one integrated system. Do not change one without validating the other.
 - Avoid introducing host-specific absolute paths into code, docs, tests, or examples.
+- Use **Conventional Commits** for all `git commit` messages.
+- Do not leak local developer information in generated code or `git commit` messages, including machine-specific paths, usernames, home directories, or other local environment details.
 
 ## Key Runtime Facts
 

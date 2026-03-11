@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import itertools
+import json
+import time
 from pathlib import Path
 
 import pytest
@@ -10,6 +13,24 @@ from app.services.docker_adapter import docker_adapter
 
 
 pytestmark = pytest.mark.integration
+
+
+def _cdp_call(ws, counter: itertools.count, method: str, params: dict | None = None, *, session_id: str | None = None) -> dict:
+    payload: dict[str, object] = {
+        "id": next(counter),
+        "method": method,
+        "params": params or {},
+    }
+    if session_id is not None:
+        payload["sessionId"] = session_id
+    ws.send_text(json.dumps(payload))
+    while True:
+        message = json.loads(ws.receive_text())
+        if message.get("id") != payload["id"]:
+            continue
+        if "error" in message:
+            raise AssertionError(f"CDP {method} failed: {message['error']}")
+        return message.get("result", {})
 
 
 @pytest.fixture()
@@ -81,38 +102,73 @@ def test_runtime_browser_endpoints(docker_runtime_ready: None, clean_sandbox_bas
         assert deleted.status_code == 204
 
 
-def test_runtime_shell_and_files_endpoints(docker_runtime_ready: None, clean_sandbox_base: Path) -> None:
+def test_runtime_files_endpoints(docker_runtime_ready: None, clean_sandbox_base: Path) -> None:
     del clean_sandbox_base
     client = TestClient(app)
-    created = client.post("/sandboxes", json={})
+    created = client.post("/sandboxes", json={"default_url": "about:blank"})
     assert created.status_code == 201, created.text
     sandbox_id = created.json()["id"]
 
     try:
-        write_resp = client.post(
-            f"/sandboxes/{sandbox_id}/files/write",
-            json={"path": "/workspace/notes.txt", "content": "hello verge", "overwrite": True},
-        )
-        assert write_resp.status_code == 200
+        with client.websocket_connect(f"/sandboxes/{sandbox_id}/browser/cdp/browser") as ws:
+            counter = itertools.count(1)
+            _cdp_call(
+                ws,
+                counter,
+                "Browser.setDownloadBehavior",
+                {"behavior": "allow", "downloadPath": "/workspace/downloads", "eventsEnabled": True},
+            )
+            targets = _cdp_call(ws, counter, "Target.getTargets")["targetInfos"]
+            page_target = next(target for target in targets if target.get("type") == "page")
+            session_id = _cdp_call(
+                ws,
+                counter,
+                "Target.attachToTarget",
+                {"targetId": page_target["targetId"], "flatten": True},
+            )["sessionId"]
+            _cdp_call(ws, counter, "Page.enable", session_id=session_id)
+            _cdp_call(ws, counter, "Runtime.enable", session_id=session_id)
+            _cdp_call(ws, counter, "Page.navigate", {"url": "about:blank"}, session_id=session_id)
+            _cdp_call(
+                ws,
+                counter,
+                "Runtime.evaluate",
+                {
+                    "expression": """
+(() => {
+  const blob = new Blob(['hello verge download'], {type: 'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'notes.txt';
+  document.body.appendChild(anchor);
+  anchor.click();
+  return 'download-triggered';
+})()
+""",
+                    "awaitPromise": True,
+                },
+                session_id=session_id,
+            )
 
-        read_resp = client.get(f"/sandboxes/{sandbox_id}/files/read", params={"path": "/workspace/notes.txt"})
+        deadline = time.time() + 10
+        seen_names: list[str] = []
+        while time.time() < deadline:
+            list_resp = client.get(f"/sandboxes/{sandbox_id}/files/list", params={"path": "/workspace/downloads"})
+            assert list_resp.status_code == 200
+            seen_names = [entry["name"] for entry in list_resp.json()]
+            if "notes.txt" in seen_names:
+                break
+            time.sleep(0.25)
+        assert "notes.txt" in seen_names
+
+        read_resp = client.get(f"/sandboxes/{sandbox_id}/files/read", params={"path": "/workspace/downloads/notes.txt"})
         assert read_resp.status_code == 200
-        assert read_resp.json()["content"] == "hello verge"
+        assert read_resp.json()["content"] == "hello verge download"
 
-        list_resp = client.get(f"/sandboxes/{sandbox_id}/files/list", params={"path": "/workspace"})
-        assert list_resp.status_code == 200
-        assert any(entry["name"] == "notes.txt" for entry in list_resp.json())
-
-        download_resp = client.get(f"/sandboxes/{sandbox_id}/files/download", params={"path": "/workspace/notes.txt"})
+        download_resp = client.get(f"/sandboxes/{sandbox_id}/files/download", params={"path": "/workspace/downloads/notes.txt"})
         assert download_resp.status_code == 200
-        assert download_resp.text == "hello verge"
-
-        shell_resp = client.post(
-            f"/sandboxes/{sandbox_id}/shell/exec",
-            json={"argv": ["bash", "-lc", "pwd && cat notes.txt"], "cwd": "/workspace"},
-        )
-        assert shell_resp.status_code == 200
-        assert "hello verge" in shell_resp.json()["stdout"]
+        assert download_resp.text == "hello verge download"
 
         restart_resp = client.post(f"/sandboxes/{sandbox_id}/browser/restart", json={"level": "hard"})
         assert restart_resp.status_code == 200

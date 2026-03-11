@@ -103,7 +103,11 @@ def test_runtime_browser_endpoints(docker_runtime_ready: None, clean_sandbox_bas
 
         ticket_resp = client.post(f"/sandboxes/{sandbox_id}/vnc/tickets")
         assert ticket_resp.status_code == 200
-        ticket = ticket_resp.json()["ticket"]
+        ticket_payload = ticket_resp.json()
+        assert ticket_payload["mode"] == "one_time"
+        assert ticket_payload["ttl_sec"] == 60
+        assert ticket_payload["expires_at"] is not None
+        ticket = ticket_payload["ticket"]
 
         vnc_entry = client.get(f"/sandboxes/{sandbox_id}/vnc/?ticket={ticket}", follow_redirects=False)
         assert vnc_entry.status_code == 302

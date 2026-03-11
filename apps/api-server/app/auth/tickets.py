@@ -12,6 +12,8 @@ from fastapi import HTTPException, status
 
 from app.config import get_settings
 
+TicketMode = str
+
 
 class TicketStore:
     def __init__(self) -> None:
@@ -41,15 +43,29 @@ def _sign(data: bytes) -> str:
     return hmac.new(settings.ticket_secret.encode(), data, hashlib.sha256).hexdigest()
 
 
-def issue_ticket(*, sandbox_id: str, subject: str, ticket_type: str, scope: str, ttl_sec: int | None = None) -> str:
+def issue_ticket(
+    *,
+    sandbox_id: str,
+    subject: str,
+    ticket_type: str,
+    scope: str,
+    ttl_sec: int | None = None,
+    mode: TicketMode = "one_time",
+) -> str:
     settings = get_settings()
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_sec or settings.ticket_ttl_sec)
+    if mode not in {"one_time", "reusable", "permanent"}:
+        raise ValueError(f"unsupported ticket mode: {mode}")
+
+    expires_at: datetime | None = None
+    if mode != "permanent":
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_sec or settings.ticket_ttl_sec)
     payload = {
         "sandbox_id": sandbox_id,
         "sub": subject,
         "type": ticket_type,
         "scope": scope,
-        "exp": int(expires_at.timestamp()),
+        "mode": mode,
+        "exp": int(expires_at.timestamp()) if expires_at else None,
         "jti": secrets.token_hex(16),
     }
     raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
@@ -70,8 +86,9 @@ def verify_ticket(token: str, *, sandbox_id: str, ticket_type: str, scope: str, 
     payload = json.loads(raw.decode())
     if payload["sandbox_id"] != sandbox_id or payload["type"] != ticket_type or payload["scope"] != scope:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ticket scope mismatch")
-    if datetime.now(timezone.utc).timestamp() > payload["exp"]:
+    exp = payload.get("exp")
+    if exp is not None and datetime.now(timezone.utc).timestamp() > exp:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="ticket expired")
-    if consume:
-        ticket_store.consume(payload["jti"], payload["exp"])
+    if consume and payload.get("mode", "one_time") == "one_time":
+        ticket_store.consume(payload["jti"], exp if exp is not None else 4102444800)
     return payload

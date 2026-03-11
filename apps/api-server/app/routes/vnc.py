@@ -11,8 +11,10 @@ from fastapi.responses import RedirectResponse
 import websockets
 
 from app.auth.tickets import issue_ticket, verify_ticket
+from app.config import get_settings
 from app.deps import get_current_subject, require_sandbox
 from app.models.sandbox import SandboxStatus
+from app.schemas.sandbox import CreateVncTicketRequest, CreateVncTicketResponse
 
 router = APIRouter(prefix="/sandboxes/{sandbox_id}/vnc", tags=["vnc"])
 _vnc_sessions: dict[str, dict[str, object]] = {}
@@ -68,12 +70,34 @@ def _ensure_vnc_proxy_ready(sandbox) -> None:
 @router.post("/tickets")
 async def create_vnc_ticket(
     sandbox_id: str,
+    request: CreateVncTicketRequest | None = None,
     subject: str = Depends(get_current_subject),
     sandbox=Depends(require_sandbox),
-) -> dict[str, str]:
+) -> CreateVncTicketResponse:
     del sandbox
-    ticket = issue_ticket(sandbox_id=sandbox_id, subject=subject, ticket_type="vnc", scope="connect")
-    return {"ticket": ticket}
+    settings = get_settings()
+    ticket_request = request or CreateVncTicketRequest()
+    try:
+        ticket = issue_ticket(
+            sandbox_id=sandbox_id,
+            subject=subject,
+            ticket_type="vnc",
+            scope="connect",
+            ttl_sec=ticket_request.ttl_sec,
+            mode=ticket_request.mode,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    expires_at = None
+    if ticket_request.mode != "permanent":
+        ttl_sec = ticket_request.ttl_sec or settings.ticket_ttl_sec
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_sec)
+    return CreateVncTicketResponse(
+        ticket=ticket,
+        mode=ticket_request.mode,
+        ttl_sec=None if ticket_request.mode == "permanent" else (ticket_request.ttl_sec or settings.ticket_ttl_sec),
+        expires_at=expires_at,
+    )
 
 
 @router.get("/", response_class=HTMLResponse)

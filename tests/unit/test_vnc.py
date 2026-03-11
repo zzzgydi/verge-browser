@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 from app.routes import vnc
 from app.models.sandbox import RuntimeEndpoint, SandboxRecord, SandboxStatus
+from app.schemas.sandbox import CreateVncTicketRequest
 
 
 def test_create_vnc_session_prunes_expired_entries() -> None:
@@ -48,6 +49,36 @@ async def test_vnc_entry_enables_autoconnect_and_scaling(monkeypatch: pytest.Mon
     assert response.headers["location"] == "/sandboxes/sb_test/vnc/vnc.html?path=/sandboxes/sb_test/vnc/websockify&resize=scale&autoconnect=true"
     assert "vnc_session=" in response.headers["set-cookie"]
     vnc._vnc_sessions.clear()
+
+
+@pytest.mark.asyncio
+async def test_create_vnc_ticket_supports_permanent_mode() -> None:
+    response = await vnc.create_vnc_ticket(
+        "sb_test",
+        request=CreateVncTicketRequest(mode="permanent"),
+        subject="user-1",
+        sandbox=object(),
+    )
+
+    assert response.mode == "permanent"
+    assert response.ttl_sec is None
+    assert response.expires_at is None
+
+
+@pytest.mark.asyncio
+async def test_create_vnc_ticket_supports_custom_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(vnc, "get_settings", lambda: type("Settings", (), {"ticket_ttl_sec": 60})())
+
+    response = await vnc.create_vnc_ticket(
+        "sb_test",
+        request=CreateVncTicketRequest(mode="reusable", ttl_sec=120),
+        subject="user-1",
+        sandbox=object(),
+    )
+
+    assert response.mode == "reusable"
+    assert response.ttl_sec == 120
+    assert response.expires_at is not None
 
 
 def test_ensure_vnc_proxy_ready_rejects_failed_sandbox_with_runtime_error() -> None:

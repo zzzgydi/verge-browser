@@ -39,3 +39,14 @@ class SandboxResponse(BaseModel):
 class RestartBrowserRequest(BaseModel):
     level: Literal["hard"] = "hard"
 
+
+class CreateVncTicketRequest(BaseModel):
+    mode: Literal["one_time", "reusable", "permanent"] = "one_time"
+    ttl_sec: int | None = Field(default=None, ge=1, le=86400)
+
+
+class CreateVncTicketResponse(BaseModel):
+    ticket: str
+    mode: Literal["one_time", "reusable", "permanent"]
+    ttl_sec: int | None
+    expires_at: datetime | None

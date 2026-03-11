@@ -14,6 +14,54 @@ def test_ticket_verify_and_consume() -> None:
         verify_ticket(ticket, sandbox_id="sb_1", ticket_type="vnc", scope="connect", consume=True)
 
 
+def test_reusable_ticket_can_be_verified_multiple_times() -> None:
+    ticket = issue_ticket(
+        sandbox_id="sb_1",
+        subject="u1",
+        ticket_type="vnc",
+        scope="connect",
+        ttl_sec=30,
+        mode="reusable",
+    )
+
+    first = verify_ticket(ticket, sandbox_id="sb_1", ticket_type="vnc", scope="connect", consume=True)
+    second = verify_ticket(ticket, sandbox_id="sb_1", ticket_type="vnc", scope="connect", consume=True)
+
+    assert first["mode"] == "reusable"
+    assert second["mode"] == "reusable"
+
+
+def test_permanent_ticket_does_not_expire() -> None:
+    ticket = issue_ticket(
+        sandbox_id="sb_1",
+        subject="u1",
+        ticket_type="vnc",
+        scope="connect",
+        mode="permanent",
+    )
+
+    payload = verify_ticket(ticket, sandbox_id="sb_1", ticket_type="vnc", scope="connect", consume=True)
+
+    assert payload["mode"] == "permanent"
+    assert payload["exp"] is None
+
+
+def test_permanent_ticket_ignores_ttl() -> None:
+    ticket = issue_ticket(
+        sandbox_id="sb_1",
+        subject="u1",
+        ticket_type="vnc",
+        scope="connect",
+        ttl_sec=30,
+        mode="permanent",
+    )
+
+    payload = verify_ticket(ticket, sandbox_id="sb_1", ticket_type="vnc", scope="connect", consume=True)
+
+    assert payload["mode"] == "permanent"
+    assert payload["exp"] is None
+
+
 def test_ticket_store_rejects_concurrent_duplicate_consume() -> None:
     store = TicketStore()
 

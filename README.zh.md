@@ -94,7 +94,14 @@ tests/                单元测试
 
 ## 快速开始
 
-### 1. 创建虚拟环境
+### 方式一：本地开发
+
+**前置依赖：**
+
+- Python 3.11+
+- Docker（用于构建和运行运行时镜像）
+
+**1. 安装依赖**
 
 ```bash
 python3 -m venv .venv
@@ -102,23 +109,49 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-### 2. 启动 API 服务器
-
-```bash
-uvicorn app.main:app --app-dir apps/api-server --host 0.0.0.0 --port 8000 --reload
-```
-
-### 3. 构建运行时镜像
+**2. 构建运行时镜像**
 
 ```bash
 docker build -f docker/runtime-image.Dockerfile -t verge-browser-runtime:latest .
 ```
 
-### 4. 使用 Docker Compose 运行完整栈
+**3. 启动 API 服务器**
 
-API 服务本身可以跑在 Docker 里，但它需要访问宿主机 Docker daemon，因为 sandbox 是以同级容器的方式启动的。
+```bash
+uvicorn app.main:app --app-dir apps/api-server --host 0.0.0.0 --port 8000 --reload
+```
 
-在仓库根目录执行：
+API 会监听在 [http://127.0.0.1:8000](http://127.0.0.1:8000)。
+
+### 方式二：Docker 部署（推荐）
+
+完全使用 Docker 运行 API 服务和运行时。
+
+```bash
+# 构建运行时镜像（包含 Chromium、VNC 等）
+docker build -f docker/runtime-image.Dockerfile -t verge-browser-runtime:latest .
+
+# 构建 API 服务器镜像
+docker build -f docker/api-server.Dockerfile -t verge-browser-api:latest .
+
+# 创建沙箱持久化目录
+mkdir -p .local/sandboxes
+
+# 运行 API 服务器容器
+docker run -d \
+  --name verge-api \
+  -p 8000:8000 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$(pwd)/.local/sandboxes:/app/.local/sandboxes" \
+  -e VERGE_SANDBOX_BASE_DIR=/app/.local/sandboxes \
+  verge-browser-api:latest
+```
+
+API 会监听在 [http://127.0.0.1:8000](http://127.0.0.1:8000)。
+
+### 方式三：Docker Compose
+
+使用提供的 compose 文件快速启动：
 
 ```bash
 export PROJECT_ROOT="$PWD"
@@ -126,15 +159,7 @@ docker compose -f deployments/docker-compose.yml build api runtime-image
 docker compose -f deployments/docker-compose.yml up api
 ```
 
-之所以需要 `PROJECT_ROOT`：
-
-- API 容器必须以和宿主机相同的绝对路径看到仓库
-- sandbox 工作目录的 bind mount 是由宿主机 Docker daemon 创建的
-- 这样 `VERGE_SANDBOX_BASE_DIR` 在容器内外都指向同一个有效路径
-
-随后 API 会监听在 [http://127.0.0.1:8000](http://127.0.0.1:8000)。
-
-### 5. 运行测试
+### 运行测试
 
 ```bash
 PYTHONPATH=apps/api-server pytest
@@ -146,7 +171,7 @@ PYTHONPATH=apps/api-server pytest
 PYTHONPATH=apps/api-server pytest -m integration
 ```
 
-### 6. 手动冒烟脚本
+### 手动冒烟脚本
 
 人性化的冒烟脚本位于 [`tests/scripts`](./tests/scripts)。
 

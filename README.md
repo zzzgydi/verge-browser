@@ -94,7 +94,14 @@ tests/                Unit tests
 
 ## Quick Start
 
-### 1. Create a virtual environment
+### Option 1: Local Development
+
+**Prerequisites:**
+
+- Python 3.11+
+- Docker (for building and running the runtime image)
+
+**1. Install dependencies**
 
 ```bash
 python3 -m venv .venv
@@ -102,23 +109,49 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-### 2. Start the API server
-
-```bash
-uvicorn app.main:app --app-dir apps/api-server --host 0.0.0.0 --port 8000 --reload
-```
-
-### 3. Build the runtime image
+**2. Build the runtime image**
 
 ```bash
 docker build -f docker/runtime-image.Dockerfile -t verge-browser-runtime:latest .
 ```
 
-### 4. Run the full stack with Docker Compose
+**3. Start the API server**
 
-The API server can run inside Docker, but it needs access to the host Docker daemon because sandboxes are launched as sibling containers.
+```bash
+uvicorn app.main:app --app-dir apps/api-server --host 0.0.0.0 --port 8000 --reload
+```
 
-From the repository root:
+The API will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+### Option 2: Docker Deployment (Recommended)
+
+Run the API server and runtime entirely in Docker.
+
+```bash
+# Build the runtime image (contains Chromium, VNC, etc.)
+docker build -f docker/runtime-image.Dockerfile -t verge-browser-runtime:latest .
+
+# Build the API server image
+docker build -f docker/api-server.Dockerfile -t verge-browser-api:latest .
+
+# Create a directory for sandbox persistence
+mkdir -p .local/sandboxes
+
+# Run the API server container
+docker run -d \
+  --name verge-api \
+  -p 8000:8000 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$(pwd)/.local/sandboxes:/app/.local/sandboxes" \
+  -e VERGE_SANDBOX_BASE_DIR=/app/.local/sandboxes \
+  verge-browser-api:latest
+```
+
+The API will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+### Option 3: Docker Compose
+
+For convenience, use the provided compose file:
 
 ```bash
 export PROJECT_ROOT="$PWD"
@@ -126,15 +159,7 @@ docker compose -f deployments/docker-compose.yml build api runtime-image
 docker compose -f deployments/docker-compose.yml up api
 ```
 
-Why `PROJECT_ROOT` is required:
-
-- the API container must see the repo at the same absolute path as the host
-- sandbox workspace bind mounts are created by the host Docker daemon
-- this keeps `VERGE_SANDBOX_BASE_DIR` valid both inside the API container and on the host
-
-The API will then be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
-
-### 5. Run tests
+### Run Tests
 
 ```bash
 PYTHONPATH=apps/api-server pytest
@@ -146,7 +171,7 @@ To include Docker-backed integration coverage:
 PYTHONPATH=apps/api-server pytest -m integration
 ```
 
-### 6. Manual smoke scripts
+### Manual Smoke Scripts
 
 Human-friendly smoke scripts live under [`tests/scripts`](./tests/scripts).
 

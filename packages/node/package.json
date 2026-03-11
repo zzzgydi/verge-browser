@@ -1,0 +1,21 @@
+{
+  "name": "@verge-browser/cli",
+  "version": "0.1.0",
+  "description": "Node.js CLI for Verge Browser",
+  "type": "module",
+  "bin": {
+    "verge-browser": "./src/cli.js"
+  },
+  "scripts": {
+    "check": "node --check src/cli.js && node --check src/client.js && node --check src/errors.js"
+  },
+  "keywords": [
+    "cli",
+    "browser",
+    "sandbox"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

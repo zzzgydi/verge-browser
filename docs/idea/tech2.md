@@ -2,7 +2,7 @@
 
 ## 1. 文档定位
 
-本文档基于 `docs/spec/req.md` 的产品愿景，对 `docs/spec/t1.md` 和 `docs/spec/t2.md` 两份技术方案进行辩证分析，取两者之长，形成一份可直接指导开发的综合性技术文档。
+本文档基于 `docs/idea/req.md` 的产品愿景，对 `docs/idea/t1.md` 和 `docs/idea/t2.md` 两份技术方案进行辩证分析，取两者之长，形成一份可直接指导开发的综合性技术文档。
 
 ---
 
@@ -234,7 +234,7 @@ verge-browser/
 │   └── runtime-image.Dockerfile
 │
 └── docs/
-    ├── spec/
+    ├── idea/
     │   ├── req.md
     │   ├── t1.md
     │   ├── t2.md

@@ -2,7 +2,7 @@
 
 ## 1. 文档目标
 
-本文档以 `docs/spec/req.md` 为最高约束，吸收 `docs/spec/t1.md` 与 `docs/spec/t2.md` 的有效部分，输出一份更适合作为后续实现依据的统一技术方案。
+本文档以 `docs/idea/req.md` 为最高约束，吸收 `docs/idea/t1.md` 与 `docs/idea/t2.md` 的有效部分，输出一份更适合作为后续实现依据的统一技术方案。
 
 目标不是继续扩写愿景，而是回答 4 个实际问题：
 
@@ -461,7 +461,7 @@ CLI 名称固定：
 
 `verge-browser`
 
-CLI 设计参考 `docs/spec/tech2.md`，采用“两层命令面”：
+CLI 设计参考 `docs/idea/tech2.md`，采用“两层命令面”：
 
 - `sandbox` 层：负责实例生命周期、VNC、CDP、alias 管理
 - 直达操作层：负责 screenshot、action，以及后续的 page/element agent-first 命令

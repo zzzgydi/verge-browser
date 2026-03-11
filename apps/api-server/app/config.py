@@ -2,6 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,6 +41,16 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def validate_secrets(self) -> "Settings":
+        if self.env == "development":
+            return self
+        if self.jwt_secret == "dev-secret" or len(self.jwt_secret) < 32:
+            raise ValueError("VERGE_JWT_SECRET must be set to a non-default value with at least 32 characters outside development")
+        if self.ticket_secret == "ticket-secret" or len(self.ticket_secret) < 32:
+            raise ValueError("VERGE_TICKET_SECRET must be set to a non-default value with at least 32 characters outside development")
+        return self
 
 
 @lru_cache

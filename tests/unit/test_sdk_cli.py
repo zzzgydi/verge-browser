@@ -5,7 +5,7 @@ import json
 import httpx
 import pytest
 
-from verge_browser import VergeAuthError, VergeClient, VergeConfigError, VergeConflictError
+from verge_browser import VergeClient, VergeConfigError, VergeConflictError
 from verge_browser_cli import main
 
 

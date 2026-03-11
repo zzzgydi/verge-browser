@@ -21,7 +21,9 @@ exec chromium \
   --disable-gpu \
   --disable-popup-blocking \
   --disable-features=TranslateUI \
+  --window-position=0,0 \
   --window-size="${BROWSER_WINDOW_WIDTH},${BROWSER_WINDOW_HEIGHT}" \
+  --start-maximized \
   --user-data-dir="${BROWSER_USER_DATA_DIR}" \
   --remote-debugging-address=0.0.0.0 \
   --remote-debugging-port=9222 \

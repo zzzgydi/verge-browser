@@ -48,7 +48,10 @@ def test_runtime_browser_endpoints(docker_runtime_ready: None, clean_sandbox_bas
 
         viewport = client.get(f"/sandboxes/{sandbox_id}/browser/viewport")
         assert viewport.status_code == 200
-        assert viewport.json()["window_viewport"]["width"] > 0
+        viewport_payload = viewport.json()
+        assert viewport_payload["window_viewport"]["width"] > 0
+        assert viewport_payload["active_window"]["x"] == 0
+        assert viewport_payload["active_window"]["y"] == 0
 
         window_shot = client.get(f"/sandboxes/{sandbox_id}/browser/screenshot?type=window")
         assert window_shot.status_code == 200

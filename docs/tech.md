@@ -378,6 +378,11 @@ DISPLAY=:99 openbox
 - 足够稳定
 - 不需要复杂桌面组件
 
+运行时约束：
+
+- Chromium 窗口必须由 openbox 规则固定在 `(0,0)` 并启动即最大化
+- 必须禁用会导致整窗拖拽/缩放的窗口管理器鼠标绑定，避免 noVNC 人工接管时把浏览器窗口本身拖离视口
+
 ### 8.3 Chromium 启动参数
 
 推荐参数：
@@ -391,7 +396,9 @@ google-chrome \
   --disable-dev-shm-usage \
   --disable-popup-blocking \
   --disable-features=TranslateUI \
+  --window-position=0,0 \
   --window-size=1280,1024 \
+  --start-maximized \
   --user-data-dir=/workspace/browser-profile \
   --remote-debugging-address=127.0.0.1 \
   --remote-debugging-port=9222 \

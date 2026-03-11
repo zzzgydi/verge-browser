@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
+import useSWR, { mutate } from "swr";
 
 type Sandbox = {
   id: string;
@@ -23,6 +24,8 @@ type Sandbox = {
 const API_URL_KEY = "verge-browser.admin.api-url";
 const TOKEN_KEY = "verge-browser.admin.token";
 const DEFAULT_API_URL = window.location.origin;
+
+const SWR_CONFIG_KEY = "sandboxes";
 
 async function api<T>(
   path: string,
@@ -56,12 +59,41 @@ async function api<T>(
   return response.json() as Promise<T>;
 }
 
+function useSandboxes(token: string) {
+  const { data, error, isLoading, isValidating } = useSWR<Sandbox[]>(
+    token ? [SWR_CONFIG_KEY, token] : null,
+    ([, t]: [string, string]) => api<Sandbox[]>("/sandboxes", t, { method: "GET" }),
+    {
+      revalidateOnFocus: true,
+      refreshInterval: 30000,
+    },
+  );
+
+  return {
+    sandboxes: data || [],
+    error,
+    isLoading,
+    isValidating,
+    refresh: () => mutate([SWR_CONFIG_KEY, token]),
+  };
+}
+
+function useSandboxDetail(token: string, idOrAlias: string | null) {
+  const { data, error, isLoading } = useSWR<Sandbox>(
+    token && idOrAlias ? [`${SWR_CONFIG_KEY}/${idOrAlias}`, token, idOrAlias] : null,
+    ([, t, id]: [string, string, string]) => api<Sandbox>(`/sandboxes/${id}`, t, { method: "GET" }),
+  );
+
+  return {
+    detail: data || null,
+    error,
+    isLoading,
+  };
+}
+
 export function App() {
   // Saved state (used for API calls)
   const [token, setToken] = useState(localStorage.getItem(TOKEN_KEY) || "");
-  const [apiUrl, setApiUrl] = useState(
-    localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL,
-  );
 
   // Form input state (separate from saved state)
   const savedToken = localStorage.getItem(TOKEN_KEY) || "";
@@ -69,68 +101,26 @@ export function App() {
   const [inputToken, setInputToken] = useState(savedToken);
   const [inputApiUrl, setInputApiUrl] = useState(savedApiUrl);
 
-  const [sandboxes, setSandboxes] = useState<Sandbox[]>([]);
-  const [selected, setSelected] = useState<Sandbox | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
   const [createAlias, setCreateAlias] = useState("");
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-    void refreshList(token);
-  }, [token]);
+  const { sandboxes, isLoading: isListLoading, isValidating, refresh } = useSandboxes(token);
+  const { detail: selected } = useSandboxDetail(token, selectedId);
 
-  async function refreshList(currentToken = token) {
-    if (!currentToken) {
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const items = await api<Sandbox[]>("/sandboxes", currentToken, {
-        method: "GET",
-      });
-      setSandboxes(items);
-      if (selected) {
-        const nextSelected =
-          items.find((item) => item.id === selected.id) || null;
-        setSelected(nextSelected);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadDetail(idOrAlias: string) {
-    setLoading(true);
-    setError("");
-    try {
-      const detail = await api<Sandbox>(`/sandboxes/${idOrAlias}`, token, {
-        method: "GET",
-      });
-      setSelected(detail);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const error = actionError;
 
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
     localStorage.setItem(TOKEN_KEY, inputToken);
     localStorage.setItem(API_URL_KEY, inputApiUrl);
     setToken(inputToken);
-    setApiUrl(inputApiUrl);
   }
 
   async function createSandbox() {
-    setLoading(true);
-    setError("");
+    setIsActionLoading(true);
+    setActionError("");
     try {
       const detail = await api<Sandbox>("/sandboxes", token, {
         method: "POST",
@@ -141,12 +131,12 @@ export function App() {
         }),
       });
       setCreateAlias("");
-      await refreshList(token);
-      setSelected(detail);
+      await refresh();
+      setSelectedId(detail.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
+      setActionError(err instanceof Error ? err.message : "Request failed");
     } finally {
-      setLoading(false);
+      setIsActionLoading(false);
     }
   }
 
@@ -154,12 +144,12 @@ export function App() {
     action: "pause" | "resume" | "delete" | "vnc",
     sandbox: Sandbox,
   ) {
-    setLoading(true);
-    setError("");
+    setIsActionLoading(true);
+    setActionError("");
     try {
       if (action === "delete") {
         await api(`/sandboxes/${sandbox.id}`, token, { method: "DELETE" });
-        setSelected(null);
+        setSelectedId(null);
       } else if (action === "vnc") {
         const ticket = await api<{ ticket: string }>(
           `/sandboxes/${sandbox.id}/vnc/tickets`,
@@ -179,14 +169,11 @@ export function App() {
           method: "POST",
         });
       }
-      await refreshList(token);
-      if (action !== "delete") {
-        await loadDetail(sandbox.id);
-      }
+      await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
+      setActionError(err instanceof Error ? err.message : "Request failed");
     } finally {
-      setLoading(false);
+      setIsActionLoading(false);
     }
   }
 
@@ -194,8 +181,7 @@ export function App() {
     localStorage.removeItem(TOKEN_KEY);
     setToken("");
     setInputToken("");
-    setSelected(null);
-    setSandboxes([]);
+    setSelectedId(null);
   }
 
   if (!token) {
@@ -247,10 +233,10 @@ export function App() {
             onChange={(event) => setCreateAlias(event.target.value)}
             placeholder="alias (optional)"
           />
-          <button className="create-btn" onClick={() => void createSandbox()}>
-            Create Sandbox
+          <button className="create-btn" onClick={() => void createSandbox()} disabled={isActionLoading}>
+            {isActionLoading ? "Creating..." : "Create Sandbox"}
           </button>
-          <button className="ghost" onClick={() => void refreshList()}>
+          <button className="ghost" onClick={() => void refresh()}>
             Refresh
           </button>
           <button className="ghost" onClick={logout}>
@@ -265,14 +251,14 @@ export function App() {
         <article className="panel">
           <div className="panel-header">
             <h2>Sandboxes</h2>
-            <span>{loading ? "Syncing..." : `${sandboxes.length} total`}</span>
+            <span>{isListLoading || isValidating ? "Syncing..." : `${sandboxes.length} total`}</span>
           </div>
           <div className="list">
             {sandboxes.map((sandbox) => (
               <button
                 key={sandbox.id}
-                className={`list-item ${selected?.id === sandbox.id ? "active" : ""}`}
-                onClick={() => void loadDetail(sandbox.id)}
+                className={`list-item ${selectedId === sandbox.id ? "active" : ""}`}
+                onClick={() => setSelectedId(sandbox.id)}
               >
                 <strong>{sandbox.alias || sandbox.id}</strong>
                 <span>{sandbox.id}</span>
@@ -322,18 +308,19 @@ export function App() {
               </div>
 
               <div className="action-row">
-                <button onClick={() => void runAction("pause", selected)}>
+                <button onClick={() => void runAction("pause", selected)} disabled={isActionLoading}>
                   Pause
                 </button>
-                <button onClick={() => void runAction("resume", selected)}>
+                <button onClick={() => void runAction("resume", selected)} disabled={isActionLoading}>
                   Resume
                 </button>
-                <button onClick={() => void runAction("vnc", selected)}>
+                <button onClick={() => void runAction("vnc", selected)} disabled={isActionLoading}>
                   Open VNC
                 </button>
                 <button
                   className="danger"
                   onClick={() => void runAction("delete", selected)}
+                  disabled={isActionLoading}
                 >
                   Delete
                 </button>

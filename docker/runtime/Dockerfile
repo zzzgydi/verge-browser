@@ -29,6 +29,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     supervisor \
     fonts-noto-core \
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
+    fonts-liberation \
+    fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /workspace/downloads /workspace/uploads /workspace/browser-profile /var/log/sandbox /run/sandbox /opt/sandbox/scripts
@@ -37,6 +41,8 @@ COPY apps/sandbox-runtime/scripts/ /opt/sandbox/scripts/
 COPY apps/sandbox-runtime/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 RUN chmod +x /opt/sandbox/scripts/*.sh
+
+RUN fc-cache -f
 
 EXPOSE 9223 5900 6080
 

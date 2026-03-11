@@ -32,13 +32,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-color-emoji \
     fonts-liberation \
     fontconfig \
+    fcitx \
+    fcitx-bin \
+    fcitx-table-all \
+    fcitx-googlepinyin \
+    fcitx-config-gtk \
+    fcitx-frontend-all \
+    fcitx-frontend-gtk2 \
+    fcitx-frontend-gtk3 \
+    fcitx-ui-classic \
+    dbus-x11 \
+    locales \
+    && echo "zh_CN.UTF-8 UTF-8" > /etc/locale.gen \
+    && locale-gen \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /workspace/downloads /workspace/uploads /workspace/browser-profile /var/log/sandbox /run/sandbox /opt/sandbox/scripts
+ENV XMODIFIERS="@im=fcitx" \
+    GTK_IM_MODULE="fcitx" \
+    QT_IM_MODULE="fcitx" \
+    LC_ALL=zh_CN.UTF-8 \
+    LANG=zh_CN.UTF-8
+
+RUN mkdir -p /workspace/downloads /workspace/uploads /workspace/browser-profile /var/log/sandbox /run/sandbox /opt/sandbox/scripts /root/.config/fcitx
 
 COPY apps/sandbox-runtime/scripts/ /opt/sandbox/scripts/
 COPY apps/sandbox-runtime/openbox/ /opt/sandbox/openbox/
 COPY apps/sandbox-runtime/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY apps/sandbox-runtime/fcitx/profile /root/.config/fcitx/profile
 
 RUN chmod +x /opt/sandbox/scripts/*.sh
 

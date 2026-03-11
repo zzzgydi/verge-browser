@@ -1,0 +1,50 @@
+[Appearance]
+# Show Status Icon
+# Available value:
+# True
+# False
+#ShowStatusIcon=True
+# Lookup Table Page Size
+#LookupTablePageSize=5
+# Minimum Length of the Input Method Name
+#MinIMNameLength=0
+# Font
+#Font=Sans
+# Font Size
+#FontSize=0
+# Font in Menu
+#MenuFont=Sans
+# Font Size in Menu
+#MenuFontSize=0
+# Use System Tray Icon
+# Available value:
+# True
+# False
+#UseSystemTrayIcon=True
+# Use Status Area of XIM
+# Available value:
+# True
+# False
+#UseStatusArea=True
+
+[Description]
+# Enable
+# Available value:
+# True
+# False
+#Enable=True
+
+[InputMethod]
+# Default Input Method
+# Default:
+# fcitx-keyboard-us
+# Available value:
+# (any input method)
+DefaultIM=fcitx-keyboard-us
+# Input Method List
+# Format:
+# (input method name):(enable/disable)
+# Separate each input method with a comma.
+# Example:
+# fcitx-keyboard-us:True,googlepinyin:True
+IMList=fcitx-keyboard-us:True,fcitx-googlepinyin:True

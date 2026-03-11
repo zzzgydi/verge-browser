@@ -11,6 +11,11 @@ DEFAULT_URL="${DEFAULT_URL:-https://github.com/zzzgydi/verge-browser}"
 mkdir -p "${BROWSER_USER_DATA_DIR}" "${BROWSER_DOWNLOAD_DIR}" /tmp/chrome-cache
 rm -f "${BROWSER_USER_DATA_DIR}"/Singleton{Cookie,Lock,Socket} || true
 
+# Set IM environment variables
+export XMODIFIERS="@im=fcitx"
+export GTK_IM_MODULE="fcitx"
+export QT_IM_MODULE="fcitx"
+
 exec chromium \
   --display="${DISPLAY_NUM}" \
   --no-sandbox \
@@ -29,5 +34,4 @@ exec chromium \
   --remote-debugging-port=9222 \
   --disk-cache-dir=/tmp/chrome-cache \
   --force-color-profile=srgb \
-  --lang=en-US \
   "${DEFAULT_URL}"

@@ -22,6 +22,9 @@
       </mousebind>
     </context>
   </mouse>
+  <keyboard>
+    <chainQuitKey>C-g</chainQuitKey>
+  </keyboard>
   <applications>
     <application class="chromium">
       <decor>no</decor>

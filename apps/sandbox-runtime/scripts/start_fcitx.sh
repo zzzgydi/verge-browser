@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure HOME is set
+# Ensure HOME and config directory are set for fcitx5
 export HOME=/root
-mkdir -p $HOME/.config/fcitx
+mkdir -p $HOME/.config/fcitx5
+cp /root/.config/fcitx5/profile_src $HOME/.config/fcitx5/profile || true
 
 # Wait for X server to be ready
 MAX_RETRIES=30
@@ -14,9 +15,9 @@ until xdpyinfo -display "$DISPLAY" > /dev/null 2>&1 || [ $COUNT -eq $MAX_RETRIES
     COUNT=$((COUNT + 1))
 done
 
-# Clean up old fcitx sockets/locks
+# Clean up old fcitx5 sockets/locks
 rm -rf /tmp/fcitx*
-rm -rf $HOME/.config/fcitx/dbus/*
+rm -rf $HOME/.config/fcitx5/dbus/*
 
 # Set IM environment variables
 export XMODIFIERS="@im=fcitx"
@@ -25,6 +26,7 @@ export QT_IM_MODULE="fcitx"
 export LC_ALL=zh_CN.UTF-8
 export LANG=zh_CN.UTF-8
 
-# Use dbus-run-session to ensure fcitx has a valid dbus connection
-# -D: do not run as daemon
-exec dbus-run-session -- fcitx -D 2>&1
+echo "Starting fcitx5 in foreground..."
+# fcitx5 -d: daemon (we don't want)
+# just run fcitx5, it will stay in foreground
+exec fcitx5 2>&1

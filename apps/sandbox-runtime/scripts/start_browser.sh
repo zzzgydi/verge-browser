@@ -15,8 +15,24 @@ rm -f "${BROWSER_USER_DATA_DIR}"/Singleton{Cookie,Lock,Socket} || true
 export XMODIFIERS="@im=fcitx"
 export GTK_IM_MODULE="fcitx"
 export QT_IM_MODULE="fcitx"
+export CLUTTER_IM_MODULE="fcitx"
+export LC_ALL=zh_CN.UTF-8
+export LANG=zh_CN.UTF-8
+export LC_CTYPE=zh_CN.UTF-8
+
+# Wait for fcitx5 and chromium to be fully ready, then try to switch once
+(
+  sleep 10
+  echo "Force activating input method via fcitx5-remote..."
+  fcitx5-remote -o || true
+) &
 
 exec chromium \
+  --lang=zh-CN \
+  --gtk-version=3 \
+  --enable-features=UseOzonePlatform \
+  --ozone-platform=x11 \
+  --enable-input-method-proxy \
   --display="${DISPLAY_NUM}" \
   --no-sandbox \
   --no-first-run \

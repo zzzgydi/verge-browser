@@ -172,6 +172,7 @@ input {
 .list {
   display: grid;
   gap: 0.75rem;
+  align-content: start;
   overflow-y: auto;
   flex: 1;
   min-height: 0;

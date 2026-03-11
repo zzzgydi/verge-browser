@@ -4,11 +4,11 @@ from contextlib import suppress
 from fastapi import APIRouter, Depends, Query, Request, WebSocket, WebSocketDisconnect
 import websockets
 
-from app.deps import get_base_url, get_ws_subject, require_sandbox
+from app.deps import get_base_url, get_current_subject, get_ws_subject, require_sandbox
 from app.schemas.browser import BrowserActionsRequest, BrowserActionsResponse, ScreenshotEnvelope, ScreenshotType
 from app.services.browser import browser_service
 
-router = APIRouter(prefix="/sandboxes/{sandbox_id}", tags=["browser"])
+router = APIRouter(prefix="/sandboxes/{sandbox_id}", tags=["browser"], dependencies=[Depends(get_current_subject)])
 
 
 @router.get("/browser/info")

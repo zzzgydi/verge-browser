@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import FileResponse
 
-from app.deps import require_sandbox
+from app.deps import get_current_subject, require_sandbox
 from app.schemas.files import FileEntry, WriteFileRequest
 from app.services.files import file_service
 
-router = APIRouter(prefix="/sandboxes/{sandbox_id}/files", tags=["files"])
+router = APIRouter(prefix="/sandboxes/{sandbox_id}/files", tags=["files"], dependencies=[Depends(get_current_subject)])
 
 
 @router.get("/list", response_model=list[FileEntry])

@@ -23,6 +23,13 @@ class SandboxRegistry:
         with self._lock:
             return self._items.get(sandbox_id)
 
+    def get_by_alias(self, alias: str) -> SandboxRecord | None:
+        with self._lock:
+            for sandbox in self._items.values():
+                if sandbox.alias == alias:
+                    return sandbox
+        return None
+
     def delete(self, sandbox_id: str) -> SandboxRecord | None:
         with self._lock:
             return self._items.pop(sandbox_id, None)
@@ -49,9 +56,11 @@ class SandboxRegistry:
                     runtime_payload = payload.get("runtime") or {}
                     sandbox = SandboxRecord(
                         id=payload["id"],
+                        alias=payload.get("alias"),
                         status=SandboxStatus.STOPPED,
                         created_at=payload["created_at"],
                         updated_at=payload["updated_at"],
+                        last_active_at=payload.get("last_active_at", payload["updated_at"]),
                         width=payload.get("width", 1280),
                         height=payload.get("height", 1024),
                         image=payload.get("image"),
@@ -81,8 +90,10 @@ class SandboxRegistry:
         tmp_file = root / ".meta.json.tmp"
         payload = {
             "id": sandbox.id,
+            "alias": sandbox.alias,
             "created_at": sandbox.created_at.isoformat(),
             "updated_at": sandbox.updated_at.isoformat(),
+            "last_active_at": sandbox.last_active_at.isoformat(),
             "status": sandbox.status,
             "width": sandbox.width,
             "height": sandbox.height,

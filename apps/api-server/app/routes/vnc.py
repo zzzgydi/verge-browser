@@ -21,6 +21,10 @@ _vnc_sessions: dict[str, dict[str, object]] = {}
 _vnc_sessions_lock = Lock()
 
 
+def _canonical_sandbox_id(sandbox, fallback: str) -> str:
+    return str(getattr(sandbox, "id", fallback))
+
+
 def _prune_vnc_sessions(now: datetime | None = None) -> None:
     current = now or datetime.now(timezone.utc)
     expired = [
@@ -74,12 +78,12 @@ async def create_vnc_ticket(
     subject: str = Depends(get_current_subject),
     sandbox=Depends(require_sandbox),
 ) -> CreateVncTicketResponse:
-    del sandbox
     settings = get_settings()
     ticket_request = request or CreateVncTicketRequest()
+    canonical_id = _canonical_sandbox_id(sandbox, sandbox_id)
     try:
         ticket = issue_ticket(
-            sandbox_id=sandbox_id,
+            sandbox_id=canonical_id,
             subject=subject,
             ticket_type="vnc",
             scope="connect",
@@ -102,11 +106,11 @@ async def create_vnc_ticket(
 
 @router.get("/", response_class=HTMLResponse)
 async def vnc_entry(sandbox_id: str, ticket: str = Query(...), sandbox=Depends(require_sandbox)) -> Response:
-    verify_ticket(ticket, sandbox_id=sandbox_id, ticket_type="vnc", scope="connect", consume=True)
-    session_id = _create_vnc_session(sandbox_id)
-    del sandbox
-    query = f"path=/sandboxes/{sandbox_id}/vnc/websockify&resize=scale&autoconnect=true"
-    response = RedirectResponse(url=f"/sandboxes/{sandbox_id}/vnc/vnc.html?{query}", status_code=302)
+    canonical_id = _canonical_sandbox_id(sandbox, sandbox_id)
+    verify_ticket(ticket, sandbox_id=canonical_id, ticket_type="vnc", scope="connect", consume=True)
+    session_id = _create_vnc_session(canonical_id)
+    query = f"path=/sandboxes/{canonical_id}/vnc/websockify&resize=scale&autoconnect=true"
+    response = RedirectResponse(url=f"/sandboxes/{canonical_id}/vnc/vnc.html?{query}", status_code=302)
     response.set_cookie("vnc_session", session_id, httponly=True, max_age=600, samesite="lax")
     return response
 
@@ -118,7 +122,7 @@ async def vnc_asset_proxy(
     sandbox=Depends(require_sandbox),
     vnc_session: str | None = Cookie(default=None),
 ) -> Response:
-    _validate_vnc_session(vnc_session, sandbox_id)
+    _validate_vnc_session(vnc_session, _canonical_sandbox_id(sandbox, sandbox_id))
     _ensure_vnc_proxy_ready(sandbox)
     return await _proxy_vnc_asset(sandbox, asset_path or "vnc.html")
 
@@ -138,9 +142,10 @@ async def _proxy_vnc_asset(sandbox, asset_path: str, query: str | None = None) -
 @router.websocket("/websockify")
 async def vnc_websockify_proxy(websocket: WebSocket, sandbox_id: str) -> None:
     sandbox = require_sandbox(sandbox_id)
+    canonical_id = _canonical_sandbox_id(sandbox, sandbox_id)
     session_id = websocket.cookies.get("vnc_session")
     try:
-        _validate_vnc_session(session_id, sandbox_id)
+        _validate_vnc_session(session_id, canonical_id)
     except HTTPException:
         await websocket.close(code=4401, reason="invalid vnc session")
         return

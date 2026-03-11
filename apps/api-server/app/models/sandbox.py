@@ -32,9 +32,11 @@ class RuntimeEndpoint(BaseModel):
 
 class SandboxRecord(BaseModel):
     id: str
+    alias: str | None = None
     status: SandboxStatus
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+    last_active_at: datetime = Field(default_factory=utcnow)
     width: int = 1280
     height: int = 1024
     image: str | None = None

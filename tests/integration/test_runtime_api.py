@@ -14,6 +14,7 @@ from app.services.registry import registry
 
 
 pytestmark = pytest.mark.integration
+AUTH_HEADERS = {"Authorization": "Bearer dev-admin-token"}
 
 
 def _cdp_call(ws, counter: itertools.count, method: str, params: dict | None = None, *, session_id: str | None = None) -> dict:
@@ -70,38 +71,39 @@ def clean_sandbox_base(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_runtime_browser_endpoints(docker_runtime_ready: None, clean_sandbox_base: Path) -> None:
     del clean_sandbox_base
     client = TestClient(app)
-    created = client.post("/sandboxes", json={})
+    created = client.post("/sandboxes", json={}, headers=AUTH_HEADERS)
     assert created.status_code == 201, created.text
     sandbox_id = created.json()["id"]
 
     try:
-        browser_info = client.get(f"/sandboxes/{sandbox_id}/browser/info")
+        browser_info = client.get(f"/sandboxes/{sandbox_id}/browser/info", headers=AUTH_HEADERS)
         assert browser_info.status_code == 200
         assert browser_info.json()["web_socket_debugger_url_present"] is True
 
-        viewport = client.get(f"/sandboxes/{sandbox_id}/browser/viewport")
+        viewport = client.get(f"/sandboxes/{sandbox_id}/browser/viewport", headers=AUTH_HEADERS)
         assert viewport.status_code == 200
         viewport_payload = viewport.json()
         assert viewport_payload["window_viewport"]["width"] > 0
         assert viewport_payload["active_window"]["x"] == 0
         assert viewport_payload["active_window"]["y"] == 0
 
-        window_shot = client.get(f"/sandboxes/{sandbox_id}/browser/screenshot?type=window")
+        window_shot = client.get(f"/sandboxes/{sandbox_id}/browser/screenshot?type=window", headers=AUTH_HEADERS)
         assert window_shot.status_code == 200
         assert len(window_shot.json()["data_base64"]) > 100
 
-        page_shot = client.get(f"/sandboxes/{sandbox_id}/browser/screenshot?type=page")
+        page_shot = client.get(f"/sandboxes/{sandbox_id}/browser/screenshot?type=page", headers=AUTH_HEADERS)
         assert page_shot.status_code == 200
         assert len(page_shot.json()["data_base64"]) > 100
 
         actions = client.post(
             f"/sandboxes/{sandbox_id}/browser/actions",
             json={"actions": [{"type": "WAIT", "duration_ms": 5}]},
+            headers=AUTH_HEADERS,
         )
         assert actions.status_code == 200
         assert actions.json()["ok"] is True
 
-        ticket_resp = client.post(f"/sandboxes/{sandbox_id}/vnc/tickets")
+        ticket_resp = client.post(f"/sandboxes/{sandbox_id}/vnc/tickets", headers=AUTH_HEADERS)
         assert ticket_resp.status_code == 200
         ticket_payload = ticket_resp.json()
         assert ticket_payload["mode"] == "one_time"
@@ -114,19 +116,19 @@ def test_runtime_browser_endpoints(docker_runtime_ready: None, clean_sandbox_bas
         assert vnc_entry.headers["location"] == f"/sandboxes/{sandbox_id}/vnc/vnc.html?path=/sandboxes/{sandbox_id}/vnc/websockify&resize=scale&autoconnect=true"
         assert "vnc_session" in vnc_entry.cookies
     finally:
-        deleted = client.delete(f"/sandboxes/{sandbox_id}")
+        deleted = client.delete(f"/sandboxes/{sandbox_id}", headers=AUTH_HEADERS)
         assert deleted.status_code == 204
 
 
 def test_runtime_files_endpoints(docker_runtime_ready: None, clean_sandbox_base: Path) -> None:
     del clean_sandbox_base
     client = TestClient(app)
-    created = client.post("/sandboxes", json={"default_url": "about:blank"})
+    created = client.post("/sandboxes", json={"default_url": "about:blank"}, headers=AUTH_HEADERS)
     assert created.status_code == 201, created.text
     sandbox_id = created.json()["id"]
 
     try:
-        with client.websocket_connect(f"/sandboxes/{sandbox_id}/browser/cdp/browser") as ws:
+        with client.websocket_connect(f"/sandboxes/{sandbox_id}/browser/cdp/browser", headers=AUTH_HEADERS) as ws:
             counter = itertools.count(1)
             _cdp_call(
                 ws,
@@ -170,7 +172,7 @@ def test_runtime_files_endpoints(docker_runtime_ready: None, clean_sandbox_base:
         deadline = time.time() + 10
         seen_names: list[str] = []
         while time.time() < deadline:
-            list_resp = client.get(f"/sandboxes/{sandbox_id}/files/list", params={"path": "/workspace/downloads"})
+            list_resp = client.get(f"/sandboxes/{sandbox_id}/files/list", params={"path": "/workspace/downloads"}, headers=AUTH_HEADERS)
             assert list_resp.status_code == 200
             seen_names = [entry["name"] for entry in list_resp.json()]
             if "notes.txt" in seen_names:
@@ -178,17 +180,17 @@ def test_runtime_files_endpoints(docker_runtime_ready: None, clean_sandbox_base:
             time.sleep(0.25)
         assert "notes.txt" in seen_names
 
-        read_resp = client.get(f"/sandboxes/{sandbox_id}/files/read", params={"path": "/workspace/downloads/notes.txt"})
+        read_resp = client.get(f"/sandboxes/{sandbox_id}/files/read", params={"path": "/workspace/downloads/notes.txt"}, headers=AUTH_HEADERS)
         assert read_resp.status_code == 200
         assert read_resp.json()["content"] == "hello verge download"
 
-        download_resp = client.get(f"/sandboxes/{sandbox_id}/files/download", params={"path": "/workspace/downloads/notes.txt"})
+        download_resp = client.get(f"/sandboxes/{sandbox_id}/files/download", params={"path": "/workspace/downloads/notes.txt"}, headers=AUTH_HEADERS)
         assert download_resp.status_code == 200
         assert download_resp.text == "hello verge download"
 
-        restart_resp = client.post(f"/sandboxes/{sandbox_id}/browser/restart", json={"level": "hard"})
+        restart_resp = client.post(f"/sandboxes/{sandbox_id}/browser/restart", json={"level": "hard"}, headers=AUTH_HEADERS)
         assert restart_resp.status_code == 200
         assert restart_resp.json()["level"] == "hard"
     finally:
-        deleted = client.delete(f"/sandboxes/{sandbox_id}")
+        deleted = client.delete(f"/sandboxes/{sandbox_id}", headers=AUTH_HEADERS)
         assert deleted.status_code == 204

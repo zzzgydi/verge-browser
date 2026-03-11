@@ -26,8 +26,7 @@ class Settings(BaseSettings):
     sandbox_default_width: int = 1280
     sandbox_default_height: int = 1024
 
-    jwt_secret: str = "dev-secret"
-    jwt_algorithm: str = "HS256"
+    admin_auth_token: str = "dev-admin-token"
     ticket_secret: str = "ticket-secret"
     ticket_ttl_sec: int = 60
     file_upload_limit_bytes: int = 100 * 1024 * 1024
@@ -42,10 +41,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_secrets(self) -> "Settings":
+        if not self.admin_auth_token:
+            raise ValueError("VERGE_ADMIN_AUTH_TOKEN must be set")
         if self.env == "development":
             return self
-        if self.jwt_secret == "dev-secret" or len(self.jwt_secret) < 32:
-            raise ValueError("VERGE_JWT_SECRET must be set to a non-default value with at least 32 characters outside development")
+        if self.admin_auth_token == "dev-admin-token" or len(self.admin_auth_token) < 16:
+            raise ValueError("VERGE_ADMIN_AUTH_TOKEN must be set to a non-default value outside development")
         if self.ticket_secret == "ticket-secret" or len(self.ticket_secret) < 32:
             raise ValueError("VERGE_TICKET_SECRET must be set to a non-default value with at least 32 characters outside development")
         return self

@@ -245,10 +245,10 @@ If your API server is not on `http://127.0.0.1:8000`, set:
 export BASE_URL="http://127.0.0.1:8000"
 ```
 
-If you want to attach a bearer token, set:
+Business APIs now require the admin bearer token. Set:
 
 ```bash
-export AUTH_TOKEN="<jwt>"
+export AUTH_TOKEN="<admin-token>"
 ```
 
 ## Runtime Image
@@ -270,6 +270,8 @@ It also includes a small TCP relay so the platform can expose a stable CDP entry
 The API follows the `/sandboxes/{sandbox_id}/...` routing model from [`docs/tech.md`](./docs/tech.md).
 
 Detailed endpoint documentation lives in [`docs/api.md`](./docs/api.md).
+
+SDK and CLI usage examples live in [`docs/cli-sdk.md`](./docs/cli-sdk.md).
 
 ## Scope
 

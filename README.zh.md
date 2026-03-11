@@ -245,10 +245,10 @@ tests/scripts/full-manual-tour.sh
 export BASE_URL="http://127.0.0.1:8000"
 ```
 
-如果你想附加承载令牌，请设置：
+业务 API 现在要求携带 admin bearer token。请设置：
 
 ```bash
-export AUTH_TOKEN="<jwt>"
+export AUTH_TOKEN="<admin-token>"
 ```
 
 ## 运行时镜像
@@ -270,6 +270,8 @@ export AUTH_TOKEN="<jwt>"
 API 遵循 [`docs/tech.md`](./docs/tech.md) 中的 `/sandboxes/{sandbox_id}/...` 路由模型。
 
 详细的端点文档位于 [`docs/api.md`](./docs/api.md)。
+
+SDK 和 CLI 的使用示例位于 [`docs/cli-sdk.md`](./docs/cli-sdk.md)。
 
 ## 仍在进行中的工作
 

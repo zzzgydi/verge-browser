@@ -6,7 +6,8 @@ Base convention:
 
 - REST resources are scoped under `/sandboxes/{sandbox_id}/...`
 - WebSocket resources follow the same sandbox scoping model
-- `Authorization: Bearer <token>` is optional in the current build; without it the subject defaults to `anonymous`
+- All business APIs require `Authorization: Bearer <admin-token>`
+- `GET /healthz` remains anonymous
 
 ## Health
 
@@ -38,6 +39,7 @@ Request body:
 
 ```json
 {
+  "alias": "manual-test",
   "image": "verge-browser-runtime:latest",
   "default_url": "https://github.com/zzzgydi/verge-browser",
   "width": 1440,
@@ -51,18 +53,39 @@ Request body:
 Response highlights:
 
 - `id`: sandbox ID
+- `alias`: human-readable sandbox alias
 - `status`: lifecycle status
+- `updated_at` / `last_active_at`: lifecycle timestamps
 - `browser.cdp_url`: external CDP proxy URL
 - `browser.vnc_entry_base_url`: VNC landing URL prefix
 - `browser.vnc_ticket_endpoint`: endpoint for a one-time VNC ticket
 
+### `GET /sandboxes`
+
+Return all sandboxes with status, alias, timestamps, metadata, CDP URL, and VNC entry info.
+
 ### `GET /sandboxes/{sandbox_id}`
 
-Return current sandbox metadata and browser access info.
+Return current sandbox metadata and browser access info. The path parameter accepts either the real sandbox ID or the configured alias.
+
+### `PATCH /sandboxes/{sandbox_id}`
+
+Update mutable sandbox fields.
+
+Request body:
+
+```json
+{
+  "alias": "manual-test-renamed",
+  "metadata": {
+    "owner": "agent"
+  }
+}
+```
 
 ### `DELETE /sandboxes/{sandbox_id}`
 
-Destroy the sandbox and delete the workspace directory.
+Destroy the sandbox and delete the workspace directory. The path parameter accepts either the real sandbox ID or the configured alias.
 
 ### `POST /sandboxes/{sandbox_id}/pause`
 

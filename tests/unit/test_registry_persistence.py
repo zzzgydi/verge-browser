@@ -12,6 +12,8 @@ from app.models.sandbox import RuntimeEndpoint, SandboxRecord, SandboxStatus
 from app.services.docker_adapter import ManagedContainer
 from app.services.registry import SandboxRegistry, registry
 
+AUTH_HEADERS = {"Authorization": "Bearer dev-admin-token"}
+
 
 @pytest.fixture(autouse=True)
 def reset_registry_and_settings() -> None:
@@ -29,9 +31,11 @@ def test_registry_persists_metadata_and_recovers_stopped_sandbox(tmp_path: Path)
     workspace_dir = base_dir / "sb_saved" / "workspace"
     sandbox = SandboxRecord(
         id="sb_saved",
+        alias="saved",
         status=SandboxStatus.RUNNING,
         created_at="2026-03-11T00:00:00+00:00",
         updated_at="2026-03-11T01:00:00+00:00",
+        last_active_at="2026-03-11T01:00:00+00:00",
         width=1440,
         height=900,
         image="custom-runtime:1",
@@ -50,6 +54,7 @@ def test_registry_persists_metadata_and_recovers_stopped_sandbox(tmp_path: Path)
     assert meta_file.exists()
     payload = json.loads(meta_file.read_text())
     assert "workspace_dir" not in payload
+    assert payload["alias"] == "saved"
     assert payload["image"] == "custom-runtime:1"
 
     restored = SandboxRegistry()
@@ -65,6 +70,7 @@ def test_registry_persists_metadata_and_recovers_stopped_sandbox(tmp_path: Path)
     assert recovered is not None
     assert recovered.status == SandboxStatus.STOPPED
     assert recovered.container_id is None
+    assert recovered.alias == "saved"
     assert recovered.image == "custom-runtime:1"
     assert recovered.workspace_dir == workspace_dir
     assert recovered.downloads_dir == workspace_dir / "downloads"
@@ -79,8 +85,10 @@ def test_app_startup_recovers_sandbox_from_disk(tmp_path: Path, monkeypatch: pyt
         json.dumps(
             {
                 "id": "sb_boot",
+                "alias": "boot",
                 "created_at": "2026-03-11T00:00:00+00:00",
                 "updated_at": "2026-03-11T00:05:00+00:00",
+                "last_active_at": "2026-03-11T00:05:00+00:00",
                 "status": "RUNNING",
                 "width": 1280,
                 "height": 720,
@@ -94,7 +102,7 @@ def test_app_startup_recovers_sandbox_from_disk(tmp_path: Path, monkeypatch: pyt
     get_settings.cache_clear()
 
     with TestClient(app) as client:
-        response = client.get("/sandboxes/sb_boot")
+        response = client.get("/sandboxes/sb_boot", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     assert response.json()["id"] == "sb_boot"
@@ -109,8 +117,10 @@ def test_app_startup_removes_orphaned_runtime_containers(tmp_path: Path, monkeyp
         json.dumps(
             {
                 "id": "sb_keep",
+                "alias": "keep",
                 "created_at": "2026-03-11T00:00:00+00:00",
                 "updated_at": "2026-03-11T00:05:00+00:00",
+                "last_active_at": "2026-03-11T00:05:00+00:00",
                 "status": "RUNNING",
                 "width": 1280,
                 "height": 720,
@@ -134,7 +144,7 @@ def test_app_startup_removes_orphaned_runtime_containers(tmp_path: Path, monkeyp
     get_settings.cache_clear()
 
     with TestClient(app) as client:
-        response = client.get("/sandboxes/sb_keep")
+        response = client.get("/sandboxes/sb_keep", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     assert response.json()["status"] == "STOPPED"

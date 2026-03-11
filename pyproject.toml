@@ -18,6 +18,9 @@ dependencies = [
   "orjson>=3.10,<4.0",
 ]
 
+[project.scripts]
+verge-browser = "verge_browser_cli:main"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8.3,<9.0",
@@ -26,7 +29,11 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = []
+packages = ["verge_browser"]
+py-modules = ["verge_browser_cli"]
+
+[tool.setuptools.package-dir]
+"" = "packages/python"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

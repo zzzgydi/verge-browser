@@ -33,7 +33,7 @@ Request body:
 ```json
 {
   "image": "verge-browser-runtime:latest",
-  "default_url": "https://example.com",
+  "default_url": "https://github.com/zzzgydi/verge-browser",
   "width": 1440,
   "height": 900,
   "metadata": {

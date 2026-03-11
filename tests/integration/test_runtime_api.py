@@ -72,8 +72,9 @@ def test_runtime_browser_endpoints(docker_runtime_ready: None, clean_sandbox_bas
         assert ticket_resp.status_code == 200
         ticket = ticket_resp.json()["ticket"]
 
-        vnc_entry = client.get(f"/sandboxes/{sandbox_id}/vnc/?ticket={ticket}")
-        assert vnc_entry.status_code == 200
+        vnc_entry = client.get(f"/sandboxes/{sandbox_id}/vnc/?ticket={ticket}", follow_redirects=False)
+        assert vnc_entry.status_code == 302
+        assert vnc_entry.headers["location"] == f"/sandboxes/{sandbox_id}/vnc/vnc.html?path=sandboxes/{sandbox_id}/vnc/websockify&resize=scale&autoconnect=true"
         assert "vnc_session" in vnc_entry.cookies
     finally:
         deleted = client.delete(f"/sandboxes/{sandbox_id}")

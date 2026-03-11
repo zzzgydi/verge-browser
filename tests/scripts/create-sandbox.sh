@@ -9,12 +9,9 @@ source "$SCRIPT_DIR/_common.sh"
 
 WIDTH="${WIDTH:-1440}"
 HEIGHT="${HEIGHT:-900}"
-DEFAULT_URL="${DEFAULT_URL:-https://example.com}"
+DEFAULT_URL="${DEFAULT_URL:-https://github.com/zzzgydi/verge-browser}"
 
-payload=$(cat <<EOF
-{"width":$WIDTH,"height":$HEIGHT,"default_url":"$DEFAULT_URL"}
-EOF
-)
+payload=$(printf '{"width":%s,"height":%s,"default_url":"%s"}' "$WIDTH" "$HEIGHT" "$DEFAULT_URL")
 
 response="$(api_json POST "$BASE_URL/sandboxes" -H 'Content-Type: application/json' -d "$payload")"
 sandbox_id="$(printf '%s' "$response" | json_get 'data["id"]')"

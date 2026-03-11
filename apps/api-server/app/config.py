@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     sandbox_runtime_image: str = "verge-browser-runtime:latest"
     sandbox_runtime_network: str = "bridge"
     sandbox_runtime_mode: str = "docker"
-    sandbox_default_url: str = "about:blank"
+    sandbox_default_url: str = "https://github.com/zzzgydi/verge-browser"
     sandbox_default_width: int = 1280
     sandbox_default_height: int = 1024
 

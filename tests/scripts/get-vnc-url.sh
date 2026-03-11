@@ -18,7 +18,7 @@ fi
 
 ticket_json="$(api_json POST "$BASE_URL/sandboxes/$SANDBOX_ID/vnc/tickets")"
 ticket="$(printf '%s' "$ticket_json" | json_get 'data["ticket"]')"
-vnc_url="$BASE_URL/sandboxes/$SANDBOX_ID/vnc/?ticket=$ticket"
+vnc_url="$BASE_URL/sandboxes/$SANDBOX_ID/vnc/?ticket=$ticket&autoconnect=true&resize=scale"
 
 echo
 echo "Open this URL in a browser:"

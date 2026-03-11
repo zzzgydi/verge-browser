@@ -7,6 +7,7 @@ from threading import Lock
 import httpx
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 import websockets
 
 from app.auth.tickets import issue_ticket, verify_ticket
@@ -66,11 +67,12 @@ async def create_vnc_ticket(
 
 
 @router.get("/", response_class=HTMLResponse)
-async def vnc_entry(sandbox_id: str, ticket: str = Query(...), sandbox=Depends(require_sandbox)) -> HTMLResponse:
+async def vnc_entry(sandbox_id: str, ticket: str = Query(...), sandbox=Depends(require_sandbox)) -> Response:
     verify_ticket(ticket, sandbox_id=sandbox_id, ticket_type="vnc", scope="connect", consume=True)
     session_id = _create_vnc_session(sandbox_id)
+    del sandbox
     query = f"path=sandboxes/{sandbox_id}/vnc/websockify&resize=scale&autoconnect=true"
-    response = await _proxy_vnc_asset(sandbox, "vnc.html", query=query)
+    response = RedirectResponse(url=f"/sandboxes/{sandbox_id}/vnc/vnc.html?{query}", status_code=302)
     response.set_cookie("vnc_session", session_id, httponly=True, max_age=600, samesite="lax")
     return response
 

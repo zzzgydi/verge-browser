@@ -6,7 +6,7 @@ BROWSER_WINDOW_WIDTH="${BROWSER_WINDOW_WIDTH:-1280}"
 BROWSER_WINDOW_HEIGHT="${BROWSER_WINDOW_HEIGHT:-1024}"
 BROWSER_USER_DATA_DIR="${BROWSER_USER_DATA_DIR:-/workspace/browser-profile}"
 BROWSER_DOWNLOAD_DIR="${BROWSER_DOWNLOAD_DIR:-/workspace/downloads}"
-DEFAULT_URL="${DEFAULT_URL:-about:blank}"
+DEFAULT_URL="${DEFAULT_URL:-https://github.com/zzzgydi/verge-browser}"
 
 mkdir -p "${BROWSER_USER_DATA_DIR}" "${BROWSER_DOWNLOAD_DIR}" /tmp/chrome-cache
 rm -f "${BROWSER_USER_DATA_DIR}"/Singleton{Cookie,Lock,Socket} || true

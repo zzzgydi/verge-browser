@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 
 import httpx
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.responses import RedirectResponse
 import websockets

@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import secrets
 import shutil
-from pathlib import Path
 
 from app.config import get_settings
 from app.models.sandbox import RuntimeEndpoint, SandboxRecord, SandboxStatus, utcnow

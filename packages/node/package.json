@@ -2,13 +2,19 @@
   "name": "@verge-browser/cli",
   "version": "0.1.0",
   "description": "Node.js CLI for Verge Browser",
+  "packageManager": "pnpm@9.5.0",
   "type": "module",
   "bin": {
-    "verge-browser": "./src/cli.js"
+    "verge-browser": "./dist/src/cli.js"
   },
   "scripts": {
-    "check": "node --check src/cli.js && node --check src/client.js && node --check src/errors.js"
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node --test dist/test"
   },
+  "files": [
+    "dist"
+  ],
   "keywords": [
     "cli",
     "browser",
@@ -17,5 +23,12 @@
   "license": "MIT",
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "cac": "^6.7.14"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "typescript": "^5.9.2"
   }
 }

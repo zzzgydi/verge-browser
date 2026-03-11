@@ -1,6 +1,6 @@
 # @verge-browser/cli
 
-Node.js implementation of the `verge-browser` CLI (built with native ESM + pnpm).
+Node.js implementation of the `verge-browser` CLI (built with TypeScript, native ESM, and `cac`).
 
 ## Environment Variables
 
@@ -12,7 +12,9 @@ export VERGE_BROWSER_TOKEN=dev-admin-token
 ## Check
 
 ```bash
+pnpm install
 pnpm run check
+pnpm test
 ```
 
 ## Command Examples

@@ -1,5 +1,5 @@
 export class VergeError extends Error {
-  constructor(message) {
+  constructor(message: string) {
     super(message);
     this.name = new.target.name;
   }

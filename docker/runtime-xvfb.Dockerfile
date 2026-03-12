@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-color-emoji \
     fonts-liberation \
     fontconfig \
+    libfontconfig1 \
     fcitx5 \
     fcitx5-chinese-addons \
     fcitx5-frontend-all \
@@ -42,7 +43,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     locales \
     && echo "zh_CN.UTF-8 UTF-8" > /etc/locale.gen \
     && locale-gen \
-    && /usr/lib/x86_64-linux-gnu/libgtk-3-0/gtk-query-immodules-3.0 --update-cache || true \
+    && find /usr/lib -name gtk-query-immodules-3.0 -exec {} --update-cache \; || true \
     && rm -rf /var/lib/apt/lists/*
 
 ENV XMODIFIERS="@im=fcitx" \

@@ -4,6 +4,14 @@
 
 面向 AI Agent 的浏览器沙箱平台，把 CDP 自动化、GUI 级截图、共享文件和可视化人工接管放进同一个隔离运行时。
 
+<p align="center">
+  <img src="docs/assets/png-admin.png" alt="Verge Browser 管理控制台" width="48%" />
+  <img src="docs/assets/png-vnc.png" alt="Verge Browser noVNC 会话" width="48%" />
+</p>
+<p align="center">
+  <strong>控制台</strong> | <strong>noVNC 会话</strong>
+</p>
+
 ## 核心能力
 
 - **真实 GUI Chromium**：不是 headless，支持多标签、下载、弹窗等完整浏览器行为
@@ -11,39 +19,6 @@
 - **GUI 级截图**：抓取完整浏览器窗口，而不只是页面内容
 - **人工接管**：对 noVNC 和 Xpra 提供统一 session 入口
 - **文件共享**：浏览器与 API 共用 `/workspace`，便于上传、下载和产物交换
-
-## 两种桌面方案对比
-
-| 特性     | `xvfb_vnc`                    | `xpra`                     |
-| -------- | ----------------------------- | -------------------------- |
-| 技术栈   | Xvfb + x11vnc + noVNC         | Xpra Server + HTML5 Client |
-| 延迟     | 中等                          | 较低                       |
-| 剪贴板   | 单向（手动同步）              | 双向自动同步               |
-| 网络适应 | 较好                          | 优秀                       |
-| 适用场景 | 以自动化为主，偶尔人工检查    | 频繁人工协作和远程调试     |
-| 使用方式 | 创建时指定 `kind: "xvfb_vnc"` | 创建时指定 `kind: "xpra"`  |
-
-如何选择：
-
-- 以自动化为主，只偶尔人工查看：使用 `xvfb_vnc`
-- 需要频繁人工接手或远程调试：使用 `xpra`
-
-## 状态
-
-该平台当前已可用于本地开发和单机部署。
-
-当前代码库已经具备：
-
-- 运行时容器启动，包含 Chromium、Xvfb/Openbox 或 Xpra，以及 CDP 中继
-- 通过 API 创建沙箱
-- 持久化沙箱元数据，并在服务启动时恢复为 `STOPPED`
-- 复用工作目录的 `pause` / `resume`
-- 真实窗口截图
-- 通过 CDP 进行页面截图
-- 通过 `xdotool` 执行 GUI 操作
-- 面向 noVNC 和 Xpra 的基于票据的 session 入口
-
-当前加固工作主要集中在基于健康检查的生命周期流转、浏览器崩溃恢复语义，以及更广泛的集成与 E2E 覆盖。
 
 ## 为何存在
 
@@ -55,57 +30,6 @@
 - 在同一环境里共享文件
 
 Verge Browser 的目标，就是把浏览器、GUI 和文件都放进同一个隔离沙箱里，避免工作流被拆散到多个系统中。
-
-## 架构
-
-从高层次看，平台分为两部分：
-
-1. API 服务器
-   暴露 REST 和 WebSocket 端点，用于沙箱生命周期、浏览器控制、文件、CDP 代理和基于票据的 session 访问。
-2. 沙箱运行时
-   在单个隔离容器中运行 Chromium、桌面栈以及共享 `/workspace`。
-
-```text
-客户端 / Agent / 人工
-        |
-        v
-+------------------------------+
-| FastAPI 网关 / API 服务器    |
-| 认证 + REST + WS + 票据      |
-+------------------------------+
-        |
-        v
-+-----------------------------------------------+
-| 沙箱运行时容器                                |
-| xvfb_vnc 或 xpra + Chromium + /workspace      |
-+-----------------------------------------------+
-```
-
-## 当前能力
-
-本仓库目前实现了：
-
-- 基于 Docker 运行时启动的沙箱创建 / 获取 / 暂停 / 恢复 / 删除流程
-- 工作目录元数据持久化，以及停止态沙箱的启动恢复
-- 浏览器截图、操作、重启和 CDP 代理
-- 基于票据的 session 入口，可下发 noVNC 或 Xpra 页面
-- 工作空间范围的文件列表、读取、写入、上传、下载和删除操作
-- 管理页构建为静态资源，并由 API 在 `/admin` 路径下提供
-- 运行时 Dockerfile、supervisor 配置、启动脚本和基于 Docker 的集成测试
-
-## 仓库结构
-
-```text
-apps/
-  api-server/         FastAPI 应用程序
-  admin-web/          Vite + React 管理页，构建后进入 API 静态资源目录
-  runtime-xvfb/       Xvfb + VNC 运行时资源
-  runtime-xpra/       Xpra 运行时资源
-deployments/          本地部署资源
-docker/               运行时与 API 容器构建文件
-tests/                单元测试与集成测试
-docs/                 产品、API 与技术文档
-```
 
 ## 快速开始
 
@@ -317,7 +241,102 @@ docker compose -f deployments/docker-compose.yml down
 docker compose -f deployments/docker-compose.yml down -v
 ```
 
-## 运行时镜像
+### 开发说明
+
+- 项目目标 Python 3.11+。
+- API 服务器使用 FastAPI 实现。
+- WebSocket 代理围绕 CDP 和 session 中继用例设计。
+- 文件操作严格限制在沙箱工作区根目录内。
+- 容器化 API 部署通过 `/var/run/docker.sock` 管理宿主机上的 sandbox 容器。
+- 当前实现优先考虑务实的 MVP 结构，而非过早进入多租户编排。
+
+## API 接口说明
+
+当前 API 采用 `/sandbox/{sandbox_id}/...` 路由模型。
+
+详细端点文档位于 [`docs/api.md`](./docs/api.md)。
+
+SDK 与 CLI 使用示例位于 [`docs/cli-sdk.md`](./docs/cli-sdk.md)。
+
+### 接口范围
+
+Verge Browser 聚焦于浏览器控制：
+
+- 浏览器生命周期：create、pause、resume、delete
+- 基于 CDP 的浏览器自动化
+- GUI 截图与输入动作
+- 基于 `xvfb_vnc` 或 `xpra` 的人工接管
+- 通过沙箱工作区进行文件交换
+
+不提供任意命令执行，这是刻意收窄的边界，用来控制系统复杂度和攻击面。
+
+## 项目架构
+
+### 整体架构
+
+从高层次看，平台分为两部分：
+
+1. API 服务器
+   暴露 REST 和 WebSocket 端点，用于沙箱生命周期、浏览器控制、文件、CDP 代理和基于票据的 session 访问。
+2. 沙箱运行时
+   在单个隔离容器中运行 Chromium、桌面栈以及共享 `/workspace`。
+
+```text
+客户端 / Agent / 人工
+        |
+        v
++------------------------------+
+| FastAPI 网关 / API 服务器    |
+| 认证 + REST + WS + 票据      |
++------------------------------+
+        |
+        v
++-----------------------------------------------+
+| 沙箱运行时容器                                |
+| xvfb_vnc 或 xpra + Chromium + /workspace      |
++-----------------------------------------------+
+```
+
+### 技术说明
+
+该平台当前已可用于本地开发和单机部署。
+
+当前代码库已经具备：
+
+- 运行时容器启动，包含 Chromium、Xvfb/Openbox 或 Xpra，以及 CDP 中继
+- 通过 API 创建沙箱
+- 持久化沙箱元数据，并在服务启动时恢复为 `STOPPED`
+- 复用工作目录的 `pause` / `resume`
+- 真实窗口截图
+- 通过 CDP 进行页面截图
+- 通过 `xdotool` 执行 GUI 操作
+- 面向 noVNC 和 Xpra 的基于票据的 session 入口
+- 工作空间范围的文件列表、读取、写入、上传、下载和删除操作
+- 管理页构建为静态资源，并由 API 在 `/admin` 路径下提供
+- 运行时 Dockerfile、supervisor 配置、启动脚本和基于 Docker 的集成测试
+
+当前加固工作主要集中在：
+
+- 更强的 Docker 生命周期管理和基于健康检查的状态转换
+- 面向生产的浏览器崩溃恢复和降级状态处理
+- 文件与浏览器的集成覆盖
+- 更广泛的端到端与故障模式覆盖
+
+### 仓库结构
+
+```text
+apps/
+  api-server/         FastAPI 应用程序
+  admin-web/          Vite + React 管理页，构建后进入 API 静态资源目录
+  runtime-xvfb/       Xvfb + VNC 运行时资源
+  runtime-xpra/       Xpra 运行时资源
+deployments/          本地部署资源
+docker/               运行时与 API 容器构建文件
+tests/                单元测试与集成测试
+docs/                 产品、API 与技术文档
+```
+
+### 运行时镜像
 
 运行时镜像包含：
 
@@ -331,41 +350,21 @@ docker compose -f deployments/docker-compose.yml down -v
 - `xvfb_vnc`：Xvfb + Openbox + x11vnc + noVNC / websockify
 - `xpra`：Xpra server + HTML5 客户端资源
 
-## API 接口
+### 两种桌面方案对比
 
-当前 API 采用 `/sandbox/{sandbox_id}/...` 路由模型。
+| 特性     | `xvfb_vnc`                    | `xpra`                     |
+| -------- | ----------------------------- | -------------------------- |
+| 技术栈   | Xvfb + x11vnc + noVNC         | Xpra Server + HTML5 Client |
+| 延迟     | 中等                          | 较低                       |
+| 剪贴板   | 单向（手动同步）              | 双向自动同步               |
+| 网络适应 | 较好                          | 优秀                       |
+| 适用场景 | 以自动化为主，偶尔人工检查    | 频繁人工协作和远程调试     |
+| 使用方式 | 创建时指定 `kind: "xvfb_vnc"` | 创建时指定 `kind: "xpra"`  |
 
-详细端点文档位于 [`docs/api.md`](./docs/api.md)。
+如何选择：
 
-SDK 与 CLI 使用示例位于 [`docs/cli-sdk.md`](./docs/cli-sdk.md)。
-
-## 范围
-
-Verge Browser 聚焦于浏览器控制：
-
-- 浏览器生命周期：create、pause、resume、delete
-- 基于 CDP 的浏览器自动化
-- GUI 截图与输入动作
-- 基于 `xvfb_vnc` 或 `xpra` 的人工接管
-- 通过沙箱工作区进行文件交换
-
-不提供任意命令执行，这是刻意收窄的边界，用来控制系统复杂度和攻击面。
-
-## 当前加固重点
-
-- 更强的 Docker 生命周期管理和基于健康检查的状态转换
-- 面向生产的浏览器崩溃恢复和降级状态处理
-- 文件与浏览器的集成覆盖
-- 更广泛的端到端与故障模式覆盖
-
-## 开发说明
-
-- 项目目标 Python 3.11+。
-- API 服务器使用 FastAPI 实现。
-- WebSocket 代理围绕 CDP 和 session 中继用例设计。
-- 文件操作严格限制在沙箱工作区根目录内。
-- 容器化 API 部署通过 `/var/run/docker.sock` 管理宿主机上的 sandbox 容器。
-- 当前实现优先考虑务实的 MVP 结构，而非过早进入多租户编排。
+- 以自动化为主，只偶尔人工查看：使用 `xvfb_vnc`
+- 需要频繁人工接手或远程调试：使用 `xpra`
 
 ## 许可证
 

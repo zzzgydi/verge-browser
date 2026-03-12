@@ -4,6 +4,14 @@ English | [中文](./README.zh.md)
 
 A browser sandbox platform for AI agents, combining CDP automation, GUI-level screenshots, shared files, and visual human handoff in one isolated runtime.
 
+<p align="center">
+  <img src="docs/assets/png-admin.png" alt="Verge Browser admin console" width="48%" />
+  <img src="docs/assets/png-vnc.png" alt="Verge Browser noVNC session" width="48%" />
+</p>
+<p align="center">
+  <strong>Sandbox Control</strong> | <strong>noVNC Session</strong>
+</p>
+
 ## Core Capabilities
 
 - **Real GUI Chromium**: not headless; supports multi-tabs, downloads, popups, and full browser behavior
@@ -11,39 +19,6 @@ A browser sandbox platform for AI agents, combining CDP automation, GUI-level sc
 - **GUI-Level Screenshots**: capture the full browser window, not only page content
 - **Human Handoff**: unified session entry for both noVNC and Xpra
 - **File Sharing**: browser and APIs share `/workspace` for uploads, downloads, and artifacts
-
-## Desktop Options Comparison
-
-| Feature            | `xvfb_vnc`                               | `xpra`                                     |
-| ------------------ | ---------------------------------------- | ------------------------------------------ |
-| Stack              | Xvfb + x11vnc + noVNC                    | Xpra Server + HTML5 Client                 |
-| Latency            | Medium                                   | Low                                        |
-| Clipboard          | One-way (manual sync)                    | Bidirectional auto-sync                    |
-| Network Adaptation | Good                                     | Excellent                                  |
-| Use Case           | Automation-first, occasional human check | Frequent human collaboration and debugging |
-| Usage              | Set `kind: "xvfb_vnc"` on create         | Set `kind: "xpra"` on create               |
-
-How to choose:
-
-- Mostly automation, with occasional human inspection: use `xvfb_vnc`
-- Frequent manual intervention or remote debugging: use `xpra`
-
-## Status
-
-The platform is functional today for local development and single-node deployment.
-
-The current codebase already includes:
-
-- runtime container boot with Chromium, Xvfb/Openbox or Xpra, and a CDP relay
-- sandbox creation through the API
-- persisted sandbox metadata with startup recovery into `STOPPED`
-- pause and resume lifecycle for reusing an existing workspace
-- real window screenshots
-- page screenshots through CDP
-- GUI action execution through `xdotool`
-- ticket-based session entry for noVNC and Xpra
-
-Current hardening work is focused on health-driven lifecycle transitions, browser crash recovery semantics, and broader integration and E2E coverage.
 
 ## Why This Exists
 
@@ -55,57 +30,6 @@ Most browser automation systems focus on headless page control. That is not enou
 - shared files inside the same environment
 
 Verge Browser keeps browser, GUI, and files in one isolated sandbox so those workflows remain continuous instead of split across multiple tools.
-
-## Architecture
-
-At a high level, the platform has two parts:
-
-1. API server
-   Exposes REST and WebSocket endpoints for sandbox lifecycle, browser control, files, CDP proxying, and ticket-based session access.
-2. Sandbox runtime
-   Runs Chromium, the desktop stack, and shared `/workspace` inside one isolated container.
-
-```text
-Client / Agent / Human
-        |
-        v
-+------------------------------+
-| FastAPI Gateway / API Server |
-| Auth + REST + WS + Tickets   |
-+------------------------------+
-        |
-        v
-+-----------------------------------------------+
-| Sandbox Runtime Container                     |
-| xvfb_vnc or xpra + Chromium + /workspace      |
-+-----------------------------------------------+
-```
-
-## Current Capabilities
-
-The repository currently implements:
-
-- sandbox create / get / pause / resume / delete flow with Docker-backed runtime startup
-- persisted workspace metadata and startup recovery for stopped sandboxes
-- browser screenshot, actions, restart, and CDP proxying
-- ticket-based session entry with noVNC or Xpra asset proxying
-- workspace-scoped file list, read, write, upload, download, and delete operations
-- an admin web console built into static assets and served by the API at `/admin`
-- runtime Dockerfiles, supervisor configuration, startup scripts, and Docker-backed integration coverage
-
-## Repository Layout
-
-```text
-apps/
-  api-server/         FastAPI application
-  admin-web/          Vite + React admin console, built into API static assets
-  runtime-xvfb/       Xvfb + VNC runtime assets
-  runtime-xpra/       Xpra runtime assets
-deployments/          Local deployment assets
-docker/               Runtime and API container build files
-tests/                Unit and integration tests
-docs/                 Product, API, and technical docs
-```
 
 ## Quick Start
 
@@ -317,7 +241,102 @@ docker compose -f deployments/docker-compose.yml down
 docker compose -f deployments/docker-compose.yml down -v
 ```
 
-## Runtime Image
+### Development Notes
+
+- The project targets Python 3.11+.
+- The API server is implemented with FastAPI.
+- WebSocket proxying is designed around CDP and session relay use cases.
+- File operations are constrained to the sandbox workspace root.
+- Containerized API deployment uses Docker-outside-of-Docker via `/var/run/docker.sock`.
+- The current implementation favors a practical MVP structure over premature multi-tenant orchestration.
+
+## API Reference
+
+The current API follows the `/sandbox/{sandbox_id}/...` routing model.
+
+Detailed endpoint documentation lives in [`docs/api.md`](./docs/api.md).
+
+SDK and CLI usage examples live in [`docs/cli-sdk.md`](./docs/cli-sdk.md).
+
+### Scope
+
+Verge Browser focuses on browser control:
+
+- browser lifecycle: create, pause, resume, delete
+- browser automation via CDP
+- GUI screenshots and input actions
+- session-based human takeover with `xvfb_vnc` or `xpra`
+- file exchange through the sandbox workspace
+
+Arbitrary command execution is intentionally excluded to keep the surface area minimal and the focus narrow.
+
+## Project Architecture
+
+### System Architecture
+
+At a high level, the platform has two parts:
+
+1. API server
+   Exposes REST and WebSocket endpoints for sandbox lifecycle, browser control, files, CDP proxying, and ticket-based session access.
+2. Sandbox runtime
+   Runs Chromium, the desktop stack, and shared `/workspace` inside one isolated container.
+
+```text
+Client / Agent / Human
+        |
+        v
++------------------------------+
+| FastAPI Gateway / API Server |
+| Auth + REST + WS + Tickets   |
++------------------------------+
+        |
+        v
++-----------------------------------------------+
+| Sandbox Runtime Container                     |
+| xvfb_vnc or xpra + Chromium + /workspace      |
++-----------------------------------------------+
+```
+
+### Technical Notes
+
+The platform is functional today for local development and single-node deployment.
+
+The current codebase already includes:
+
+- runtime container boot with Chromium, Xvfb/Openbox or Xpra, and a CDP relay
+- sandbox creation through the API
+- persisted sandbox metadata with startup recovery into `STOPPED`
+- pause and resume lifecycle for reusing an existing workspace
+- real window screenshots
+- page screenshots through CDP
+- GUI action execution through `xdotool`
+- ticket-based session entry for noVNC and Xpra
+- workspace-scoped file list, read, write, upload, download, and delete operations
+- an admin web console built into static assets and served by the API at `/admin`
+- runtime Dockerfiles, supervisor configuration, startup scripts, and Docker-backed integration coverage
+
+Current hardening work is focused on:
+
+- stronger Docker lifecycle management and health-driven state transitions
+- production-ready browser crash recovery and degraded-state handling
+- file and browser integration coverage
+- broader end-to-end and failure-mode coverage
+
+### Repository Layout
+
+```text
+apps/
+  api-server/         FastAPI application
+  admin-web/          Vite + React admin console, built into API static assets
+  runtime-xvfb/       Xvfb + VNC runtime assets
+  runtime-xpra/       Xpra runtime assets
+deployments/          Local deployment assets
+docker/               Runtime and API container build files
+tests/                Unit and integration tests
+docs/                 Product, API, and technical docs
+```
+
+### Runtime Images
 
 The runtime images host:
 
@@ -331,41 +350,21 @@ Two runtime variants are supported:
 - `xvfb_vnc`: Xvfb + Openbox + x11vnc + noVNC / websockify
 - `xpra`: Xpra server + HTML5 client assets
 
-## API Surface
+### Desktop Options Comparison
 
-The current API follows the `/sandbox/{sandbox_id}/...` routing model.
+| Feature            | `xvfb_vnc`                               | `xpra`                                     |
+| ------------------ | ---------------------------------------- | ------------------------------------------ |
+| Stack              | Xvfb + x11vnc + noVNC                    | Xpra Server + HTML5 Client                 |
+| Latency            | Medium                                   | Low                                        |
+| Clipboard          | One-way (manual sync)                    | Bidirectional auto-sync                    |
+| Network Adaptation | Good                                     | Excellent                                  |
+| Use Case           | Automation-first, occasional human check | Frequent human collaboration and debugging |
+| Usage              | Set `kind: "xvfb_vnc"` on create         | Set `kind: "xpra"` on create               |
 
-Detailed endpoint documentation lives in [`docs/api.md`](./docs/api.md).
+How to choose:
 
-SDK and CLI usage examples live in [`docs/cli-sdk.md`](./docs/cli-sdk.md).
-
-## Scope
-
-Verge Browser focuses on browser control:
-
-- browser lifecycle: create, pause, resume, delete
-- browser automation via CDP
-- GUI screenshots and input actions
-- session-based human takeover with `xvfb_vnc` or `xpra`
-- file exchange through the sandbox workspace
-
-Arbitrary command execution is intentionally excluded to keep the surface area minimal and the focus narrow.
-
-## Current Hardening Areas
-
-- stronger Docker lifecycle management and health-driven state transitions
-- production-ready browser crash recovery and degraded-state handling
-- file and browser integration coverage
-- broader end-to-end and failure-mode coverage
-
-## Development Notes
-
-- The project targets Python 3.11+.
-- The API server is implemented with FastAPI.
-- WebSocket proxying is designed around CDP and session relay use cases.
-- File operations are constrained to the sandbox workspace root.
-- Containerized API deployment uses Docker-outside-of-Docker via `/var/run/docker.sock`.
-- The current implementation favors a practical MVP structure over premature multi-tenant orchestration.
+- Mostly automation, with occasional human inspection: use `xvfb_vnc`
+- Frequent manual intervention or remote debugging: use `xpra`
 
 ## License
 

@@ -20,15 +20,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="verge-browser")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--token", default=None)
-    parser.add_argument("--json", action="store_true", dest="json_output")
+    parser.add_argument("--json", action="store_true", dest="json_output", default=argparse.SUPPRESS)
 
     subparsers = parser.add_subparsers(dest="command", required=True)
-    sandbox = subparsers.add_parser("sandbox")
+
+    # Shared parent parser for common options on subcommands
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument("--json", action="store_true", dest="json_output", default=argparse.SUPPRESS)
+    sandbox = subparsers.add_parser("sandbox", parents=[parent_parser])
     sandbox_subparsers = sandbox.add_subparsers(dest="sandbox_command", required=True)
 
-    sandbox_subparsers.add_parser("list")
+    sandbox_subparsers.add_parser("list", parents=[parent_parser])
 
-    create = sandbox_subparsers.add_parser("create")
+    create = sandbox_subparsers.add_parser("create", parents=[parent_parser])
     create.add_argument("--alias", default=None)
     create.add_argument("--kind", default="xvfb_vnc", choices=["xvfb_vnc", "xpra"])
     create.add_argument("--width", type=int, default=1280)
@@ -36,60 +40,60 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--default-url", default=None)
     create.add_argument("--image", default=None)
 
-    get_cmd = sandbox_subparsers.add_parser("get")
+    get_cmd = sandbox_subparsers.add_parser("get", parents=[parent_parser])
     get_cmd.add_argument("id_or_alias")
 
-    update = sandbox_subparsers.add_parser("update")
+    update = sandbox_subparsers.add_parser("update", parents=[parent_parser])
     update.add_argument("id_or_alias")
     update.add_argument("--alias", required=True)
 
     for name in ("pause", "resume", "rm", "restart", "cdp", "session"):
-        cmd = sandbox_subparsers.add_parser(name)
+        cmd = sandbox_subparsers.add_parser(name, parents=[parent_parser])
         cmd.add_argument("id_or_alias")
 
     # Browser subcommand
-    browser = subparsers.add_parser("browser")
+    browser = subparsers.add_parser("browser", parents=[parent_parser])
     browser_subparsers = browser.add_subparsers(dest="browser_command", required=True)
 
-    screenshot = browser_subparsers.add_parser("screenshot")
+    screenshot = browser_subparsers.add_parser("screenshot", parents=[parent_parser])
     screenshot.add_argument("id_or_alias")
     screenshot.add_argument("--type", default="page", choices=["window", "page"])
     screenshot.add_argument("--format", default="jpeg", choices=["png", "jpeg", "webp"])
     screenshot.add_argument("--target-id", default=None)
     screenshot.add_argument("--output", default=None, help="Write screenshot to file")
 
-    actions = browser_subparsers.add_parser("actions")
+    actions = browser_subparsers.add_parser("actions", parents=[parent_parser])
     actions.add_argument("id_or_alias")
     actions.add_argument("--input", required=True, help="JSON file with actions payload")
 
     # Files subcommand
-    files = subparsers.add_parser("files")
+    files = subparsers.add_parser("files", parents=[parent_parser])
     files_subparsers = files.add_subparsers(dest="files_command", required=True)
 
-    list_cmd = files_subparsers.add_parser("list")
+    list_cmd = files_subparsers.add_parser("list", parents=[parent_parser])
     list_cmd.add_argument("id_or_alias")
     list_cmd.add_argument("path", nargs="?", default="/workspace")
 
-    read = files_subparsers.add_parser("read")
+    read = files_subparsers.add_parser("read", parents=[parent_parser])
     read.add_argument("id_or_alias")
     read.add_argument("path")
 
-    write = files_subparsers.add_parser("write")
+    write = files_subparsers.add_parser("write", parents=[parent_parser])
     write.add_argument("id_or_alias")
     write.add_argument("path")
     write.add_argument("--content", required=True)
     write.add_argument("--overwrite", action="store_true")
 
-    upload = files_subparsers.add_parser("upload")
+    upload = files_subparsers.add_parser("upload", parents=[parent_parser])
     upload.add_argument("id_or_alias")
     upload.add_argument("local_path")
 
-    download = files_subparsers.add_parser("download")
+    download = files_subparsers.add_parser("download", parents=[parent_parser])
     download.add_argument("id_or_alias")
     download.add_argument("path")
     download.add_argument("--output", default=None)
 
-    rm = files_subparsers.add_parser("rm")
+    rm = files_subparsers.add_parser("rm", parents=[parent_parser])
     rm.add_argument("id_or_alias")
     rm.add_argument("path")
 
@@ -99,28 +103,29 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    json_output = bool(getattr(args, "json_output", False))
 
     try:
         client = VergeClient(base_url=args.base_url, token=args.token)
     except VergeConfigError as exc:
-        return _emit_error(str(exc), EXIT_CONFIG, args.json_output)
+        return _emit_error(str(exc), EXIT_CONFIG, json_output)
 
     try:
         result = _dispatch(client, args)
-        _emit_result(result, args.json_output)
+        _emit_result(result, json_output)
         return EXIT_OK
     except VergeConfigError as exc:
-        return _emit_error(str(exc), EXIT_CONFIG, args.json_output)
+        return _emit_error(str(exc), EXIT_CONFIG, json_output)
     except VergeAuthError as exc:
-        return _emit_error(str(exc), EXIT_AUTH, args.json_output)
+        return _emit_error(str(exc), EXIT_AUTH, json_output)
     except VergeNotFoundError as exc:
-        return _emit_error(str(exc), EXIT_NOT_FOUND, args.json_output)
+        return _emit_error(str(exc), EXIT_NOT_FOUND, json_output)
     except VergeConflictError as exc:
-        return _emit_error(str(exc), EXIT_CONFLICT, args.json_output)
+        return _emit_error(str(exc), EXIT_CONFLICT, json_output)
     except VergeValidationError as exc:
-        return _emit_error(str(exc), EXIT_VALIDATION, args.json_output)
+        return _emit_error(str(exc), EXIT_VALIDATION, json_output)
     except VergeServerError as exc:
-        return _emit_error(str(exc), EXIT_SERVER, args.json_output)
+        return _emit_error(str(exc), EXIT_SERVER, json_output)
     finally:
         client.close()
 
@@ -163,7 +168,7 @@ def _dispatch(client: VergeClient, args: argparse.Namespace) -> Any:
             return client.list_files(args.id_or_alias, args.path)
         if args.files_command == "read":
             result = client.read_file(args.id_or_alias, args.path)
-            return result if args.json_output else result.get("content", "")
+            return result if bool(getattr(args, "json_output", False)) else result.get("content", "")
         if args.files_command == "write":
             return client.write_file(args.id_or_alias, args.path, args.content, overwrite=args.overwrite)
         if args.files_command == "upload":
@@ -216,10 +221,67 @@ def _dispatch(client: VergeClient, args: argparse.Namespace) -> Any:
 
 
 def _emit_result(result: Any, json_output: bool) -> None:
-    if json_output or isinstance(result, (dict, list)):
+    if json_output:
         print(json.dumps(result, ensure_ascii=True, indent=2))
         return
-    print(result)
+    print(_format_plain_text(result))
+
+
+def _format_plain_text(value: Any, indent: int = 0) -> str:
+    prefix = "  " * indent
+
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return _format_string_value(value, indent)
+    if isinstance(value, (bool, int, float)):
+        return str(value)
+    if isinstance(value, list):
+        if not value:
+            return f"{prefix}(empty)"
+        rendered: list[str] = []
+        for item in value:
+            if _is_primitive(item):
+                rendered.append(f"{prefix}- {_format_scalar(item)}")
+                continue
+            nested = _format_plain_text(item, indent + 1).splitlines()
+            first = nested[0] if nested else ""
+            rendered.append(f"{prefix}- {first}")
+            rendered.extend(f"{prefix}  {line}" for line in nested[1:])
+        return "\n".join(rendered)
+    if isinstance(value, dict):
+        if not value:
+            return f"{prefix}(empty)"
+        return "\n".join(_format_object_entry(key, child, indent) for key, child in value.items())
+    return str(value)
+
+
+def _format_object_entry(key: str, value: Any, indent: int) -> str:
+    prefix = "  " * indent
+    if _is_primitive(value):
+        return f"{prefix}{key}: {_format_scalar(value)}"
+    rendered = _format_plain_text(value, indent + 1)
+    return f"{prefix}{key}:\n{rendered}"
+
+
+def _format_string_value(value: str, indent: int) -> str:
+    if "\n" not in value:
+        return value
+    prefix = "  " * indent
+    rendered = "\n".join(f"{prefix}  {line}" for line in value.splitlines())
+    return f"|\n{rendered}"
+
+
+def _format_scalar(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=True) if "\n" in value else value
+    return str(value)
+
+
+def _is_primitive(value: Any) -> bool:
+    return value is None or isinstance(value, (str, bool, int, float))
 
 
 def _emit_error(message: str, code: int, json_output: bool) -> int:

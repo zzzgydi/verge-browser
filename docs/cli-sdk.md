@@ -64,9 +64,15 @@ const client = new VergeClient({
 });
 
 const sandbox = await client.createSandbox({ alias: "shopping" });
-const xpraSandbox = await client.createSandbox({ alias: "manual-step", kind: "xpra" });
+const xpraSandbox = await client.createSandbox({
+  alias: "manual-step",
+  kind: "xpra",
+});
 const detail = await client.getSandbox("shopping");
-const cdp = await client.getCdpInfo("shopping", { mode: "reusable", ttl_sec: 300 });
+const cdp = await client.getCdpInfo("shopping", {
+  mode: "reusable",
+  ttl_sec: 300,
+});
 const session = await client.getSessionUrl("shopping");
 ```
 

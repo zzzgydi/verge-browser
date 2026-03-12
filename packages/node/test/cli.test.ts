@@ -122,6 +122,56 @@ test('sandbox create forwards kind selection', async () => {
   assert.equal(JSON.parse(requestBody).kind, 'xpra');
 });
 
+test('sandbox list emits LLM-friendly text without --json', async () => {
+  const io = createIo();
+  const exitCode = await runCli({
+    argv: ['sandbox', 'list'],
+    io,
+    clientFactory: (options) => new VergeClient({
+      ...options,
+      token: 'token',
+      fetchImpl: async () => createJsonResponse(200, envelope([
+        sandboxResponse(),
+      ])),
+    }),
+  });
+
+  assert.equal(exitCode, 0);
+  assert.equal(io.out[0], [
+    '-   id: sbx-1',
+    '    alias: shopping',
+    '    kind: xvfb_vnc',
+    '    status: RUNNING',
+    '    created_at: 2026-03-12T00:00:00Z',
+    '    updated_at: 2026-03-12T00:00:00Z',
+    '    last_active_at: 2026-03-12T00:00:00Z',
+    '    width: 1280',
+    '    height: 720',
+    '    metadata:',
+    '      (empty)',
+    '    browser:',
+    '      web_socket_debugger_url_present: true',
+    '      viewport:',
+    '        width: 1280',
+    '        height: 720',
+    '      window_viewport:',
+    '        x: 0',
+    '        y: 0',
+    '        width: 1280',
+    '        height: 720',
+    '      page_viewport:',
+    '        x: 0',
+    '        y: 80',
+    '        width: 1280',
+    '        height: 640',
+    '      active_window:',
+    '        window_id: 1',
+    '        x: 0',
+    '        y: 0',
+    '        title: Chromium',
+  ].join('\n'));
+});
+
 test('browser actions reject missing payload', async () => {
   const io = createIo();
   const exitCode = await runCli({

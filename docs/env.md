@@ -120,11 +120,10 @@ These variables are used by the runtime images or injected by the API server whe
 
 These variables do not affect the server deployment itself, but they are commonly used by SDK clients, test scripts, and example commands after the service is up.
 
-| Variable              | Default                 | Description                                                                                                                    |
-| --------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `VERGE_BROWSER_URL`   | `http://127.0.0.1:8000` | Default API base URL for the Python and Node SDKs.                                                                             |
-| `VERGE_BROWSER_TOKEN` | None                    | Default bearer token for the Python and Node SDKs.                                                                             |
-| `AUTH_TOKEN`          | None                    | Token variable used in the README and `tests/scripts`. In practice this is usually the same value as `VERGE_ADMIN_AUTH_TOKEN`. |
+| Variable              | Default                 | Description                                        |
+| --------------------- | ----------------------- | -------------------------------------------------- |
+| `VERGE_BROWSER_URL`   | `http://127.0.0.1:8000` | Default API base URL for the Python and Node SDKs. |
+| `VERGE_BROWSER_TOKEN` | None                    | Default bearer token for the Python and Node SDKs. |
 
 ## 5. Usage Notes
 

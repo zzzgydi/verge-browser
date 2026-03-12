@@ -202,62 +202,43 @@ For a complete list of deployment env vars, see [`docs/env.md`](./docs/env.md).
 
 ### Basic Usage Examples
 
+Install the CLI:
+
+```bash
+npm install -g verge-browser
+```
+
 Create a sandbox:
 
 ```bash
-curl -X POST http://localhost:8000/sandbox \
-  -H "Authorization: Bearer $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "alias": "test",
-    "kind": "xvfb_vnc",
-    "default_url": "https://example.com",
-    "width": 1440,
-    "height": 900
-  }'
+verge-browser sandbox create --alias test --width 1440 --height 900
 ```
 
 Get browser info:
 
 ```bash
-curl http://localhost:8000/sandbox/{sandbox_id} \
-  -H "Authorization: Bearer $AUTH_TOKEN"
+verge-browser browser info test
 ```
 
 Take a screenshot:
 
 ```bash
-curl -X POST http://localhost:8000/sandbox/{sandbox_id}/browser/screenshot \
-  -H "Authorization: Bearer $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"type": "window"}'
+verge-browser browser screenshot test --output ./screenshot.png
 ```
 
 Execute GUI actions:
 
 ```bash
-curl -X POST http://localhost:8000/sandbox/{sandbox_id}/browser/actions \
-  -H "Authorization: Bearer $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "actions": [
-      {"type": "MOVE_TO", "x": 720, "y": 450},
-      {"type": "CLICK"},
-      {"type": "WAIT", "duration_ms": 1000}
-    ]
-  }'
+verge-browser browser actions test --input ./actions.json
 ```
 
 Get a human handoff URL:
 
 ```bash
-curl -X POST http://localhost:8000/sandbox/{sandbox_id}/session/apply \
-  -H "Authorization: Bearer $AUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"mode": "one_time", "ttl_sec": 300}'
+verge-browser sandbox session test
 ```
 
-For more APIs, see [`docs/api.md`](./docs/api.md).
+For more commands, see [`docs/cli-sdk.md`](./docs/cli-sdk.md).
 
 ## Development Guide
 
@@ -310,13 +291,13 @@ tests/scripts/full-manual-tour.sh
 If your API server is not on `http://127.0.0.1:8000`, set:
 
 ```bash
-export BASE_URL="http://127.0.0.1:8000"
+export VERGE_BROWSER_URL="http://127.0.0.1:8000"
 ```
 
 Business APIs require the admin bearer token. Set:
 
 ```bash
-export AUTH_TOKEN="<admin-token>"
+export VERGE_BROWSER_TOKEN="<admin-token>"
 ```
 
 ### Cleanup Development Containers

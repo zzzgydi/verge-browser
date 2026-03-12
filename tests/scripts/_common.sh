@@ -8,25 +8,23 @@ ARTIFACTS_DIR="$SCRIPT_DIR/.artifacts"
 
 mkdir -p "$ARTIFACTS_DIR"
 
-BASE_URL="${BASE_URL:-http://127.0.0.1:8000}"
-AUTH_TOKEN="${AUTH_TOKEN:-${VERGE_BROWSER_TOKEN:-${VERGE_ADMIN_AUTH_TOKEN:-}}}"
+BASE_URL="${VERGE_BROWSER_URL:-http://127.0.0.1:8000}"
+VERGE_BROWSER_TOKEN="${VERGE_BROWSER_TOKEN:-}"
 
 auth_args=()
-if [[ -n "$AUTH_TOKEN" ]]; then
-  auth_args=(-H "Authorization: Bearer $AUTH_TOKEN")
+if [[ -n "$VERGE_BROWSER_TOKEN" ]]; then
+  auth_args=(-H "Authorization: Bearer $VERGE_BROWSER_TOKEN")
 fi
 
 require_auth_token() {
-  if [[ -n "$AUTH_TOKEN" ]]; then
+  if [[ -n "$VERGE_BROWSER_TOKEN" ]]; then
     return 0
   fi
   cat >&2 <<'EOF'
 Missing admin bearer token.
 
-Set one of these environment variables before running the manual API scripts:
-  export AUTH_TOKEN="<admin-token>"
+Set this environment variable before running the manual API scripts:
   export VERGE_BROWSER_TOKEN="<admin-token>"
-  export VERGE_ADMIN_AUTH_TOKEN="<admin-token>"
 
 The value must match the API server's VERGE_ADMIN_AUTH_TOKEN.
 EOF

@@ -1,6 +1,6 @@
 {
   "name": "verge-browser",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Node.js SDK and CLI for Verge Browser - A browser sandbox system for agent workflows",
   "type": "module",
   "main": "./dist/src/index.js",

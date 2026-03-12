@@ -37,7 +37,7 @@ class VergeClient:
             self._client.close()
 
     def list_sandboxes(self) -> list[dict[str, Any]]:
-        return self._request("GET", "/sandboxes")
+        return self._request("GET", "/sandbox")
 
     def create_sandbox(
         self,
@@ -56,10 +56,10 @@ class VergeClient:
             payload["default_url"] = default_url
         if image is not None:
             payload["image"] = image
-        return self._request("POST", "/sandboxes", json=payload)
+        return self._request("POST", "/sandbox", json=payload)
 
     def get_sandbox(self, id_or_alias: str) -> dict[str, Any]:
-        return self._request("GET", f"/sandboxes/{quote(id_or_alias, safe='')}")
+        return self._request("GET", f"/sandbox/{quote(id_or_alias, safe='')}")
 
     def update_sandbox(
         self,
@@ -73,23 +73,26 @@ class VergeClient:
             payload["alias"] = alias
         if metadata is not None:
             payload["metadata"] = metadata
-        return self._request("PATCH", f"/sandboxes/{quote(id_or_alias, safe='')}", json=payload)
+        return self._request("PATCH", f"/sandbox/{quote(id_or_alias, safe='')}", json=payload)
 
     def delete_sandbox(self, id_or_alias: str) -> dict[str, Any]:
-        self._request("DELETE", f"/sandboxes/{quote(id_or_alias, safe='')}")
+        self._request("DELETE", f"/sandbox/{quote(id_or_alias, safe='')}")
         return {"ok": True}
 
     def pause_sandbox(self, id_or_alias: str) -> dict[str, Any]:
-        return self._request("POST", f"/sandboxes/{quote(id_or_alias, safe='')}/pause")
+        return self._request("POST", f"/sandbox/{quote(id_or_alias, safe='')}/pause")
 
     def resume_sandbox(self, id_or_alias: str) -> dict[str, Any]:
-        return self._request("POST", f"/sandboxes/{quote(id_or_alias, safe='')}/resume")
+        return self._request("POST", f"/sandbox/{quote(id_or_alias, safe='')}/resume")
 
     def restart_browser(self, id_or_alias: str) -> dict[str, Any]:
-        return self._request("POST", f"/sandboxes/{quote(id_or_alias, safe='')}/browser/restart", json={"level": "hard"})
+        return self._request("POST", f"/sandbox/{quote(id_or_alias, safe='')}/browser/restart", json={"level": "hard"})
 
-    def get_cdp_info(self, id_or_alias: str) -> dict[str, Any]:
-        return self._request("GET", f"/sandboxes/{quote(id_or_alias, safe='')}/browser/cdp/info")
+    def get_cdp_info(self, id_or_alias: str, *, mode: str = "reusable", ttl_sec: int | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"mode": mode}
+        if ttl_sec is not None:
+            payload["ttl_sec"] = ttl_sec
+        return self._request("POST", f"/sandbox/{quote(id_or_alias, safe='')}/cdp/apply", json=payload)
 
     def create_vnc_ticket(
         self,
@@ -101,7 +104,7 @@ class VergeClient:
         payload: dict[str, Any] = {"mode": mode}
         if ttl_sec is not None:
             payload["ttl_sec"] = ttl_sec
-        return self._request("POST", f"/sandboxes/{quote(id_or_alias, safe='')}/vnc/tickets", json=payload)
+        return self._request("POST", f"/sandbox/{quote(id_or_alias, safe='')}/vnc/apply", json=payload)
 
     def get_vnc_url(
         self,
@@ -116,9 +119,10 @@ class VergeClient:
             "sandbox_id": sandbox["id"],
             "alias": sandbox.get("alias"),
             "ticket": ticket["ticket"],
-            "url": f"{sandbox['browser']['vnc_entry_base_url']}?ticket={ticket['ticket']}",
+            "url": ticket["vnc_url"],
             "expires_at": ticket.get("expires_at"),
             "mode": ticket["mode"],
+            "ttl_sec": ticket.get("ttl_sec"),
         }
 
     def resolve_sandbox_id(self, id_or_alias: str) -> str:
@@ -132,14 +136,17 @@ class VergeClient:
         headers.setdefault("Authorization", f"Bearer {self.token}")
         response = self._client.request(method, path, headers=headers, **kwargs)
         if response.is_success:
-            if response.status_code == 204 or not response.content:
+            if not response.content:
                 return None
-            return response.json()
+            payload = response.json()
+            if not isinstance(payload, dict) or {"code", "message", "data"} - payload.keys():
+                raise VergeServerError(f"invalid response envelope from {method} {path}")
+            return payload["data"]
 
         detail: str
         try:
             payload = response.json()
-            detail = str(payload.get("detail", response.text))
+            detail = str(payload.get("message") or response.text)
         except Exception:
             detail = response.text
 

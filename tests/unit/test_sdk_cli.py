@@ -16,7 +16,7 @@ def test_sdk_reads_token_from_environment(monkeypatch: pytest.MonkeyPatch) -> No
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured["authorization"] = request.headers["Authorization"]
-        return httpx.Response(200, json=[])
+        return httpx.Response(200, json={"code": 0, "message": "ok", "data": []})
 
     client = VergeClient(http_client=httpx.Client(transport=httpx.MockTransport(handler), base_url="http://test"))
     try:
@@ -29,7 +29,7 @@ def test_sdk_reads_token_from_environment(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_sdk_maps_http_errors() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(409, json={"detail": "alias already exists"})
+        return httpx.Response(409, json={"code": 409, "message": "alias already exists", "data": None})
 
     client = VergeClient(token="token", http_client=httpx.Client(transport=httpx.MockTransport(handler), base_url="http://test"))
     try:
@@ -49,7 +49,7 @@ def test_cli_json_output(capsys: pytest.CaptureFixture[str], monkeypatch: pytest
     original_client = httpx.Client
 
     def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=[{"id": "sb_123", "alias": "demo"}])
+        return httpx.Response(200, json={"code": 0, "message": "ok", "data": [{"id": "sb_123", "alias": "demo"}]})
 
     monkeypatch.setattr(
         "verge_browser.client.httpx.Client",
@@ -68,7 +68,7 @@ def test_cli_error_exit_code(capsys: pytest.CaptureFixture[str], monkeypatch: py
     original_client = httpx.Client
 
     def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(401, json={"detail": "invalid token"})
+        return httpx.Response(401, json={"code": 401, "message": "invalid token", "data": None})
 
     monkeypatch.setattr(
         "verge_browser.client.httpx.Client",
@@ -87,17 +87,16 @@ def test_sdk_get_vnc_url_uses_canonical_sandbox_id_for_ticket() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen_paths.append(request.url.path)
-        if request.url.path == "/sandboxes/demo":
+        if request.url.path == "/sandbox/demo":
             return httpx.Response(
                 200,
-                json={
-                    "id": "sb_123",
-                    "alias": "demo",
-                    "browser": {"vnc_entry_base_url": "http://test/sandboxes/sb_123/vnc/"},
-                },
+                json={"code": 0, "message": "ok", "data": {"id": "sb_123", "alias": "demo", "browser": {}}},
             )
-        if request.url.path == "/sandboxes/sb_123/vnc/tickets":
-            return httpx.Response(200, json={"ticket": "ticket-1", "mode": "one_time", "expires_at": None})
+        if request.url.path == "/sandbox/sb_123/vnc/apply":
+            return httpx.Response(
+                200,
+                json={"code": 0, "message": "ok", "data": {"ticket": "ticket-1", "vnc_url": "http://test/sandbox/sb_123/vnc/?ticket=ticket-1", "mode": "one_time", "ttl_sec": 60, "expires_at": None}},
+            )
         raise AssertionError(f"unexpected path: {request.url.path}")
 
     client = VergeClient(token="token", http_client=httpx.Client(transport=httpx.MockTransport(handler), base_url="http://test"))
@@ -106,5 +105,5 @@ def test_sdk_get_vnc_url_uses_canonical_sandbox_id_for_ticket() -> None:
     finally:
         client.close()
 
-    assert payload["url"] == "http://test/sandboxes/sb_123/vnc/?ticket=ticket-1"
-    assert seen_paths == ["/sandboxes/demo", "/sandboxes/sb_123/vnc/tickets"]
+    assert payload["url"] == "http://test/sandbox/sb_123/vnc/?ticket=ticket-1"
+    assert seen_paths == ["/sandbox/demo", "/sandbox/sb_123/vnc/apply"]

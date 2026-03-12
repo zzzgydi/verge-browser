@@ -35,12 +35,13 @@ export interface ViewportInfo {
 }
 
 export interface BrowserInfo {
-  cdp_url: string;
-  vnc_entry_base_url: string;
-  vnc_ticket_endpoint: string;
   browser_version?: string | null;
   protocol_version?: string | null;
+  web_socket_debugger_url_present: boolean;
   viewport: ViewportInfo;
+  window_viewport?: BrowserViewportRect | null;
+  page_viewport?: BrowserViewportRect | null;
+  active_window?: ActiveWindowInfo | null;
 }
 
 export interface SandboxResponse {
@@ -59,15 +60,18 @@ export interface SandboxResponse {
 
 export interface VncTicketResponse {
   ticket: string;
+  vnc_url: string;
   mode: VncTicketMode;
   ttl_sec: number | null;
   expires_at: string | null;
 }
 
 export interface CdpInfoResponse {
+  ticket: string;
   cdp_url: string;
-  browser_version?: string | null;
-  protocol_version?: string | null;
+  mode: VncTicketMode;
+  ttl_sec: number | null;
+  expires_at: string | null;
 }
 
 export interface CreateSandboxPayload {
@@ -85,7 +89,15 @@ export interface UpdateSandboxPayload {
 }
 
 export interface RequestErrorBody {
-  detail?: unknown;
+  code?: unknown;
+  message?: unknown;
+  data?: unknown;
+}
+
+export interface ApiEnvelope<T> {
+  code: number;
+  message: string;
+  data: T | null;
 }
 
 export interface FetchLike {
@@ -126,13 +138,16 @@ export interface BrowserInfoResponse {
   browser_version?: string | null;
   protocol_version?: string | null;
   web_socket_debugger_url_present: boolean;
-  viewport: BrowserViewportRect;
+  viewport: ViewportInfo;
+  window_viewport: BrowserViewportRect;
+  page_viewport: BrowserViewportRect;
+  active_window: ActiveWindowInfo | null;
 }
 
 export interface BrowserViewportResponse {
   window_viewport: BrowserViewportRect;
   page_viewport: BrowserViewportRect;
-  active_window: ActiveWindowInfo;
+  active_window: ActiveWindowInfo | null;
 }
 
 export interface ScreenshotMetadata {
@@ -254,71 +269,81 @@ export class VergeClient {
   }
 
   listSandboxes(): Promise<SandboxResponse[]> {
-    return this.requestJson<SandboxResponse[]>('GET', '/sandboxes');
+    return this.requestJson<SandboxResponse[]>('GET', '/sandbox');
   }
 
   createSandbox(payload: CreateSandboxPayload = {}): Promise<SandboxResponse> {
-    return this.requestJson<SandboxResponse>('POST', '/sandboxes', { body: payload });
+    return this.requestJson<SandboxResponse>('POST', '/sandbox', { body: payload });
   }
 
   getSandbox(idOrAlias: string): Promise<SandboxResponse> {
-    return this.requestJson<SandboxResponse>('GET', `/sandboxes/${encodeURIComponent(idOrAlias)}`);
+    return this.requestJson<SandboxResponse>('GET', `/sandbox/${encodeURIComponent(idOrAlias)}`);
   }
 
   updateSandbox(idOrAlias: string, payload: UpdateSandboxPayload): Promise<SandboxResponse> {
-    return this.requestJson<SandboxResponse>('PATCH', `/sandboxes/${encodeURIComponent(idOrAlias)}`, { body: payload });
+    return this.requestJson<SandboxResponse>('PATCH', `/sandbox/${encodeURIComponent(idOrAlias)}`, { body: payload });
   }
 
   async deleteSandbox(idOrAlias: string): Promise<{ ok: true }> {
-    await this.requestJson<null>('DELETE', `/sandboxes/${encodeURIComponent(idOrAlias)}`);
+    await this.requestJson<{ ok: boolean }>('DELETE', `/sandbox/${encodeURIComponent(idOrAlias)}`);
     return { ok: true };
   }
 
   pauseSandbox(idOrAlias: string): Promise<{ ok: boolean }> {
-    return this.requestJson<{ ok: boolean }>('POST', `/sandboxes/${encodeURIComponent(idOrAlias)}/pause`);
+    return this.requestJson<{ ok: boolean }>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/pause`);
   }
 
   resumeSandbox(idOrAlias: string): Promise<{ ok: boolean }> {
-    return this.requestJson<{ ok: boolean }>('POST', `/sandboxes/${encodeURIComponent(idOrAlias)}/resume`);
+    return this.requestJson<{ ok: boolean }>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/resume`);
   }
 
   restartBrowser(idOrAlias: string, payload: RestartBrowserPayload = {}): Promise<RestartBrowserResponse> {
-    return this.requestJson<RestartBrowserResponse>('POST', `/sandboxes/${encodeURIComponent(idOrAlias)}/browser/restart`, {
+    return this.requestJson<RestartBrowserResponse>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/browser/restart`, {
       body: { level: payload.level ?? 'hard' },
     });
   }
 
   getBrowserInfo(idOrAlias: string): Promise<BrowserInfoResponse> {
-    return this.requestJson<BrowserInfoResponse>('GET', `/sandboxes/${encodeURIComponent(idOrAlias)}/browser/info`);
+    return this.getSandbox(idOrAlias).then((sandbox) => sandbox.browser as BrowserInfoResponse);
   }
 
   getBrowserViewport(idOrAlias: string): Promise<BrowserViewportResponse> {
-    return this.requestJson<BrowserViewportResponse>('GET', `/sandboxes/${encodeURIComponent(idOrAlias)}/browser/viewport`);
+    return this.getSandbox(idOrAlias).then((sandbox) => ({
+      window_viewport: sandbox.browser.window_viewport ?? { x: 0, y: 0, width: sandbox.width, height: sandbox.height },
+      page_viewport: sandbox.browser.page_viewport ?? { x: 0, y: 0, width: sandbox.width, height: sandbox.height },
+      active_window: sandbox.browser.active_window ?? null,
+    }));
   }
 
   getBrowserScreenshot(
     idOrAlias: string,
-    options: { type?: ScreenshotType; format?: ScreenshotFormat; target_id?: string } = {},
+    options: { type?: ScreenshotType; format?: ScreenshotFormat; target_id?: string; quality?: number } = {},
   ): Promise<ScreenshotResponse> {
-    return this.requestJson<ScreenshotResponse>('GET', `/sandboxes/${encodeURIComponent(idOrAlias)}/browser/screenshot`, {
-      query: {
+    return this.requestJson<ScreenshotResponse>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/browser/screenshot`, {
+      body: {
         ...(options.type ? { type: options.type } : {}),
         ...(options.format ? { format: options.format } : {}),
         ...(options.target_id ? { target_id: options.target_id } : {}),
-      },
+        ...(options.quality !== undefined ? { quality: options.quality } : {}),
+      }
     });
   }
 
   executeBrowserActions(idOrAlias: string, payload: BrowserActionsPayload): Promise<BrowserActionsResponse> {
-    return this.requestJson<BrowserActionsResponse>('POST', `/sandboxes/${encodeURIComponent(idOrAlias)}/browser/actions`, { body: payload });
+    return this.requestJson<BrowserActionsResponse>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/browser/actions`, { body: payload });
   }
 
-  getCdpInfo(idOrAlias: string): Promise<CdpInfoResponse> {
-    return this.requestJson<CdpInfoResponse>('GET', `/sandboxes/${encodeURIComponent(idOrAlias)}/browser/cdp/info`);
+  getCdpInfo(idOrAlias: string, payload: { mode?: VncTicketMode; ttl_sec?: number } = {}): Promise<CdpInfoResponse> {
+    return this.requestJson<CdpInfoResponse>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/cdp/apply`, {
+      body: {
+        mode: payload.mode ?? 'reusable',
+        ...(payload.ttl_sec !== undefined ? { ttl_sec: payload.ttl_sec } : {}),
+      },
+    });
   }
 
   createVncTicket(idOrAlias: string, payload: { mode?: VncTicketMode; ttl_sec?: number } = {}): Promise<VncTicketResponse> {
-    return this.requestJson<VncTicketResponse>('POST', `/sandboxes/${encodeURIComponent(idOrAlias)}/vnc/tickets`, {
+    return this.requestJson<VncTicketResponse>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/vnc/apply`, {
       body: {
         mode: payload.mode ?? 'one_time',
         ...(payload.ttl_sec !== undefined ? { ttl_sec: payload.ttl_sec } : {}),
@@ -333,7 +358,7 @@ export class VergeClient {
       sandbox_id: sandbox.id,
       ...(sandbox.alias !== undefined ? { alias: sandbox.alias } : {}),
       ticket: ticket.ticket,
-      url: `${sandbox.browser.vnc_entry_base_url}?ticket=${ticket.ticket}`,
+      url: ticket.vnc_url,
       expires_at: ticket.expires_at,
       mode: ticket.mode,
       ttl_sec: ticket.ttl_sec,
@@ -341,19 +366,19 @@ export class VergeClient {
   }
 
   listFiles(idOrAlias: string, path = '/workspace'): Promise<FileEntry[]> {
-    return this.requestJson<FileEntry[]>('GET', `/sandboxes/${encodeURIComponent(idOrAlias)}/files/list`, {
+    return this.requestJson<FileEntry[]>('GET', `/sandbox/${encodeURIComponent(idOrAlias)}/files/list`, {
       query: { path },
     });
   }
 
   readFile(idOrAlias: string, path: string): Promise<ReadFileResponse> {
-    return this.requestJson<ReadFileResponse>('GET', `/sandboxes/${encodeURIComponent(idOrAlias)}/files/read`, {
+    return this.requestJson<ReadFileResponse>('GET', `/sandbox/${encodeURIComponent(idOrAlias)}/files/read`, {
       query: { path },
     });
   }
 
   writeFile(idOrAlias: string, payload: WriteFilePayload): Promise<WriteFileResponse> {
-    return this.requestJson<WriteFileResponse>('POST', `/sandboxes/${encodeURIComponent(idOrAlias)}/files/write`, {
+    return this.requestJson<WriteFileResponse>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/files/write`, {
       body: {
         path: payload.path,
         content: payload.content,
@@ -365,13 +390,13 @@ export class VergeClient {
   uploadFile(idOrAlias: string, payload: UploadFilePayload): Promise<UploadFileResponse> {
     const formData = new FormData();
     formData.set('upload', new Blob([toBinaryPayload(payload.data)]), payload.filename);
-    return this.requestJson<UploadFileResponse>('POST', `/sandboxes/${encodeURIComponent(idOrAlias)}/files/upload`, {
+    return this.requestJson<UploadFileResponse>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/files/upload`, {
       body: formData,
     });
   }
 
   async downloadFile(idOrAlias: string, path: string): Promise<DownloadFileResponse> {
-    const response = await this.requestRaw('GET', `/sandboxes/${encodeURIComponent(idOrAlias)}/files/download`, {
+    const response = await this.requestRaw('GET', `/sandbox/${encodeURIComponent(idOrAlias)}/files/download`, {
       query: { path },
     });
     return {
@@ -382,18 +407,20 @@ export class VergeClient {
   }
 
   deleteFile(idOrAlias: string, path: string): Promise<{ ok: boolean }> {
-    return this.requestJson<{ ok: boolean }>('DELETE', `/sandboxes/${encodeURIComponent(idOrAlias)}/files`, {
+    return this.requestJson<{ ok: boolean }>('DELETE', `/sandbox/${encodeURIComponent(idOrAlias)}/files`, {
       query: { path },
     });
   }
 
   private async requestJson<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
     const response = await this.requestRaw(method, path, options);
-    if (response.status === 204) {
-      return null as T;
-    }
     const text = await response.text();
-    return text ? (JSON.parse(text) as T) : (null as T);
+    if (!text) return null as T;
+    const payload = JSON.parse(text) as ApiEnvelope<T>;
+    if (!this.isEnvelope(payload)) {
+      throw new VergeServerError(`invalid response envelope from ${method} ${path}`);
+    }
+    return payload.data as T;
   }
 
   private async requestRaw(method: string, path: string, options: RequestOptions = {}): Promise<Response> {
@@ -445,9 +472,14 @@ export class VergeClient {
     if (!text) return '';
     try {
       const parsed = JSON.parse(text) as RequestErrorBody;
-      return typeof parsed.detail === 'string' ? parsed.detail : text;
+      if (typeof parsed.message === 'string') return parsed.message;
+      return text;
     } catch {
       return text;
     }
+  }
+
+  private isEnvelope<T>(payload: ApiEnvelope<T> | T): payload is ApiEnvelope<T> {
+    return Boolean(payload && typeof payload === 'object' && 'code' in payload && 'message' in payload && 'data' in payload);
   }
 }

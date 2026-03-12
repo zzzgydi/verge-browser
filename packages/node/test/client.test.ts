@@ -12,6 +12,10 @@ function createJsonResponse(status: number, body?: unknown): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), init);
 }
 
+function envelope<T>(data: T, message = 'ok') {
+  return { code: 0, message, data };
+}
+
 function sandboxResponse(overrides: Record<string, unknown> = {}) {
   return {
     id: 'sbx-1',
@@ -24,10 +28,11 @@ function sandboxResponse(overrides: Record<string, unknown> = {}) {
     height: 1024,
     metadata: {},
     browser: {
-      cdp_url: 'ws://x',
-      vnc_entry_base_url: 'http://x',
-      vnc_ticket_endpoint: 'http://x/tickets',
+      web_socket_debugger_url_present: true,
       viewport: { width: 1280, height: 1024 },
+      window_viewport: { x: 0, y: 0, width: 1280, height: 1024 },
+      page_viewport: { x: 0, y: 80, width: 1280, height: 944 },
+      active_window: { window_id: '1', x: 0, y: 0, title: 'Chromium' },
     },
     ...overrides,
   };
@@ -39,7 +44,7 @@ test('createSandbox sends metadata and optional fields', async () => {
     token: 'token',
     fetchImpl: async (_input, init) => {
       requestBody = String(init?.body ?? '');
-      return createJsonResponse(201, sandboxResponse({ metadata: { owner: 'agent' } }));
+      return createJsonResponse(201, envelope(sandboxResponse({ metadata: { owner: 'agent' } }), 'sandbox created'));
     },
   });
 
@@ -68,21 +73,21 @@ test('uploadFile uses multipart form data', async () => {
     token: 'token',
     fetchImpl: async (_input, init) => {
       capturedBody = init?.body;
-      return createJsonResponse(200, { path: '/workspace/uploads/file.txt' });
+      return createJsonResponse(200, envelope({ path: '/workspace/uploads/file.txt' }, 'file uploaded'));
     },
   });
 
   await client.uploadFile('sbx-1', { filename: 'file.txt', data: new Uint8Array([104, 105]) });
   assert.ok(capturedBody instanceof FormData);
   const part = capturedBody.get('upload');
-  assert.ok(part instanceof File);
-  assert.equal(part.name, 'file.txt');
+  assert.ok(part && typeof part === 'object');
+  assert.equal((part as { name?: string }).name, 'file.txt');
 });
 
 test('413 responses map to VergeValidationError', async () => {
   const client = new VergeClient({
     token: 'token',
-    fetchImpl: async () => createJsonResponse(413, { detail: 'upload too large' }),
+    fetchImpl: async () => createJsonResponse(413, { code: 413, message: 'upload too large', data: null }),
   });
 
   await assert.rejects(() => client.uploadFile('sbx-1', { filename: 'file.bin', data: new Uint8Array([1]) }), VergeValidationError);
@@ -92,10 +97,10 @@ test('listFiles includes query path', async () => {
   let requestedUrl = '';
   const fetchImpl: FetchLike = async (input) => {
     requestedUrl = input;
-    return createJsonResponse(200, []);
+    return createJsonResponse(200, envelope([]));
   };
   const client = new VergeClient({ token: 'token', baseUrl: 'http://127.0.0.1:8000', fetchImpl });
 
   await client.listFiles('shopping', '/workspace/downloads');
-  assert.equal(requestedUrl, 'http://127.0.0.1:8000/sandboxes/shopping/files/list?path=%2Fworkspace%2Fdownloads');
+  assert.equal(requestedUrl, 'http://127.0.0.1:8000/sandbox/shopping/files/list?path=%2Fworkspace%2Fdownloads');
 });

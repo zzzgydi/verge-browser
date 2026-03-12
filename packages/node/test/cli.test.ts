@@ -33,6 +33,10 @@ function createJsonResponse(status: number, body?: unknown): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), init);
 }
 
+function envelope<T>(data: T, message = 'ok') {
+  return { code: 0, message, data };
+}
+
 function sandboxResponse(overrides: Record<string, unknown> = {}) {
   return {
     id: 'sbx-1',
@@ -45,10 +49,11 @@ function sandboxResponse(overrides: Record<string, unknown> = {}) {
     height: 720,
     metadata: {},
     browser: {
-      cdp_url: 'ws://example.test/cdp',
-      vnc_entry_base_url: 'http://example.test/vnc/',
-      vnc_ticket_endpoint: 'http://example.test/vnc/tickets',
+      web_socket_debugger_url_present: true,
       viewport: { width: 1280, height: 720 },
+      window_viewport: { x: 0, y: 0, width: 1280, height: 720 },
+      page_viewport: { x: 0, y: 80, width: 1280, height: 640 },
+      active_window: { window_id: '1', x: 0, y: 0, title: 'Chromium' },
     },
     ...overrides,
   };
@@ -66,7 +71,7 @@ test('sandbox create rejects invalid width before hitting the API', async () => 
         token: 'token',
         fetchImpl: async () => {
           calls += 1;
-          return createJsonResponse(201, { ok: true });
+          return createJsonResponse(201, envelope({ ok: true }, 'sandbox created'));
         },
       }),
   });
@@ -87,7 +92,7 @@ test('sandbox update accepts metadata JSON', async () => {
       token: 'token',
       fetchImpl: async (_input, init) => {
         requestBody = String(init?.body ?? '');
-        return createJsonResponse(200, sandboxResponse({ metadata: { owner: 'agent' } }));
+        return createJsonResponse(200, envelope(sandboxResponse({ metadata: { owner: 'agent' } }), 'sandbox updated'));
       },
     }),
   });
@@ -101,7 +106,7 @@ test('browser actions reject missing payload', async () => {
   const exitCode = await runCli({
     argv: ['browser', 'actions', 'shopping', '--json'],
     io,
-    clientFactory: (options) => new VergeClient({ ...options, token: 'token', fetchImpl: async () => createJsonResponse(200, { ok: true }) }),
+    clientFactory: (options) => new VergeClient({ ...options, token: 'token', fetchImpl: async () => createJsonResponse(200, envelope({ ok: true })) }),
   });
 
   assert.equal(exitCode, 2);
@@ -120,7 +125,7 @@ test('browser screenshot writes output file when requested', async () => {
       clientFactory: (options) => new VergeClient({
         ...options,
         token: 'token',
-        fetchImpl: async () => createJsonResponse(200, {
+        fetchImpl: async () => createJsonResponse(200, envelope({
           type: 'window',
           format: 'png',
           media_type: 'image/png',
@@ -132,7 +137,7 @@ test('browser screenshot writes output file when requested', async () => {
             window_id: '1',
           },
           data_base64: Buffer.from('png-bytes').toString('base64'),
-        }),
+        })),
       }),
     });
 

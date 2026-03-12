@@ -29,13 +29,17 @@ type Sandbox = {
   height: number;
   metadata: Record<string, unknown>;
   browser: {
-    cdp_url: string;
-    vnc_entry_base_url: string;
-    vnc_ticket_endpoint: string;
     browser_version?: string | null;
     protocol_version?: string | null;
+    web_socket_debugger_url_present: boolean;
     viewport: { width: number; height: number };
   };
+};
+
+type ApiEnvelope<T> = {
+  code: number;
+  message: string;
+  data: T;
 };
 
 const API_URL_KEY = "verge-browser.admin.api-url";
@@ -66,23 +70,25 @@ async function api<T>(
   }
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as {
+      message?: string;
       detail?: string;
     } | null;
-    const message = payload?.detail || `Request failed with ${response.status}`;
+    const message = payload?.message || payload?.detail || `Request failed with ${response.status}`;
     toast.error(message);
     throw new Error(message);
   }
-  if (response.status === 204) {
-    return undefined as T;
+  const payload = (await response.json()) as ApiEnvelope<T> | T;
+  if (payload && typeof payload === "object" && "code" in payload && "message" in payload && "data" in payload) {
+    return payload.data;
   }
-  return response.json() as Promise<T>;
+  return payload as T;
 }
 
 function useSandboxes(token: string) {
   const { data, error, isLoading, isValidating } = useSWR<Sandbox[]>(
     token ? [SWR_CONFIG_KEY, token] : null,
     ([, t]: [string, string]) =>
-      api<Sandbox[]>("/sandboxes", t, { method: "GET" }),
+      api<Sandbox[]>("/sandbox", t, { method: "GET" }),
     {
       revalidateOnFocus: true,
       refreshInterval: 30000,
@@ -104,7 +110,7 @@ function useSandboxDetail(token: string, idOrAlias: string | null) {
       ? [`${SWR_CONFIG_KEY}/${idOrAlias}`, token, idOrAlias]
       : null,
     ([, t, id]: [string, string, string]) =>
-      api<Sandbox>(`/sandboxes/${id}`, t, { method: "GET" }),
+      api<Sandbox>(`/sandbox/${id}`, t, { method: "GET" }),
   );
 
   return {
@@ -146,7 +152,7 @@ export function App() {
   async function createSandbox() {
     setIsActionLoading(true);
     try {
-      const detail = await api<Sandbox>("/sandboxes", token, {
+      const detail = await api<Sandbox>("/sandbox", token, {
         method: "POST",
         body: JSON.stringify({
           alias: createAlias || undefined,
@@ -172,26 +178,22 @@ export function App() {
     setIsActionLoading(true);
     try {
       if (action === "delete") {
-        await api(`/sandboxes/${sandbox.id}`, token, { method: "DELETE" });
+        await api(`/sandbox/${sandbox.id}`, token, { method: "DELETE" });
         setSelectedId(null);
         toast.success("Sandbox deleted successfully");
       } else if (action === "vnc") {
-        const ticket = await api<{ ticket: string }>(
-          `/sandboxes/${sandbox.id}/vnc/tickets`,
+        const ticket = await api<{ ticket: string; vnc_url: string }>(
+          `/sandbox/${sandbox.id}/vnc/apply`,
           token,
           {
             method: "POST",
             body: JSON.stringify({ mode: "one_time" }),
           },
         );
-        window.open(
-          `${sandbox.browser.vnc_entry_base_url}?ticket=${ticket.ticket}`,
-          "_blank",
-          "noopener,noreferrer",
-        );
+        window.open(ticket.vnc_url, "_blank", "noopener,noreferrer");
         toast.success("VNC session opened");
       } else {
-        await api(`/sandboxes/${sandbox.id}/${action}`, token, {
+        await api(`/sandbox/${sandbox.id}/${action}`, token, {
           method: "POST",
         });
         toast.success(`Sandbox ${action}d successfully`);

@@ -43,6 +43,31 @@ type ApiEnvelope<T> = {
   data: T;
 };
 
+function canPause(status: string) {
+  return status !== "STOPPED";
+}
+
+function canResume(status: string) {
+  return status === "STOPPED" || status === "FAILED";
+}
+
+function canOpenSession(status: string) {
+  return status === "RUNNING" || status === "DEGRADED";
+}
+
+function actionHint(status: string) {
+  if (status === "STARTING") {
+    return "Starting sandboxes can be paused or deleted. Session and CDP become available after readiness completes.";
+  }
+  if (status === "STOPPED") {
+    return "Stopped sandboxes must be resumed before session or CDP access.";
+  }
+  if (status === "FAILED") {
+    return "Failed sandboxes can be resumed or deleted. Session and CDP are unavailable until recovery.";
+  }
+  return null;
+}
+
 const API_URL_KEY = "verge-browser.admin.api-url";
 const TOKEN_KEY = "verge-browser.admin.token";
 const DEFAULT_API_URL = window.location.origin;
@@ -152,6 +177,13 @@ export function App() {
     refresh,
   } = useSandboxes(token);
   const { detail: selected } = useSandboxDetail(token, selectedId);
+  const selectedStatus = selected?.status ?? null;
+  const canPauseSelected = selectedStatus ? canPause(selectedStatus) : false;
+  const canResumeSelected = selectedStatus ? canResume(selectedStatus) : false;
+  const canOpenSessionSelected = selectedStatus
+    ? canOpenSession(selectedStatus)
+    : false;
+  const selectedActionHint = selectedStatus ? actionHint(selectedStatus) : null;
 
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
@@ -389,25 +421,25 @@ export function App() {
               <div className="action-row">
                 <button
                   onClick={() => void runAction("pause", selected)}
-                  disabled={isActionLoading}
+                  disabled={isActionLoading || !canPauseSelected}
                 >
                   Pause
                 </button>
                 <button
                   onClick={() => void runAction("resume", selected)}
-                  disabled={isActionLoading}
+                  disabled={isActionLoading || !canResumeSelected}
                 >
                   Resume
                 </button>
                 <button
                   onClick={() => void runAction("session", selected)}
-                  disabled={isActionLoading}
+                  disabled={isActionLoading || !canOpenSessionSelected}
                 >
                   Open Session
                 </button>
                 <button
                   onClick={() => void runAction("cdp", selected)}
-                  disabled={isActionLoading}
+                  disabled={isActionLoading || !canOpenSessionSelected}
                 >
                   Connect CDP
                 </button>
@@ -419,6 +451,9 @@ export function App() {
                   Delete
                 </button>
               </div>
+              {selectedActionHint ? (
+                <p className="muted">{selectedActionHint}</p>
+              ) : null}
 
               <div className="metadata">
                 <label>Metadata</label>

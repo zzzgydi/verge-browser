@@ -1,63 +1,65 @@
 import asyncio
 from contextlib import suppress
 
-from fastapi import APIRouter, Depends, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 import websockets
 
-from app.deps import get_base_url, get_current_subject, get_ws_subject, require_sandbox
-from app.schemas.browser import BrowserActionsRequest, BrowserActionsResponse, ScreenshotEnvelope, ScreenshotType
+from app.auth.tickets import verify_ticket
+from app.deps import get_base_url, get_current_subject, require_sandbox
+from app.schemas.browser import BrowserActionsRequest, BrowserActionsResponse, ScreenshotEnvelope, ScreenshotRequest
+from app.schemas.common import ApiEnvelope, ok
+from app.schemas.sandbox import CreateCdpTicketRequest, CreateCdpTicketResponse
+from app.services.cdp_access import canonical_sandbox_id, issue_cdp_ticket_response
 from app.services.browser import browser_service
 
-router = APIRouter(prefix="/sandboxes/{sandbox_id}", tags=["browser"], dependencies=[Depends(get_current_subject)])
+router = APIRouter(prefix="/sandbox/{sandbox_id}", tags=["browser"], dependencies=[Depends(get_current_subject)])
 
 
-@router.get("/browser/info")
-async def browser_info(sandbox=Depends(require_sandbox)) -> dict[str, object]:
-    version = await browser_service.browser_version(sandbox)
-    viewport = browser_service.get_viewport(sandbox)
-    return {
-        "browser_version": version.get("Browser"),
-        "protocol_version": version.get("Protocol-Version"),
-        "web_socket_debugger_url_present": bool(version.get("webSocketDebuggerUrl")),
-        "viewport": viewport["window_viewport"],
-    }
-
-
-@router.get("/browser/viewport")
-async def browser_viewport(sandbox=Depends(require_sandbox)) -> dict[str, object]:
-    return browser_service.get_viewport(sandbox)
-
-
-@router.get("/browser/screenshot", response_model=ScreenshotEnvelope)
+@router.post("/browser/screenshot", response_model=ApiEnvelope[ScreenshotEnvelope])
 async def screenshot(
-    type: ScreenshotType = Query(default=ScreenshotType.window),
-    format: str = Query(default="png", pattern="^(png|jpeg|webp)$"),
-    target_id: str | None = Query(default=None),
+    payload: ScreenshotRequest,
     sandbox=Depends(require_sandbox),
-) -> ScreenshotEnvelope:
-    return await browser_service.screenshot(sandbox, type, format, target_id=target_id)
+) -> ApiEnvelope[ScreenshotEnvelope]:
+    return ok(
+        await browser_service.screenshot(
+            sandbox,
+            payload.type,
+            payload.format,
+            target_id=payload.target_id,
+            quality=payload.quality,
+        )
+    )
 
 
-@router.post("/browser/actions", response_model=BrowserActionsResponse)
-async def browser_actions(payload: BrowserActionsRequest, sandbox=Depends(require_sandbox)) -> BrowserActionsResponse:
-    return await browser_service.execute_actions(sandbox, payload)
+@router.post("/browser/actions", response_model=ApiEnvelope[BrowserActionsResponse])
+async def browser_actions(payload: BrowserActionsRequest, sandbox=Depends(require_sandbox)) -> ApiEnvelope[BrowserActionsResponse]:
+    return ok(await browser_service.execute_actions(sandbox, payload))
 
 
-@router.get("/browser/cdp/info")
-async def cdp_info(request: Request, sandbox_id: str, sandbox=Depends(require_sandbox)) -> dict[str, object]:
-    version = await browser_service.browser_version(sandbox)
+@router.post("/cdp/apply", response_model=ApiEnvelope[CreateCdpTicketResponse])
+async def cdp_apply(
+    request: Request,
+    sandbox_id: str,
+    payload: CreateCdpTicketRequest | None = None,
+    subject: str = Depends(get_current_subject),
+    sandbox=Depends(require_sandbox),
+) -> ApiEnvelope[CreateCdpTicketResponse]:
     base_url = get_base_url(request).replace("http://", "ws://").replace("https://", "wss://")
-    return {
-        "cdp_url": f"{base_url}/sandboxes/{sandbox_id}/browser/cdp/browser",
-        "browser_version": version.get("Browser"),
-        "protocol_version": version.get("Protocol-Version"),
-    }
+    canonical_id = canonical_sandbox_id(sandbox, sandbox_id)
+    ticket = issue_cdp_ticket_response(base_url=base_url, sandbox_id=canonical_id, subject=subject, request=payload)
+    return ok(ticket)
 
 
-@router.websocket("/browser/cdp/browser")
+@router.websocket("/cdp/browser")
 async def cdp_browser_proxy(websocket: WebSocket, sandbox_id: str) -> None:
     sandbox = require_sandbox(sandbox_id)
-    await get_ws_subject(websocket)
+    canonical_id = canonical_sandbox_id(sandbox, sandbox_id)
+    ticket = websocket.query_params.get("ticket")
+    try:
+        verify_ticket(ticket or "", sandbox_id=canonical_id, ticket_type="cdp", scope="connect", consume=True)
+    except HTTPException:
+        await websocket.close(code=4401, reason="invalid cdp ticket")
+        return
     await websocket.accept()
     version = await browser_service.upstream_browser_version(sandbox)
     upstream_url = version.get("webSocketDebuggerUrl")

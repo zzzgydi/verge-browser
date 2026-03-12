@@ -5,18 +5,19 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 
 import httpx
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Response, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.responses import RedirectResponse
 import websockets
 
 from app.auth.tickets import issue_ticket, verify_ticket
 from app.config import get_settings
-from app.deps import get_current_subject, require_sandbox
+from app.deps import get_base_url, get_current_subject, require_sandbox
 from app.models.sandbox import SandboxStatus
+from app.schemas.common import ApiEnvelope, ok
 from app.schemas.sandbox import CreateVncTicketRequest, CreateVncTicketResponse
 
-router = APIRouter(prefix="/sandboxes/{sandbox_id}/vnc", tags=["vnc"])
+router = APIRouter(prefix="/sandbox/{sandbox_id}/vnc", tags=["vnc"])
 _vnc_sessions: dict[str, dict[str, object]] = {}
 _vnc_sessions_lock = Lock()
 
@@ -71,13 +72,18 @@ def _ensure_vnc_proxy_ready(sandbox) -> None:
         raise HTTPException(status_code=409, detail="vnc unavailable: sandbox is not running")
 
 
-@router.post("/tickets")
+def _build_vnc_entry_url(base_url: str, sandbox_id: str, ticket: str) -> str:
+    return f"{base_url}/sandbox/{sandbox_id}/vnc/?ticket={ticket}"
+
+
+@router.post("/apply", response_model=ApiEnvelope[CreateVncTicketResponse])
 async def create_vnc_ticket(
+    request_context: Request,
     sandbox_id: str,
     request: CreateVncTicketRequest | None = None,
     subject: str = Depends(get_current_subject),
     sandbox=Depends(require_sandbox),
-) -> CreateVncTicketResponse:
+) -> ApiEnvelope[CreateVncTicketResponse]:
     settings = get_settings()
     ticket_request = request or CreateVncTicketRequest()
     canonical_id = _canonical_sandbox_id(sandbox, sandbox_id)
@@ -96,12 +102,14 @@ async def create_vnc_ticket(
     if ticket_request.mode != "permanent":
         ttl_sec = ticket_request.ttl_sec or settings.ticket_ttl_sec
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_sec)
-    return CreateVncTicketResponse(
+    response = CreateVncTicketResponse(
         ticket=ticket,
+        vnc_url=_build_vnc_entry_url(get_base_url(request_context), canonical_id, ticket),
         mode=ticket_request.mode,
         ttl_sec=None if ticket_request.mode == "permanent" else (ticket_request.ttl_sec or settings.ticket_ttl_sec),
         expires_at=expires_at,
     )
+    return ok(response)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -109,8 +117,8 @@ async def vnc_entry(sandbox_id: str, ticket: str = Query(...), sandbox=Depends(r
     canonical_id = _canonical_sandbox_id(sandbox, sandbox_id)
     verify_ticket(ticket, sandbox_id=canonical_id, ticket_type="vnc", scope="connect", consume=True)
     session_id = _create_vnc_session(canonical_id)
-    query = f"path=/sandboxes/{canonical_id}/vnc/websockify&resize=scale&autoconnect=true"
-    response = RedirectResponse(url=f"/sandboxes/{canonical_id}/vnc/vnc.html?{query}", status_code=302)
+    query = f"path=/sandbox/{canonical_id}/vnc/websockify&resize=scale&autoconnect=true"
+    response = RedirectResponse(url=f"/sandbox/{canonical_id}/vnc/vnc.html?{query}", status_code=302)
     response.set_cookie("vnc_session", session_id, httponly=True, max_age=600, samesite="lax")
     return response
 

@@ -25,13 +25,28 @@ class ViewportInfo(BaseModel):
     height: int
 
 
-class BrowserInfo(BaseModel):
-    cdp_url: str
-    vnc_entry_base_url: str
-    vnc_ticket_endpoint: str
+class BrowserViewportRect(BaseModel):
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+class ActiveWindowInfo(BaseModel):
+    window_id: str | None = None
+    x: int
+    y: int
+    title: str
+
+
+class BrowserRuntimeInfo(BaseModel):
     browser_version: str | None = None
     protocol_version: str | None = None
+    web_socket_debugger_url_present: bool = False
     viewport: ViewportInfo
+    window_viewport: BrowserViewportRect | None = None
+    page_viewport: BrowserViewportRect | None = None
+    active_window: ActiveWindowInfo | None = None
 
 
 class SandboxResponse(BaseModel):
@@ -44,7 +59,7 @@ class SandboxResponse(BaseModel):
     width: int
     height: int
     metadata: dict[str, Any] = Field(default_factory=dict)
-    browser: BrowserInfo
+    browser: BrowserRuntimeInfo
     container_id: str | None = None
 
 
@@ -59,6 +74,20 @@ class CreateVncTicketRequest(BaseModel):
 
 class CreateVncTicketResponse(BaseModel):
     ticket: str
+    vnc_url: str
+    mode: Literal["one_time", "reusable", "permanent"]
+    ttl_sec: int | None
+    expires_at: datetime | None
+
+
+class CreateCdpTicketRequest(BaseModel):
+    mode: Literal["one_time", "reusable", "permanent"] = "reusable"
+    ttl_sec: int | None = Field(default=None, ge=1, le=86400)
+
+
+class CreateCdpTicketResponse(BaseModel):
+    ticket: str
+    cdp_url: str
     mode: Literal["one_time", "reusable", "permanent"]
     ttl_sec: int | None
     expires_at: datetime | None

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
+from fastapi import Request
 
 from app.routes import vnc
 from app.models.sandbox import RuntimeEndpoint, SandboxRecord, SandboxStatus
@@ -46,39 +47,57 @@ async def test_vnc_entry_enables_autoconnect_and_scaling(monkeypatch: pytest.Mon
     response = await vnc.vnc_entry("sb_test", ticket="ticket", sandbox=object())
 
     assert response.status_code == 302
-    assert response.headers["location"] == "/sandboxes/sb_test/vnc/vnc.html?path=/sandboxes/sb_test/vnc/websockify&resize=scale&autoconnect=true"
+    assert response.headers["location"] == "/sandbox/sb_test/vnc/vnc.html?path=/sandbox/sb_test/vnc/websockify&resize=scale&autoconnect=true"
     assert "vnc_session=" in response.headers["set-cookie"]
     vnc._vnc_sessions.clear()
 
 
 @pytest.mark.asyncio
 async def test_create_vnc_ticket_supports_permanent_mode() -> None:
+    request = Request({"type": "http", "headers": [], "scheme": "http", "server": ("test", 80), "path": "/"})
     response = await vnc.create_vnc_ticket(
+        request,
         "sb_test",
         request=CreateVncTicketRequest(mode="permanent"),
         subject="user-1",
         sandbox=object(),
     )
 
-    assert response.mode == "permanent"
-    assert response.ttl_sec is None
-    assert response.expires_at is None
+    payload = response.data
+    assert payload is not None
+    if isinstance(payload, dict):
+        assert payload["mode"] == "permanent"
+        assert payload["ttl_sec"] is None
+        assert payload["expires_at"] is None
+    else:
+        assert payload.mode == "permanent"
+        assert payload.ttl_sec is None
+        assert payload.expires_at is None
 
 
 @pytest.mark.asyncio
 async def test_create_vnc_ticket_supports_custom_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(vnc, "get_settings", lambda: type("Settings", (), {"ticket_ttl_sec": 60})())
+    request = Request({"type": "http", "headers": [], "scheme": "http", "server": ("test", 80), "path": "/"})
 
     response = await vnc.create_vnc_ticket(
+        request,
         "sb_test",
         request=CreateVncTicketRequest(mode="reusable", ttl_sec=120),
         subject="user-1",
         sandbox=object(),
     )
 
-    assert response.mode == "reusable"
-    assert response.ttl_sec == 120
-    assert response.expires_at is not None
+    payload = response.data
+    assert payload is not None
+    if isinstance(payload, dict):
+        assert payload["mode"] == "reusable"
+        assert payload["ttl_sec"] == 120
+        assert payload["expires_at"] is not None
+    else:
+        assert payload.mode == "reusable"
+        assert payload.ttl_sec == 120
+        assert payload.expires_at is not None
 
 
 def test_ensure_vnc_proxy_ready_rejects_failed_sandbox_with_runtime_error() -> None:

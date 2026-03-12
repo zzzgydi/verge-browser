@@ -99,12 +99,19 @@ class BrowserService:
             },
         }
 
-    async def screenshot(self, sandbox: SandboxRecord, screenshot_type: ScreenshotType, image_format: str, target_id: str | None = None) -> ScreenshotEnvelope:
+    async def screenshot(
+        self,
+        sandbox: SandboxRecord,
+        screenshot_type: ScreenshotType,
+        image_format: str,
+        target_id: str | None = None,
+        quality: int | None = None,
+    ) -> ScreenshotEnvelope:
         viewport = self.get_viewport(sandbox)
         if screenshot_type == ScreenshotType.window:
             image_bytes = await asyncio.to_thread(self._window_screenshot, sandbox)
         else:
-            image_bytes = await self._page_screenshot(sandbox, target_id=target_id, image_format=image_format)
+            image_bytes = await self._page_screenshot(sandbox, target_id=target_id, image_format=image_format, quality=quality)
         return ScreenshotEnvelope(
             type=screenshot_type,
             format=image_format,  # type: ignore[arg-type]
@@ -145,7 +152,7 @@ class BrowserService:
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "action execution failed")
 
-    async def _page_screenshot(self, sandbox: SandboxRecord, *, target_id: str | None, image_format: str) -> bytes:
+    async def _page_screenshot(self, sandbox: SandboxRecord, *, target_id: str | None, image_format: str, quality: int | None) -> bytes:
         version = await self.upstream_browser_version(sandbox)
         ws_url = version.get("webSocketDebuggerUrl")
         if not ws_url:
@@ -155,11 +162,10 @@ class BrowserService:
             session = await cdp.call("Target.attachToTarget", {"targetId": target, "flatten": True})
             session_id = session["sessionId"]
             await cdp.call("Page.enable", session_id=session_id)
-            result = await cdp.call(
-                "Page.captureScreenshot",
-                {"format": "jpeg" if image_format == "jpeg" else "png"},
-                session_id=session_id,
-            )
+            capture_params: dict[str, Any] = {"format": "jpeg" if image_format == "jpeg" else "png"}
+            if image_format == "jpeg" and quality is not None:
+                capture_params["quality"] = quality
+            result = await cdp.call("Page.captureScreenshot", capture_params, session_id=session_id)
             await cdp.call("Target.detachFromTarget", {"sessionId": session_id})
             return base64.b64decode(result["data"])
 

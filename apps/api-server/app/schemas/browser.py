@@ -82,3 +82,10 @@ class ScreenshotEnvelope(BaseModel):
     media_type: str
     metadata: ScreenshotMetadata
     data_base64: str
+
+
+class ScreenshotRequest(BaseModel):
+    type: ScreenshotType = ScreenshotType.window
+    format: Literal["png", "jpeg", "webp"] = "png"
+    quality: int | None = Field(default=None, ge=1, le=100)
+    target_id: str | None = None

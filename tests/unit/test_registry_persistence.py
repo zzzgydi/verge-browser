@@ -15,6 +15,10 @@ from app.services.registry import SandboxRegistry, registry
 AUTH_HEADERS = {"Authorization": "Bearer dev-admin-token"}
 
 
+def body(response):
+    return response.json()["data"]
+
+
 @pytest.fixture(autouse=True)
 def reset_registry_and_settings() -> None:
     get_settings.cache_clear()
@@ -103,11 +107,11 @@ def test_app_startup_recovers_sandbox_from_disk(tmp_path: Path, monkeypatch: pyt
     get_settings.cache_clear()
 
     with TestClient(app) as client:
-        response = client.get("/sandboxes/sb_boot", headers=AUTH_HEADERS)
+        response = client.get("/sandbox/sb_boot", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
-    assert response.json()["id"] == "sb_boot"
-    assert response.json()["status"] == "STOPPED"
+    assert body(response)["id"] == "sb_boot"
+    assert body(response)["status"] == "STOPPED"
 
 
 def test_app_startup_reconciles_running_runtime_container(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -144,13 +148,21 @@ def test_app_startup_reconciles_running_runtime_container(tmp_path: Path, monkey
         return {"Browser": "Chromium", "Protocol-Version": "1.3"}
 
     monkeypatch.setattr("app.routes.sandboxes.browser_service.browser_version", fake_browser_version)
+    monkeypatch.setattr(
+        "app.routes.sandboxes.browser_service.get_viewport",
+        lambda sandbox: {
+            "window_viewport": {"x": 0, "y": 0, "width": sandbox.width, "height": sandbox.height},
+            "page_viewport": {"x": 0, "y": 80, "width": sandbox.width, "height": max(sandbox.height - 80, 0)},
+            "active_window": {"window_id": "1", "x": 0, "y": 0, "title": "Chromium"},
+        },
+    )
     get_settings.cache_clear()
 
     with TestClient(app) as client:
-        response = client.get("/sandboxes/sb_keep", headers=AUTH_HEADERS)
+        response = client.get("/sandbox/sb_keep", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
-    payload = response.json()
+    payload = body(response)
     assert payload["status"] == "RUNNING"
     assert payload["container_id"] == "cid-running"
     assert "runtime_error" not in payload["metadata"]
@@ -192,8 +204,8 @@ def test_app_startup_removes_orphaned_and_stale_runtime_containers(tmp_path: Pat
     get_settings.cache_clear()
 
     with TestClient(app) as client:
-        response = client.get("/sandboxes/sb_keep", headers=AUTH_HEADERS)
+        response = client.get("/sandbox/sb_keep", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
-    assert response.json()["status"] == "STOPPED"
+    assert body(response)["status"] == "STOPPED"
     assert removed == ["cid-known-stopped", "cid-destroyed", "cid-unlabeled"]

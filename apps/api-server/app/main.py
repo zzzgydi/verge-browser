@@ -4,6 +4,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi import HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 
 from app.config import get_settings
@@ -15,6 +17,19 @@ from app.routes.vnc import router as vnc_router
 from app.services.docker_adapter import docker_adapter
 from app.services.registry import registry
 from app.models.sandbox import SandboxStatus
+
+
+def _error_response(status_code: int, message: str) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content={"code": status_code, "message": message, "data": None})
+
+
+def _format_validation_error(exc: RequestValidationError) -> str:
+    issues: list[str] = []
+    for error in exc.errors():
+        loc = ".".join(str(part) for part in error.get("loc", []) if part != "body")
+        label = loc or "request"
+        issues.append(f"{label}: {error.get('msg', 'invalid value')}")
+    return "; ".join(issues) or "request validation failed; check the request body and query parameters"
 
 
 def _reconcile_runtime_state() -> None:
@@ -89,6 +104,19 @@ def _configure_admin_routes(app: FastAPI, admin_static_dir: Path) -> None:
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(_, exc: HTTPException) -> JSONResponse:
+        detail = exc.detail if isinstance(exc.detail, str) else "request failed; inspect the response payload for details"
+        return _error_response(exc.status_code, detail)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(_, exc: RequestValidationError) -> JSONResponse:
+        return _error_response(422, _format_validation_error(exc))
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(_, exc: Exception) -> JSONResponse:
+        return _error_response(500, f"unexpected server error: {exc}")
 
     _configure_admin_routes(app, settings.admin_static_dir)
     app.include_router(health_router)

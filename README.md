@@ -4,6 +4,14 @@ English | [中文](./README.zh.md)
 
 A browser sandbox platform for AI agents, combining CDP automation, GUI-level screenshots, shared files, and visual human handoff in one isolated runtime.
 
+<p align="center">
+  <img src="docs/assets/png-admin.png" alt="Verge Browser admin console" width="48%" />
+  <img src="docs/assets/png-vnc.png" alt="Verge Browser noVNC session" width="48%" />
+</p>
+<p align="center">
+  <strong>Sandbox Control</strong> | <strong>noVNC Session</strong>
+</p>
+
 ## Core Capabilities
 
 - **Real GUI Chromium**: not headless; supports multi-tabs, downloads, popups, and full browser behavior

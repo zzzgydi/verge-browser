@@ -4,6 +4,14 @@
 
 面向 AI Agent 的浏览器沙箱平台，把 CDP 自动化、GUI 级截图、共享文件和可视化人工接管放进同一个隔离运行时。
 
+<p align="center">
+  <img src="docs/assets/png-admin.png" alt="Verge Browser 管理控制台" width="48%" />
+  <img src="docs/assets/png-vnc.png" alt="Verge Browser noVNC 会话" width="48%" />
+</p>
+<p align="center">
+  <strong>控制台</strong> | <strong>noVNC 会话</strong>
+</p>
+
 ## 核心能力
 
 - **真实 GUI Chromium**：不是 headless，支持多标签、下载、弹窗等完整浏览器行为

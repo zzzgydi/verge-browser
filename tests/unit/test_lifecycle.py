@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from app.models.sandbox import RuntimeEndpoint, SandboxRecord, SandboxStatus
+from app.config import get_settings
+from app.models.sandbox import RuntimeEndpoint, SandboxKind, SandboxRecord, SandboxStatus
+from app.schemas.sandbox import CreateSandboxRequest
 from app.services.docker_adapter import ContainerCreateResult
 from app.services.lifecycle import SandboxLifecycleService
 from app.services.registry import registry
@@ -23,6 +25,15 @@ def _sandbox() -> SandboxRecord:
         runtime=RuntimeEndpoint(),
         metadata={"runtime_error": "stale"},
     )
+
+
+@pytest.fixture(autouse=True)
+def reset_registry() -> None:
+    for sandbox in tuple(registry.all()):
+        registry.delete(sandbox.id)
+    yield
+    for sandbox in tuple(registry.all()):
+        registry.delete(sandbox.id)
 
 
 @pytest.mark.asyncio
@@ -56,7 +67,6 @@ async def test_restart_browser_waits_for_readiness(monkeypatch: pytest.MonkeyPat
     assert updated is not None
     assert updated.status == SandboxStatus.RUNNING
     assert "runtime_error" not in updated.metadata
-    registry.delete("sb_test")
 
 
 @pytest.mark.asyncio
@@ -78,7 +88,6 @@ async def test_restart_browser_marks_degraded_when_restart_fails(monkeypatch: py
     updated = registry.get("sb_test")
     assert updated is not None
     assert updated.status == SandboxStatus.DEGRADED
-    registry.delete("sb_test")
 
 
 @pytest.mark.asyncio
@@ -137,7 +146,6 @@ async def test_wait_until_ready_records_generic_readiness_errors(monkeypatch: py
     assert updated.metadata["display_error"] == "display unavailable"
     assert "session_error" not in updated.metadata
     assert "xpra_error" not in updated.metadata
-    registry.delete("sb_test")
 
 
 @pytest.mark.asyncio
@@ -174,4 +182,39 @@ async def test_restart_browser_recreates_container_after_removing_stale_runtime(
     assert updated.container_id == "cid-2"
     assert updated.runtime.host == "10.0.0.2"
     assert updated.status == SandboxStatus.RUNNING
-    registry.delete("sb_test")
+
+
+@pytest.mark.asyncio
+async def test_create_xpra_schedules_background_readiness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    service = SandboxLifecycleService()
+    scheduled: list[tuple[str, int]] = []
+
+    monkeypatch.setenv("VERGE_SANDBOX_BASE_DIR", str(tmp_path / "sandboxes"))
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.services.lifecycle.docker_adapter.is_available", lambda: True)
+    monkeypatch.setattr("app.services.lifecycle.docker_adapter.image_exists", lambda image_name: True)
+    monkeypatch.setattr(
+        "app.services.lifecycle.docker_adapter.create_container",
+        lambda **_: ContainerCreateResult(container_id="cid-xpra", host="10.0.0.10"),
+    )
+    monkeypatch.setattr(
+        service,
+        "_schedule_readiness_probe",
+        lambda sandbox_id, *, timeout_sec: scheduled.append((sandbox_id, timeout_sec)),
+    )
+
+    async def fail_wait_until_ready(*args, **kwargs):
+        raise AssertionError("xpra create should not wait inline for readiness")
+
+    monkeypatch.setattr(service, "_wait_until_ready", fail_wait_until_ready)
+
+    try:
+        created = await service.create(CreateSandboxRequest(kind=SandboxKind.XPRA))
+    finally:
+        get_settings.cache_clear()
+
+    assert created.status == SandboxStatus.STARTING
+    assert created.container_id == "cid-xpra"
+    assert len(scheduled) == 1
+    assert scheduled[0][0] == created.id
+    assert scheduled[0][1] == 60

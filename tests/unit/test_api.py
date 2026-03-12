@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlparse
 from app.config import get_settings
 from app.main import app
 from app.main import create_app
-from app.models.sandbox import SandboxStatus
+from app.models.sandbox import RuntimeEndpoint, SandboxKind, SandboxRecord, SandboxStatus
 from app.services.registry import registry
 
 
@@ -88,6 +88,35 @@ def test_list_sandboxes_skips_browser_probe_for_stopped_instances(monkeypatch: p
     listed = client.get("/sandbox", headers=AUTH_HEADERS)
     assert listed.status_code == 200
     assert any(item["id"] == sandbox_id and item["browser"]["browser_version"] is None for item in body(listed))
+
+
+def test_get_starting_sandbox_tolerates_missing_viewport(monkeypatch: pytest.MonkeyPatch) -> None:
+    sandbox = SandboxRecord(
+        id="sb_starting",
+        kind=SandboxKind.XPRA,
+        status=SandboxStatus.STARTING,
+        workspace_dir=Path("test-artifacts") / "verge-browser" / "workspace",
+        downloads_dir=Path("test-artifacts") / "verge-browser" / "workspace" / "downloads",
+        uploads_dir=Path("test-artifacts") / "verge-browser" / "workspace" / "uploads",
+        browser_profile_dir=Path("test-artifacts") / "verge-browser" / "workspace" / "browser-profile",
+        container_id="cid-starting",
+        runtime=RuntimeEndpoint(host="127.0.0.1", session_port=14500, display=":100"),
+    )
+    registry.put(sandbox)
+
+    async def fake_browser_version(_sandbox):
+        return {}
+
+    monkeypatch.setattr("app.routes.sandboxes.browser_service.browser_version", fake_browser_version)
+    monkeypatch.setattr("app.routes.sandboxes.browser_service.get_viewport", lambda _sandbox: (_ for _ in ()).throw(RuntimeError("window not ready")))
+
+    response = client.get("/sandbox/sb_starting", headers=AUTH_HEADERS)
+
+    assert response.status_code == 200
+    payload = body(response)
+    assert payload["status"] == "STARTING"
+    assert payload["browser"]["window_viewport"] is None
+    assert payload["browser"]["active_window"] is None
 
 
 def test_alias_conflict_returns_409() -> None:

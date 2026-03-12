@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.deps import get_current_subject, require_sandbox
@@ -9,6 +11,7 @@ from app.services.lifecycle import lifecycle_service
 from app.services.registry import registry
 
 router = APIRouter(prefix="/sandbox", tags=["sandboxes"], dependencies=[Depends(get_current_subject)])
+logger = logging.getLogger(__name__)
 
 
 def _to_response(request: Request, sandbox, subject: str) -> SandboxResponse:
@@ -39,11 +42,19 @@ async def _enrich_response(request: Request, sandbox, subject: str) -> SandboxRe
     }
     if not should_probe_browser:
         return response
-    version = await browser_service.browser_version(sandbox)
-    viewport = browser_service.get_viewport(sandbox)
+    try:
+        version = await browser_service.browser_version(sandbox)
+    except Exception:
+        logger.warning("browser version probe failed for sandbox %s", sandbox.id, exc_info=True)
+        version = {}
     response.browser.browser_version = version.get("Browser")
     response.browser.protocol_version = version.get("Protocol-Version")
     response.browser.web_socket_debugger_url_present = bool(version.get("webSocketDebuggerUrl"))
+    try:
+        viewport = browser_service.get_viewport(sandbox)
+    except Exception:
+        logger.info("viewport probe not ready for sandbox %s", sandbox.id)
+        return response
     response.browser.window_viewport = BrowserViewportRect(**viewport["window_viewport"])
     response.browser.page_viewport = BrowserViewportRect(**viewport["page_viewport"])
     response.browser.active_window = ActiveWindowInfo(**viewport["active_window"])

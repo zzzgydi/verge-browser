@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import secrets
 import shutil
@@ -16,11 +17,15 @@ from app.services.registry import registry
 import httpx
 
 ALIAS_PATTERN = re.compile(r"^[a-zA-Z0-9](?:[a-zA-Z0-9_-]{0,62})$")
+logger = logging.getLogger(__name__)
 
 
 class SandboxLifecycleService:
     display_error_key = "display_error"
     session_error_key = "session_error"
+
+    def __init__(self) -> None:
+        self._readiness_tasks: dict[str, asyncio.Task[None]] = {}
 
     async def create(self, req: CreateSandboxRequest) -> SandboxRecord:
         settings = get_settings()
@@ -87,7 +92,10 @@ class SandboxLifecycleService:
         )
         registry.put(sandbox)
         if container_id:
-            await self._wait_until_ready(sandbox_id, timeout_sec=settings.sandbox_start_timeout_sec)
+            if req.kind == SandboxKind.XPRA:
+                self._schedule_readiness_probe(sandbox_id, timeout_sec=settings.sandbox_start_timeout_sec)
+            else:
+                await self._wait_until_ready(sandbox_id, timeout_sec=settings.sandbox_start_timeout_sec)
         return registry.get(sandbox_id) or sandbox
 
     def update(self, sandbox_id: str, req: UpdateSandboxRequest) -> SandboxRecord | None:
@@ -107,6 +115,7 @@ class SandboxLifecycleService:
         sandbox = registry.get(sandbox_id) or registry.get_by_alias(sandbox_id)
         if sandbox is None:
             return False
+        self._cancel_readiness_task(sandbox.id)
         sandbox = registry.remove(sandbox.id)
         if sandbox is None:
             return False
@@ -121,6 +130,7 @@ class SandboxLifecycleService:
         sandbox = registry.get(sandbox_id) or registry.get_by_alias(sandbox_id)
         if sandbox is None:
             return False
+        self._cancel_readiness_task(sandbox.id)
         if sandbox.container_id:
             docker_adapter.remove_container(sandbox.container_id)
         sandbox.container_id = None
@@ -285,6 +295,34 @@ class SandboxLifecycleService:
                 sandbox.metadata[self.session_error_key] = "session service unavailable"
             sandbox.updated_at = utcnow()
             registry.put(sandbox)
+
+    def _schedule_readiness_probe(self, sandbox_id: str, *, timeout_sec: int) -> None:
+        existing = self._readiness_tasks.get(sandbox_id)
+        if existing is not None and not existing.done():
+            return
+
+        async def runner() -> None:
+            try:
+                await self._wait_until_ready(sandbox_id, timeout_sec=timeout_sec)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("background sandbox readiness failed for %s", sandbox_id)
+
+        task = asyncio.create_task(runner())
+        self._readiness_tasks[sandbox_id] = task
+
+        def cleanup(done_task: asyncio.Task[None]) -> None:
+            current = self._readiness_tasks.get(sandbox_id)
+            if current is done_task:
+                self._readiness_tasks.pop(sandbox_id, None)
+
+        task.add_done_callback(cleanup)
+
+    def _cancel_readiness_task(self, sandbox_id: str) -> None:
+        task = self._readiness_tasks.pop(sandbox_id, None)
+        if task is not None and not task.done():
+            task.cancel()
 
     def _display_ready(self, sandbox: SandboxRecord) -> bool:
         if not sandbox.container_id:

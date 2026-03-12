@@ -63,6 +63,25 @@ def test_cli_json_output(capsys: pytest.CaptureFixture[str], monkeypatch: pytest
     assert json.loads(output) == [{"id": "sb_123", "alias": "demo"}]
 
 
+def test_cli_plain_text_output_without_json(capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VERGE_BROWSER_TOKEN", "token")
+    original_client = httpx.Client
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"code": 0, "message": "ok", "data": [{"id": "sb_123", "alias": "demo"}]})
+
+    monkeypatch.setattr(
+        "verge_browser.client.httpx.Client",
+        lambda **kwargs: original_client(transport=httpx.MockTransport(handler), base_url="http://test", headers=kwargs.get("headers")),
+    )
+
+    exit_code = main(["--base-url", "http://test", "sandbox", "list"])
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert output == "-   id: sb_123\n    alias: demo\n"
+
+
 def test_cli_error_exit_code(capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("VERGE_BROWSER_TOKEN", "token")
     original_client = httpx.Client

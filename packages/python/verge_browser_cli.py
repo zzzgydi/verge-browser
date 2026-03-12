@@ -20,13 +20,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="verge-browser")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--token", default=None)
-    parser.add_argument("--json", action="store_true", dest="json_output")
+    parser.add_argument("--json", action="store_true", dest="json_output", default=argparse.SUPPRESS)
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Shared parent parser for common options on subcommands
     parent_parser = argparse.ArgumentParser(add_help=False)
-    parent_parser.add_argument("--json", action="store_true", dest="json_output")
+    parent_parser.add_argument("--json", action="store_true", dest="json_output", default=argparse.SUPPRESS)
     sandbox = subparsers.add_parser("sandbox", parents=[parent_parser])
     sandbox_subparsers = sandbox.add_subparsers(dest="sandbox_command", required=True)
 
@@ -103,28 +103,29 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    json_output = bool(getattr(args, "json_output", False))
 
     try:
         client = VergeClient(base_url=args.base_url, token=args.token)
     except VergeConfigError as exc:
-        return _emit_error(str(exc), EXIT_CONFIG, args.json_output)
+        return _emit_error(str(exc), EXIT_CONFIG, json_output)
 
     try:
         result = _dispatch(client, args)
-        _emit_result(result, args.json_output)
+        _emit_result(result, json_output)
         return EXIT_OK
     except VergeConfigError as exc:
-        return _emit_error(str(exc), EXIT_CONFIG, args.json_output)
+        return _emit_error(str(exc), EXIT_CONFIG, json_output)
     except VergeAuthError as exc:
-        return _emit_error(str(exc), EXIT_AUTH, args.json_output)
+        return _emit_error(str(exc), EXIT_AUTH, json_output)
     except VergeNotFoundError as exc:
-        return _emit_error(str(exc), EXIT_NOT_FOUND, args.json_output)
+        return _emit_error(str(exc), EXIT_NOT_FOUND, json_output)
     except VergeConflictError as exc:
-        return _emit_error(str(exc), EXIT_CONFLICT, args.json_output)
+        return _emit_error(str(exc), EXIT_CONFLICT, json_output)
     except VergeValidationError as exc:
-        return _emit_error(str(exc), EXIT_VALIDATION, args.json_output)
+        return _emit_error(str(exc), EXIT_VALIDATION, json_output)
     except VergeServerError as exc:
-        return _emit_error(str(exc), EXIT_SERVER, args.json_output)
+        return _emit_error(str(exc), EXIT_SERVER, json_output)
     finally:
         client.close()
 
@@ -167,7 +168,7 @@ def _dispatch(client: VergeClient, args: argparse.Namespace) -> Any:
             return client.list_files(args.id_or_alias, args.path)
         if args.files_command == "read":
             result = client.read_file(args.id_or_alias, args.path)
-            return result if args.json_output else result.get("content", "")
+            return result if bool(getattr(args, "json_output", False)) else result.get("content", "")
         if args.files_command == "write":
             return client.write_file(args.id_or_alias, args.path, args.content, overwrite=args.overwrite)
         if args.files_command == "upload":
@@ -220,10 +221,67 @@ def _dispatch(client: VergeClient, args: argparse.Namespace) -> Any:
 
 
 def _emit_result(result: Any, json_output: bool) -> None:
-    if json_output or isinstance(result, (dict, list)):
+    if json_output:
         print(json.dumps(result, ensure_ascii=True, indent=2))
         return
-    print(result)
+    print(_format_plain_text(result))
+
+
+def _format_plain_text(value: Any, indent: int = 0) -> str:
+    prefix = "  " * indent
+
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return _format_string_value(value, indent)
+    if isinstance(value, (bool, int, float)):
+        return str(value)
+    if isinstance(value, list):
+        if not value:
+            return f"{prefix}(empty)"
+        rendered: list[str] = []
+        for item in value:
+            if _is_primitive(item):
+                rendered.append(f"{prefix}- {_format_scalar(item)}")
+                continue
+            nested = _format_plain_text(item, indent + 1).splitlines()
+            first = nested[0] if nested else ""
+            rendered.append(f"{prefix}- {first}")
+            rendered.extend(f"{prefix}  {line}" for line in nested[1:])
+        return "\n".join(rendered)
+    if isinstance(value, dict):
+        if not value:
+            return f"{prefix}(empty)"
+        return "\n".join(_format_object_entry(key, child, indent) for key, child in value.items())
+    return str(value)
+
+
+def _format_object_entry(key: str, value: Any, indent: int) -> str:
+    prefix = "  " * indent
+    if _is_primitive(value):
+        return f"{prefix}{key}: {_format_scalar(value)}"
+    rendered = _format_plain_text(value, indent + 1)
+    return f"{prefix}{key}:\n{rendered}"
+
+
+def _format_string_value(value: str, indent: int) -> str:
+    if "\n" not in value:
+        return value
+    prefix = "  " * indent
+    rendered = "\n".join(f"{prefix}  {line}" for line in value.splitlines())
+    return f"|\n{rendered}"
+
+
+def _format_scalar(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=True) if "\n" in value else value
+    return str(value)
+
+
+def _is_primitive(value: Any) -> bool:
+    return value is None or isinstance(value, (str, bool, int, float))
 
 
 def _emit_error(message: str, code: int, json_output: bool) -> int:

@@ -142,13 +142,38 @@ class VergeClient:
         return self._request("POST", f"/sandbox/{quote(id_or_alias, safe='')}/files/upload", files=files)
 
     def download_file(self, id_or_alias: str, path: str) -> dict[str, Any]:
+        # Use raw request to get binary data, but handle errors consistently
         response = self._client.get(
             f"/sandbox/{quote(id_or_alias, safe='')}/files/download",
             params={"path": path},
             headers=self._headers(),
         )
-        response.raise_for_status()
+        self._check_response(response)
         return {"path": path, "data": response.content, "content_type": response.headers.get("content-type")}
+
+    def _handle_error(self, response) -> None:
+        """Handle HTTP error response and raise appropriate Verge*Error."""
+        detail: str
+        try:
+            payload = response.json()
+            detail = str(payload.get("message") or response.text)
+        except Exception:
+            detail = response.text
+
+        if response.status_code == 401:
+            raise VergeAuthError(detail or "authentication failed")
+        if response.status_code == 404:
+            raise VergeNotFoundError(detail or "resource not found")
+        if response.status_code == 409:
+            raise VergeConflictError(detail or "request conflict")
+        if response.status_code == 422:
+            raise VergeValidationError(detail or "validation failed")
+        raise VergeServerError(f"{response.status_code}: {detail or 'request failed'}")
+
+    def _check_response(self, response) -> None:
+        """Check response status and raise appropriate error if not successful."""
+        if not response.is_success:
+            self._handle_error(response)
 
     def delete_file(self, id_or_alias: str, path: str) -> dict[str, Any]:
         return self._request("DELETE", f"/sandbox/{quote(id_or_alias, safe='')}/files", params={"path": path})
@@ -200,27 +225,10 @@ class VergeClient:
         headers = dict(kwargs.pop("headers", {}))
         headers.setdefault("Authorization", f"Bearer {self.token}")
         response = self._client.request(method, path, headers=headers, **kwargs)
-        if response.is_success:
-            if not response.content:
-                return None
-            payload = response.json()
-            if not isinstance(payload, dict) or {"code", "message", "data"} - payload.keys():
-                raise VergeServerError(f"invalid response envelope from {method} {path}")
-            return payload["data"]
-
-        detail: str
-        try:
-            payload = response.json()
-            detail = str(payload.get("message") or response.text)
-        except Exception:
-            detail = response.text
-
-        if response.status_code == 401:
-            raise VergeAuthError(detail or "authentication failed")
-        if response.status_code == 404:
-            raise VergeNotFoundError(detail or "resource not found")
-        if response.status_code == 409:
-            raise VergeConflictError(detail or "request conflict")
-        if response.status_code == 422:
-            raise VergeValidationError(detail or "validation failed")
-        raise VergeServerError(f"{response.status_code}: {detail or 'request failed'}")
+        self._check_response(response)
+        if not response.content:
+            return None
+        payload = response.json()
+        if not isinstance(payload, dict) or {"code", "message", "data"} - payload.keys():
+            raise VergeServerError(f"invalid response envelope from {method} {path}")
+        return payload["data"]

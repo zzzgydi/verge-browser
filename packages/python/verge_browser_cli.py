@@ -143,8 +143,13 @@ def _dispatch(client: VergeClient, args: argparse.Namespace) -> Any:
             return result
         if args.browser_command == "actions":
             import json
-            with open(args.input, "r") as f:
-                payload = json.load(f)
+            try:
+                with open(args.input, "r") as f:
+                    payload = json.load(f)
+            except json.JSONDecodeError as exc:
+                raise VergeConfigError(f"invalid JSON in actions file: {exc}")
+            if not isinstance(payload, dict):
+                raise VergeConfigError("actions payload must be a JSON object")
             return client.execute_browser_actions(
                 args.id_or_alias,
                 payload.get("actions", []),

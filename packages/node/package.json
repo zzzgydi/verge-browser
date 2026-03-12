@@ -27,8 +27,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm run build && node --test dist/test/**/*.test.js",
-    "prepublishOnly": "pnpm run build"
+    "test": "pnpm run build && tsc -p tsconfig.test.json && node --test dist-test/test/**/*.test.js",
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "pnpm run test"
   },
   "keywords": [
     "browser",
@@ -55,6 +56,9 @@
     "node": ">=18"
   },
   "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "cac": "^6.7.14"
   },

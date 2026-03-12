@@ -7,7 +7,8 @@ Node.js SDK and CLI for [Verge Browser](https://github.com/zzzgydi/verge-browser
 - **TypeScript-first**: Full type definitions included
 - **SDK + CLI**: Use programmatically or from command line
 - **ESM-native**: Modern ES module support
-- **Lightweight**: Zero runtime dependencies (CLI uses `cac`)
+- **Control plane coverage**: Sandbox lifecycle, browser controls, VNC/CDP, and files APIs
+- **Lightweight**: Minimal runtime dependency surface (CLI uses `cac`)
 
 ## Installation
 
@@ -42,6 +43,28 @@ console.log(vnc.url);
 // Get CDP info
 const cdp = await client.getCdpInfo(sandbox.id);
 console.log(cdp.cdp_url);
+
+// Inspect the browser viewport
+const viewport = await client.getBrowserViewport(sandbox.id);
+console.log(viewport.active_window.title);
+
+// Execute GUI actions
+await client.executeBrowserActions(sandbox.id, {
+  actions: [
+    { type: 'HOTKEY', keys: ['ctrl', 'l'] },
+    { type: 'TYPE_TEXT', text: 'https://example.com' },
+    { type: 'KEY_PRESS', key: 'Return' },
+  ],
+});
+
+// Read and write workspace files
+await client.writeFile(sandbox.id, {
+  path: '/workspace/notes.txt',
+  content: 'hello verge',
+  overwrite: true,
+});
+const file = await client.readFile(sandbox.id, '/workspace/notes.txt');
+console.log(file.content);
 
 // Cleanup
 await client.deleteSandbox(sandbox.id);
@@ -105,6 +128,27 @@ verge-browser sandbox cdp shopping --json
 # Get VNC URL
 verge-browser sandbox vnc shopping --json
 
+# Restart Chromium inside a sandbox
+verge-browser sandbox restart shopping --json
+
+# Inspect the active browser window
+verge-browser browser info shopping --json
+verge-browser browser viewport shopping --json
+
+# Save a screenshot locally
+verge-browser browser screenshot shopping --output ./shot.png --json
+
+# Execute GUI actions from a JSON file
+verge-browser browser actions shopping --input ./actions.json --json
+
+# List, read, write, upload, download, and delete workspace files
+verge-browser files list shopping /workspace --json
+verge-browser files read shopping /workspace/notes.txt
+verge-browser files write shopping /workspace/notes.txt --content "hello verge" --overwrite --json
+verge-browser files upload shopping ./local-file.txt --json
+verge-browser files download shopping /workspace/notes.txt --output ./notes.txt --json
+verge-browser files rm shopping /workspace/notes.txt --json
+
 # Update alias
 verge-browser sandbox update shopping --alias new-name
 
@@ -150,9 +194,20 @@ new VergeClient(options?: VergeClientOptions)
 | `deleteSandbox(idOrAlias)` | Delete a sandbox |
 | `pauseSandbox(idOrAlias)` | Pause a sandbox |
 | `resumeSandbox(idOrAlias)` | Resume a sandbox |
+| `restartBrowser(idOrAlias)` | Restart Chromium inside a sandbox |
+| `getBrowserInfo(idOrAlias)` | Fetch browser version and active viewport |
+| `getBrowserViewport(idOrAlias)` | Fetch window and page viewport metadata |
+| `getBrowserScreenshot(idOrAlias, options?)` | Capture a window or page screenshot |
+| `executeBrowserActions(idOrAlias, payload)` | Execute GUI actions via `xdotool` |
 | `getCdpInfo(idOrAlias)` | Get Chrome DevTools Protocol info |
 | `createVncTicket(idOrAlias, options?)` | Create a VNC access ticket |
 | `getVncUrl(idOrAlias)` | Get VNC URL with ticket |
+| `listFiles(idOrAlias, path?)` | List sandbox files |
+| `readFile(idOrAlias, path)` | Read a UTF-8 text file |
+| `writeFile(idOrAlias, payload)` | Write a UTF-8 text file |
+| `uploadFile(idOrAlias, payload)` | Upload a local file into `/workspace/uploads` |
+| `downloadFile(idOrAlias, path)` | Download a file as bytes |
+| `deleteFile(idOrAlias, path)` | Delete a file or empty directory |
 
 ### Error Classes
 

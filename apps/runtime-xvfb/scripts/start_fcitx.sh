@@ -29,8 +29,10 @@ rm -rf $HOME/.config/fcitx5/dbus/*
 export XMODIFIERS="@im=fcitx"
 export GTK_IM_MODULE="fcitx"
 export QT_IM_MODULE="fcitx"
+export CLUTTER_IM_MODULE="fcitx"
 export LC_ALL=zh_CN.UTF-8
 export LANG=zh_CN.UTF-8
+export LC_CTYPE=zh_CN.UTF-8
 
 echo "Starting fcitx5 in foreground..."
 # fcitx5 -d: daemon (we don't want)

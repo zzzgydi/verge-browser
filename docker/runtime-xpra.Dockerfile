@@ -32,17 +32,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-color-emoji \
     fonts-liberation \
     fontconfig \
-    libfontconfig1 \
-    fcitx5 \
-    fcitx5-chinese-addons \
-    fcitx5-frontend-gtk2 \
-    fcitx5-frontend-gtk3 \
-    fcitx5-frontend-qt5 \
+    fcitx \
+    fcitx-bin \
+    fcitx-table-all \
+    fcitx-googlepinyin \
+    fcitx-config-gtk \
+    fcitx-frontend-all \
+    fcitx-frontend-gtk2 \
+    fcitx-frontend-gtk3 \
+    fcitx-ui-classic \
     dbus-x11 \
     locales \
     && echo "zh_CN.UTF-8 UTF-8" > /etc/locale.gen \
     && locale-gen \
-    && find /usr/lib -name gtk-query-immodules-3.0 -exec {} --update-cache \; || true \
     && rm -rf /var/lib/apt/lists/*
 
 ENV XMODIFIERS="@im=fcitx" \
@@ -56,8 +58,7 @@ RUN mkdir -p /workspace/downloads /workspace/uploads /workspace/browser-profile 
 COPY apps/runtime-xpra/scripts/ /opt/sandbox/scripts/
 COPY apps/runtime-xpra/openbox/ /opt/sandbox/openbox/
 COPY apps/runtime-xpra/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY apps/runtime-xpra/fcitx/profile5 /root/.config/fcitx5/profile_src
-RUN mkdir -p /root/.config/fcitx5
+COPY apps/runtime-xpra/fcitx/profile /root/.config/fcitx/profile
 
 RUN chmod +x /opt/sandbox/scripts/*.sh
 

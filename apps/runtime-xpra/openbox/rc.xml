@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <mouse>
+    <context name="Frame">
+      <mousebind button="A-Left" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+      <mousebind button="A-Right" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+    </context>
+    <context name="Client">
+      <mousebind button="A-Left" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+      <mousebind button="A-Right" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+    </context>
+  </mouse>
+  <applications>
+    <application class="chromium">
+      <decor>no</decor>
+      <maximized>yes</maximized>
+      <position force="yes">
+        <x>0</x>
+        <y>0</y>
+      </position>
+    </application>
+    <application class="Chromium">
+      <decor>no</decor>
+      <maximized>yes</maximized>
+      <position force="yes">
+        <x>0</x>
+        <y>0</y>
+      </position>
+    </application>
+    <application class="google-chrome">
+      <decor>no</decor>
+      <maximized>yes</maximized>
+      <position force="yes">
+        <x>0</x>
+        <y>0</y>
+      </position>
+    </application>
+    <application class="Google-chrome">
+      <decor>no</decor>
+      <maximized>yes</maximized>
+      <position force="yes">
+        <x>0</x>
+        <y>0</y>
+      </position>
+    </application>
+  </applications>
+</openbox_config>

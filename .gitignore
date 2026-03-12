@@ -34,5 +34,7 @@ htmlcov/
 .local/
 
 # Project specific
+spec/
 docs/spec/
 test-artifacts/
+apps/api-server/app/static/admin/

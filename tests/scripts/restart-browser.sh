@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: Restart Chromium inside an existing sandbox and print browser info before and after the restart.
+# Purpose: Restart Chromium inside an existing sandbox and print sandbox info before and after the restart.
 
 set -euo pipefail
 
@@ -12,12 +12,12 @@ require_sandbox_id
 run_dir="$ARTIFACTS_DIR/restart-$(timestamp)"
 mkdir -p "$run_dir"
 
-api_json GET "$BASE_URL/sandboxes/$SANDBOX_ID/browser/info" | tee "$run_dir/before.json" >/dev/null
-api_json POST "$BASE_URL/sandboxes/$SANDBOX_ID/browser/restart" \
+api_json GET "$BASE_URL/sandbox/$SANDBOX_ID" | tee "$run_dir/before.json" >/dev/null
+api_json POST "$BASE_URL/sandbox/$SANDBOX_ID/browser/restart" \
   -H 'Content-Type: application/json' \
   -d '{"level":"hard"}' \
   | tee "$run_dir/restart.json" >/dev/null
-api_json GET "$BASE_URL/sandboxes/$SANDBOX_ID/browser/info" | tee "$run_dir/after.json" >/dev/null
+api_json GET "$BASE_URL/sandbox/$SANDBOX_ID" | tee "$run_dir/after.json" >/dev/null
 
 echo "Artifacts saved to $run_dir"
 echo "Before:  $run_dir/before.json"

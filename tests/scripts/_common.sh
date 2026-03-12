@@ -8,13 +8,28 @@ ARTIFACTS_DIR="$SCRIPT_DIR/.artifacts"
 
 mkdir -p "$ARTIFACTS_DIR"
 
-BASE_URL="${BASE_URL:-http://127.0.0.1:8000}"
-AUTH_TOKEN="${AUTH_TOKEN:-}"
+BASE_URL="${VERGE_BROWSER_URL:-http://127.0.0.1:8000}"
+VERGE_BROWSER_TOKEN="${VERGE_BROWSER_TOKEN:-}"
 
 auth_args=()
-if [[ -n "$AUTH_TOKEN" ]]; then
-  auth_args=(-H "Authorization: Bearer $AUTH_TOKEN")
+if [[ -n "$VERGE_BROWSER_TOKEN" ]]; then
+  auth_args=(-H "Authorization: Bearer $VERGE_BROWSER_TOKEN")
 fi
+
+require_auth_token() {
+  if [[ -n "$VERGE_BROWSER_TOKEN" ]]; then
+    return 0
+  fi
+  cat >&2 <<'EOF'
+Missing admin bearer token.
+
+Set this environment variable before running the manual API scripts:
+  export VERGE_BROWSER_TOKEN="<admin-token>"
+
+The value must match the API server's VERGE_ADMIN_AUTH_TOKEN.
+EOF
+  exit 1
+}
 
 json_get() {
   local expr="$1"
@@ -29,6 +44,7 @@ api_json() {
   local method="$1"
   local url="$2"
   shift 2
+  require_auth_token
   if [[ ${#auth_args[@]} -gt 0 ]]; then
     curl -fsS -X "$method" "${auth_args[@]}" "$url" "$@"
   else
@@ -40,6 +56,7 @@ api_file() {
   local method="$1"
   local url="$2"
   shift 2
+  require_auth_token
   if [[ ${#auth_args[@]} -gt 0 ]]; then
     curl -fsS -X "$method" "${auth_args[@]}" "$url" "$@"
   else

@@ -11,7 +11,7 @@ import httpx
 import websockets
 from fastapi import HTTPException, status
 
-from app.models.sandbox import SandboxRecord
+from app.models.sandbox import SandboxRecord, SandboxStatus
 from app.schemas.browser import BrowserAction, BrowserActionType, BrowserActionsRequest, BrowserActionsResponse, ScreenshotEnvelope, ScreenshotMetadata, ScreenshotType
 from app.services.docker_adapter import docker_adapter
 
@@ -55,6 +55,15 @@ class CdpClient:
 
 
 class BrowserService:
+    def _should_log_http_probe_failure_with_traceback(self, sandbox: SandboxRecord) -> bool:
+        return sandbox.status not in {SandboxStatus.STARTING}
+
+    def _display_env(self, sandbox: SandboxRecord) -> str:
+        return sandbox.runtime.display or ":100"
+
+    def _with_display(self, sandbox: SandboxRecord, command: str) -> str:
+        return f'export DISPLAY="{self._display_env(sandbox)}"; {command}'
+
     async def browser_version(self, sandbox: SandboxRecord) -> dict:
         return await self._browser_version_payload(sandbox, normalize_ws_url=True)
 
@@ -69,7 +78,10 @@ class BrowserService:
                 response.raise_for_status()
             payload = response.json()
         except Exception:
-            logger.warning("browser version probe via HTTP failed for sandbox %s; falling back to exec", sandbox.id, exc_info=True)
+            if self._should_log_http_probe_failure_with_traceback(sandbox):
+                logger.warning("browser version probe via HTTP failed for sandbox %s; falling back to exec", sandbox.id, exc_info=True)
+            else:
+                logger.info("browser version probe via HTTP not ready for sandbox %s; falling back to exec", sandbox.id)
             payload = self._browser_version_via_exec(sandbox)
         if normalize_ws_url and payload.get("webSocketDebuggerUrl"):
             payload["webSocketDebuggerUrl"] = self._normalize_cdp_ws_url(sandbox, payload["webSocketDebuggerUrl"])
@@ -99,12 +111,19 @@ class BrowserService:
             },
         }
 
-    async def screenshot(self, sandbox: SandboxRecord, screenshot_type: ScreenshotType, image_format: str, target_id: str | None = None) -> ScreenshotEnvelope:
+    async def screenshot(
+        self,
+        sandbox: SandboxRecord,
+        screenshot_type: ScreenshotType,
+        image_format: str,
+        target_id: str | None = None,
+        quality: int | None = None,
+    ) -> ScreenshotEnvelope:
         viewport = self.get_viewport(sandbox)
         if screenshot_type == ScreenshotType.window:
             image_bytes = await asyncio.to_thread(self._window_screenshot, sandbox)
         else:
-            image_bytes = await self._page_screenshot(sandbox, target_id=target_id, image_format=image_format)
+            image_bytes = await self._page_screenshot(sandbox, target_id=target_id, image_format=image_format, quality=quality)
         return ScreenshotEnvelope(
             type=screenshot_type,
             format=image_format,  # type: ignore[arg-type]
@@ -145,7 +164,7 @@ class BrowserService:
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "action execution failed")
 
-    async def _page_screenshot(self, sandbox: SandboxRecord, *, target_id: str | None, image_format: str) -> bytes:
+    async def _page_screenshot(self, sandbox: SandboxRecord, *, target_id: str | None, image_format: str, quality: int | None) -> bytes:
         version = await self.upstream_browser_version(sandbox)
         ws_url = version.get("webSocketDebuggerUrl")
         if not ws_url:
@@ -155,11 +174,10 @@ class BrowserService:
             session = await cdp.call("Target.attachToTarget", {"targetId": target, "flatten": True})
             session_id = session["sessionId"]
             await cdp.call("Page.enable", session_id=session_id)
-            result = await cdp.call(
-                "Page.captureScreenshot",
-                {"format": "jpeg" if image_format == "jpeg" else "png"},
-                session_id=session_id,
-            )
+            capture_params: dict[str, Any] = {"format": "jpeg" if image_format == "jpeg" else "png"}
+            if image_format == "jpeg" and quality is not None:
+                capture_params["quality"] = quality
+            result = await cdp.call("Page.captureScreenshot", capture_params, session_id=session_id)
             await cdp.call("Target.detachFromTarget", {"sessionId": session_id})
             return base64.b64decode(result["data"])
 
@@ -182,9 +200,10 @@ class BrowserService:
         window = self._discover_window(sandbox)
         if not sandbox.container_id:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="sandbox container unavailable")
+        crop = f'{window["width"]}x{window["height"]}+{window["x"]}+{window["y"]}'
         proc = docker_adapter.exec_shell(
             sandbox.container_id,
-            f'import -window "{window["window_id"]}" png:-',
+            self._with_display(sandbox, f'import -window root -crop "{crop}" png:-'),
             text=False,
         )
         if proc.returncode != 0:
@@ -196,7 +215,10 @@ class BrowserService:
             return {}
         proc = docker_adapter.exec_shell(
             sandbox.container_id,
-            "python3 - <<'PY'\nimport urllib.request\nprint(urllib.request.urlopen('http://127.0.0.1:9222/json/version', timeout=2).read().decode())\nPY",
+            self._with_display(
+                sandbox,
+                "python3 - <<'PY'\nimport urllib.request\nprint(urllib.request.urlopen('http://127.0.0.1:9222/json/version', timeout=2).read().decode())\nPY",
+            ),
         )
         if proc.returncode != 0:
             return {}
@@ -211,10 +233,22 @@ class BrowserService:
     def _discover_window(self, sandbox: SandboxRecord) -> dict[str, Any]:
         if not sandbox.container_id:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="sandbox container unavailable")
-        script = r"""
-wid="$(xdotool search --onlyvisible --class 'chromium|Chromium|google-chrome|Google-chrome' 2>/dev/null | head -n1)"
+        script = self._with_display(sandbox, r"""
+wid="$(wmctrl -lx 2>/dev/null | awk 'BEGIN{IGNORECASE=1} $3 ~ /chromium|google-chrome/ {print $1; exit}' | sed 's/^0x//')"
+if [ -n "$wid" ]; then
+  wid="$((16#$wid))"
+fi
 if [ -z "$wid" ]; then
-  wid="$(xdotool search --onlyvisible --name 'Chromium|Google Chrome' 2>/dev/null | head -n1)"
+  wid="$(xdotool search --onlyvisible --class 'Chromium' 2>/dev/null | head -n1)"
+fi
+if [ -z "$wid" ]; then
+  wid="$(xdotool search --onlyvisible --class 'chromium' 2>/dev/null | head -n1)"
+fi
+if [ -z "$wid" ]; then
+  wid="$(xdotool search --onlyvisible --name 'Chromium' 2>/dev/null | head -n1)"
+fi
+if [ -z "$wid" ]; then
+  wid="$(xdotool search --onlyvisible --name 'Google Chrome' 2>/dev/null | head -n1)"
 fi
 if [ -z "$wid" ]; then
   echo '{"error":"window not found"}'
@@ -224,7 +258,7 @@ eval "$(xdotool getwindowgeometry --shell "$wid")"
 title="$(xprop -id "$wid" WM_NAME 2>/dev/null | sed -E 's/.*= \"(.*)\"/\1/' || true)"
 printf '{"window_id":"%s","x":%s,"y":%s,"width":%s,"height":%s,"title":%s}\n' \
   "$wid" "${X:-0}" "${Y:-0}" "${WIDTH:-0}" "${HEIGHT:-0}" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$title")"
-"""
+""")
         proc = docker_adapter.exec_shell(sandbox.container_id, script)
         if proc.returncode != 0:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="browser window unavailable")

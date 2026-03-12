@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: Run the most useful human smoke flow end to end: create a sandbox, save screenshots, validate files, and print a VNC URL.
+# Purpose: Run the most useful human smoke flow end to end: create a sandbox, save screenshots, validate files, and print a session URL.
 
 set -euo pipefail
 
@@ -11,4 +11,4 @@ echo
 echo
 "$SCRIPT_DIR/files-smoke.sh"
 echo
-"$SCRIPT_DIR/get-vnc-url.sh"
+"$SCRIPT_DIR/get-session-url.sh"

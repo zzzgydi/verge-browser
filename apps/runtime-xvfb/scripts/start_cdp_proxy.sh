@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INTERNAL_CDP_PORT="${BROWSER_REMOTE_DEBUGGING_PORT:-9222}"
+EXPOSED_CDP_PORT="${EXPOSED_CDP_PORT:-9223}"
+
+exec socat "TCP-LISTEN:${EXPOSED_CDP_PORT},fork,reuseaddr,bind=0.0.0.0" "TCP:127.0.0.1:${INTERNAL_CDP_PORT}"

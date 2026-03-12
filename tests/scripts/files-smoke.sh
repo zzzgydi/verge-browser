@@ -13,18 +13,18 @@ run_dir="$ARTIFACTS_DIR/files-$(timestamp)"
 mkdir -p "$run_dir"
 content="hello verge from $(timestamp)"
 
-api_json POST "$BASE_URL/sandboxes/$SANDBOX_ID/files/write" \
+api_json POST "$BASE_URL/sandbox/$SANDBOX_ID/files/write" \
   -H 'Content-Type: application/json' \
   -d "{\"path\":\"/workspace/manual-notes.txt\",\"content\":\"$content\",\"overwrite\":true}" \
   | tee "$run_dir/write.json" >/dev/null
 
-api_json GET "$BASE_URL/sandboxes/$SANDBOX_ID/files/list?path=/workspace" \
+api_json GET "$BASE_URL/sandbox/$SANDBOX_ID/files/list?path=/workspace" \
   | tee "$run_dir/list.json" >/dev/null
 
-api_json GET "$BASE_URL/sandboxes/$SANDBOX_ID/files/read?path=/workspace/manual-notes.txt" \
+api_json GET "$BASE_URL/sandbox/$SANDBOX_ID/files/read?path=/workspace/manual-notes.txt" \
   | tee "$run_dir/read.json" >/dev/null
 
-api_file GET "$BASE_URL/sandboxes/$SANDBOX_ID/files/download?path=/workspace/manual-notes.txt" \
+api_file GET "$BASE_URL/sandbox/$SANDBOX_ID/files/download?path=/workspace/manual-notes.txt" \
   > "$run_dir/manual-notes.txt"
 
 echo "Artifacts saved to $run_dir"

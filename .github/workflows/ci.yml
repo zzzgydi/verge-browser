@@ -5,6 +5,39 @@ on:
   pull_request:
 
 jobs:
+  node-package:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/node
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.5.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: packages/node/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm run check
+
+      - name: Test package
+        run: pnpm run test
+
+      - name: Verify packed artifacts
+        run: pnpm run pack:check
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -27,11 +60,20 @@ jobs:
       - name: Unit tests
         run: PYTHONPATH=apps/api-server pytest tests/unit
 
-  runtime-image:
+  runtime-image-xvfb:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build runtime image
-        run: docker build -f docker/runtime-image.Dockerfile -t verge-browser-runtime:latest .
+      - name: Build runtime xvfb image
+        run: docker build -f docker/runtime-xvfb.Dockerfile -t verge-browser-runtime-xvfb:latest .
+
+  runtime-image-xpra:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build runtime xpra image
+        run: docker build -f docker/runtime-xpra.Dockerfile -t verge-browser-runtime-xpra:latest .

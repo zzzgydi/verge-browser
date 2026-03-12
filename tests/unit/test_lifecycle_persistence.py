@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from app.models.sandbox import RuntimeEndpoint, SandboxRecord, SandboxStatus
+from app.models.sandbox import RuntimeEndpoint, SandboxKind, SandboxRecord, SandboxStatus
+from app.services.docker_adapter import ContainerCreateResult
 from app.services.lifecycle import SandboxLifecycleService
 from app.services.registry import registry
 
@@ -24,6 +25,7 @@ def _sandbox(root: Path, *, status: SandboxStatus = SandboxStatus.RUNNING) -> Sa
         path.mkdir(parents=True, exist_ok=True)
     return SandboxRecord(
         id="sb_test",
+        kind=SandboxKind.XVFB_VNC,
         status=status,
         width=1280,
         height=1024,
@@ -70,10 +72,11 @@ async def test_resume_recreates_container_for_stopped_sandbox(tmp_path: Path, mo
     def fake_is_available() -> bool:
         return True
 
-    def fake_create_container(*, sandbox_id: str, workspace_dir: Path, width: int, height: int, default_url: str | None, image: str | None) -> tuple[str | None, str]:
+    def fake_create_container(*, sandbox_id: str, kind: SandboxKind, workspace_dir: Path, width: int, height: int, default_url: str | None, image: str | None) -> ContainerCreateResult:
         create_calls.append(
             {
                 "sandbox_id": sandbox_id,
+                "kind": kind,
                 "workspace_dir": workspace_dir,
                 "width": width,
                 "height": height,
@@ -81,7 +84,7 @@ async def test_resume_recreates_container_for_stopped_sandbox(tmp_path: Path, mo
                 "image": image,
             }
         )
-        return "cid-2", "10.0.0.22"
+        return ContainerCreateResult(container_id="cid-2", host="10.0.0.22")
 
     async def fake_wait_until_ready(sandbox_id: str, *, timeout_sec: int) -> None:
         current = registry.get(sandbox_id)
@@ -90,6 +93,7 @@ async def test_resume_recreates_container_for_stopped_sandbox(tmp_path: Path, mo
         registry.put(current)
 
     monkeypatch.setattr("app.services.lifecycle.docker_adapter.is_available", fake_is_available)
+    monkeypatch.setattr("app.services.lifecycle.docker_adapter.image_exists", lambda image_name: True)
     monkeypatch.setattr("app.services.lifecycle.docker_adapter.create_container", fake_create_container)
     monkeypatch.setattr(service, "_wait_until_ready", fake_wait_until_ready)
 
@@ -99,6 +103,7 @@ async def test_resume_recreates_container_for_stopped_sandbox(tmp_path: Path, mo
     assert create_calls == [
         {
             "sandbox_id": "sb_test",
+            "kind": SandboxKind.XVFB_VNC,
             "workspace_dir": sandbox.workspace_dir,
             "width": 1280,
             "height": 1024,
@@ -128,3 +133,43 @@ async def test_resume_marks_failed_when_docker_is_unavailable(tmp_path: Path, mo
     assert updated is not None
     assert updated.status == SandboxStatus.FAILED
     assert updated.metadata["runtime_error"] == "docker daemon unavailable"
+
+
+@pytest.mark.asyncio
+async def test_resume_preserves_failed_state_when_runtime_image_is_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    service = SandboxLifecycleService()
+    sandbox = _sandbox(tmp_path / "resume-missing-image", status=SandboxStatus.FAILED)
+    registry.put(sandbox)
+
+    monkeypatch.setattr("app.services.lifecycle.docker_adapter.is_available", lambda: True)
+    monkeypatch.setattr("app.services.lifecycle.docker_adapter.image_exists", lambda image_name: False)
+
+    ok = await service.resume("sb_test")
+
+    assert ok is False
+    updated = registry.get("sb_test")
+    assert updated is not None
+    assert updated.status == SandboxStatus.FAILED
+    assert "is not built locally" in updated.metadata["runtime_error"]
+
+
+@pytest.mark.asyncio
+async def test_resume_persists_docker_run_stderr(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    service = SandboxLifecycleService()
+    sandbox = _sandbox(tmp_path / "resume-run-error", status=SandboxStatus.FAILED)
+    registry.put(sandbox)
+
+    monkeypatch.setattr("app.services.lifecycle.docker_adapter.is_available", lambda: True)
+    monkeypatch.setattr("app.services.lifecycle.docker_adapter.image_exists", lambda image_name: True)
+    monkeypatch.setattr(
+        "app.services.lifecycle.docker_adapter.create_container",
+        lambda **_: ContainerCreateResult(container_id=None, host="127.0.0.1", error="docker: Error response from daemon: network bridge not found"),
+    )
+
+    ok = await service.resume("sb_test")
+
+    assert ok is False
+    updated = registry.get("sb_test")
+    assert updated is not None
+    assert updated.status == SandboxStatus.FAILED
+    assert updated.metadata["runtime_error"] == "docker: Error response from daemon: network bridge not found"

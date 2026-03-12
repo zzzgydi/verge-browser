@@ -15,10 +15,18 @@ services:
       - ${PROJECT_ROOT:?set PROJECT_ROOT to the repo absolute path}:${PROJECT_ROOT:?set PROJECT_ROOT to the repo absolute path}
       - /var/run/docker.sock:/var/run/docker.sock
 
-  runtime-image:
+  runtime-xvfb:
     build:
       context: ..
-      dockerfile: docker/runtime-image.Dockerfile
-    image: verge-browser-runtime:latest
+      dockerfile: docker/runtime-xvfb.Dockerfile
+    image: verge-browser-runtime-xvfb:latest
+    command: ["/bin/true"]
+    profiles: ["build"]
+
+  runtime-xpra:
+    build:
+      context: ..
+      dockerfile: docker/runtime-xpra.Dockerfile
+    image: verge-browser-runtime-xpra:latest
     command: ["/bin/true"]
     profiles: ["build"]

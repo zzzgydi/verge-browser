@@ -11,8 +11,16 @@ class FileEntry(BaseModel):
     modified_at: datetime
 
 
+class ReadFileResponse(BaseModel):
+    path: str
+    content: str
+
+
 class WriteFileRequest(BaseModel):
     path: str
     content: str
     overwrite: bool = False
 
+
+class WriteFileResponse(BaseModel):
+    path: str

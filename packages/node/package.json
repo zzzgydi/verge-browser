@@ -1,0 +1,69 @@
+{
+  "name": "verge-browser",
+  "version": "0.1.0",
+  "description": "Node.js SDK and CLI for Verge Browser - A browser sandbox system for agent workflows",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "module": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/src/index.js",
+      "types": "./dist/src/index.d.ts"
+    },
+    "./cli": {
+      "import": "./dist/src/cli.js",
+      "types": "./dist/src/cli.d.ts"
+    }
+  },
+  "bin": {
+    "verge-browser": "./dist/src/cli.js"
+  },
+  "files": [
+    "dist/src",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && tsc -p tsconfig.test.json && node --test dist-test/test/*.test.js",
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "pnpm run test"
+  },
+  "keywords": [
+    "browser",
+    "sandbox",
+    "automation",
+    "cdp",
+    "vnc",
+    "agent",
+    "cli",
+    "sdk"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zzzgydi/verge-browser.git",
+    "directory": "packages/node"
+  },
+  "homepage": "https://github.com/zzzgydi/verge-browser#readme",
+  "bugs": {
+    "url": "https://github.com/zzzgydi/verge-browser/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "cac": "^6.7.14"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "typescript": "^5.9.2"
+  }
+}

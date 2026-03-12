@@ -1,12 +1,13 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    DISPLAY=:99 \
-    XVFB_WHD=1280x1024x24 \
+    DISPLAY=:100 \
+    XPRA_DISPLAY=:100 \
+    XPRA_BIND_HOST=0.0.0.0 \
+    XPRA_PORT=14500 \
+    XPRA_HTML5=on \
     BROWSER_REMOTE_DEBUGGING_PORT=9222 \
     EXPOSED_CDP_PORT=9223 \
-    VNC_SERVER_PORT=5900 \
-    WEBSOCKET_PROXY_PORT=6080 \
     BROWSER_WINDOW_WIDTH=1280 \
     BROWSER_WINDOW_HEIGHT=1024 \
     BROWSER_DOWNLOAD_DIR=/workspace/downloads \
@@ -15,11 +16,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
-    xvfb \
+    xpra \
+    libjs-jquery \
+    python3-pil \
     openbox \
-    x11vnc \
-    novnc \
-    websockify \
     socat \
     xdotool \
     wmctrl \
@@ -53,16 +53,16 @@ ENV XMODIFIERS="@im=fcitx" \
 
 RUN mkdir -p /workspace/downloads /workspace/uploads /workspace/browser-profile /var/log/sandbox /run/sandbox /opt/sandbox/scripts /root/.config/fcitx
 
-COPY apps/sandbox-runtime/scripts/ /opt/sandbox/scripts/
-COPY apps/sandbox-runtime/openbox/ /opt/sandbox/openbox/
-COPY apps/sandbox-runtime/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY apps/sandbox-runtime/fcitx/profile5 /root/.config/fcitx5/profile_src
+COPY apps/runtime-xpra/scripts/ /opt/sandbox/scripts/
+COPY apps/runtime-xpra/openbox/ /opt/sandbox/openbox/
+COPY apps/runtime-xpra/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY apps/runtime-xpra/fcitx/profile5 /root/.config/fcitx5/profile_src
 RUN mkdir -p /root/.config/fcitx5
 
 RUN chmod +x /opt/sandbox/scripts/*.sh
 
 RUN fc-cache -f
 
-EXPOSE 9223 5900 6080
+EXPOSE 9223 14500
 
 CMD ["/bin/bash", "/opt/sandbox/scripts/start_all.sh"]

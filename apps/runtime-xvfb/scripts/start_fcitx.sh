@@ -4,9 +4,15 @@ set -euo pipefail
 # Ensure HOME and config directory are set for fcitx5
 export HOME=/root
 mkdir -p $HOME/.config/fcitx5
-cp /root/.config/fcitx5/profile_src $HOME/.config/fcitx5/profile || true
+# Try to copy from either source location (due to renames in main)
+if [ -f /root/.config/fcitx5/profile_src ]; then
+    cp /root/.config/fcitx5/profile_src $HOME/.config/fcitx5/profile || true
+elif [ -f /opt/sandbox/fcitx/profile ]; then
+    cp /opt/sandbox/fcitx/profile $HOME/.config/fcitx5/profile || true
+fi
 
-# Wait for X server to be ready
+DISPLAY="${DISPLAY:-:99}"
+
 MAX_RETRIES=30
 COUNT=0
 until xdpyinfo -display "$DISPLAY" > /dev/null 2>&1 || [ $COUNT -eq $MAX_RETRIES ]; do

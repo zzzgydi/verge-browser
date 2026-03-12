@@ -1,33 +1,34 @@
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import FileResponse
 
-from app.deps import require_sandbox
-from app.schemas.files import FileEntry, WriteFileRequest
+from app.deps import get_current_subject, require_sandbox
+from app.schemas.common import ApiEnvelope, ok
+from app.schemas.files import FileEntry, ReadFileResponse, WriteFileRequest, WriteFileResponse
 from app.services.files import file_service
 
-router = APIRouter(prefix="/sandboxes/{sandbox_id}/files", tags=["files"])
+router = APIRouter(prefix="/sandbox/{sandbox_id}/files", tags=["files"], dependencies=[Depends(get_current_subject)])
 
 
-@router.get("/list", response_model=list[FileEntry])
-async def list_files(path: str = Query("/workspace"), sandbox=Depends(require_sandbox)) -> list[FileEntry]:
-    return file_service.list(sandbox, path)
+@router.get("/list", response_model=ApiEnvelope[list[FileEntry]])
+async def list_files(path: str = Query("/workspace"), sandbox=Depends(require_sandbox)) -> ApiEnvelope[list[FileEntry]]:
+    return ok(file_service.list(sandbox, path))
 
 
-@router.get("/read")
-async def read_file(path: str = Query(...), sandbox=Depends(require_sandbox)) -> dict[str, str]:
-    return {"path": path, "content": file_service.read_text(sandbox, path)}
+@router.get("/read", response_model=ApiEnvelope[ReadFileResponse])
+async def read_file(path: str = Query(...), sandbox=Depends(require_sandbox)) -> ApiEnvelope[ReadFileResponse]:
+    return ok(ReadFileResponse(path=path, content=file_service.read_text(sandbox, path)))
 
 
-@router.post("/write")
-async def write_file(payload: WriteFileRequest, sandbox=Depends(require_sandbox)) -> dict[str, str]:
+@router.post("/write", response_model=ApiEnvelope[WriteFileResponse])
+async def write_file(payload: WriteFileRequest, sandbox=Depends(require_sandbox)) -> ApiEnvelope[WriteFileResponse]:
     target = file_service.write_text(sandbox, payload.path, payload.content, payload.overwrite)
-    return {"path": str(target)}
+    return ok(WriteFileResponse(path=str(target)), message="file written")
 
 
-@router.post("/upload")
-async def upload_file(upload: UploadFile = File(...), sandbox=Depends(require_sandbox)) -> dict[str, str]:
+@router.post("/upload", response_model=ApiEnvelope[WriteFileResponse])
+async def upload_file(upload: UploadFile = File(...), sandbox=Depends(require_sandbox)) -> ApiEnvelope[WriteFileResponse]:
     target = await file_service.upload(sandbox, upload)
-    return {"path": str(target)}
+    return ok(WriteFileResponse(path=str(target)), message="file uploaded")
 
 
 @router.get("/download")
@@ -36,7 +37,7 @@ async def download_file(path: str = Query(...), sandbox=Depends(require_sandbox)
     return FileResponse(target)
 
 
-@router.delete("")
-async def delete_file(path: str = Query(...), sandbox=Depends(require_sandbox)) -> dict[str, bool]:
+@router.delete("", response_model=ApiEnvelope[dict[str, bool]])
+async def delete_file(path: str = Query(...), sandbox=Depends(require_sandbox)) -> ApiEnvelope[dict[str, bool]]:
     file_service.delete(sandbox, path)
-    return {"ok": True}
+    return ok({"ok": True}, message="file deleted")

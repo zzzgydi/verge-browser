@@ -22,19 +22,33 @@ class SandboxStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class SandboxKind(StrEnum):
+    XVFB_VNC = "xvfb_vnc"
+    XPRA = "xpra"
+
+
 class RuntimeEndpoint(BaseModel):
     host: str = "127.0.0.1"
     cdp_port: int = 9223
-    vnc_port: int = 6080
+    session_port: int = 6080
     display: str = ":99"
-    browser_port: int = 5900
+    browser_debug_port: int = 9222
+
+
+def runtime_endpoint_for_kind(kind: SandboxKind) -> RuntimeEndpoint:
+    if kind == SandboxKind.XPRA:
+        return RuntimeEndpoint(session_port=14500, display=":100")
+    return RuntimeEndpoint(session_port=6080, display=":99")
 
 
 class SandboxRecord(BaseModel):
     id: str
+    alias: str | None = None
+    kind: SandboxKind = SandboxKind.XVFB_VNC
     status: SandboxStatus
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+    last_active_at: datetime = Field(default_factory=utcnow)
     width: int = 1280
     height: int = 1024
     image: str | None = None

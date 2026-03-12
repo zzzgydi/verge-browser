@@ -60,11 +60,20 @@ jobs:
       - name: Unit tests
         run: PYTHONPATH=apps/api-server pytest tests/unit
 
-  runtime-image:
+  runtime-image-xvfb:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build runtime image
-        run: docker build -f docker/runtime-image.Dockerfile -t verge-browser-runtime:latest .
+      - name: Build runtime xvfb image
+        run: docker build -f docker/runtime-xvfb.Dockerfile -t verge-browser-runtime-xvfb:latest .
+
+  runtime-image-xpra:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build runtime xpra image
+        run: docker build -f docker/runtime-xpra.Dockerfile -t verge-browser-runtime-xpra:latest .

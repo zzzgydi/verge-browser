@@ -1,9 +1,0 @@
-[Appearance]
-ShowStatusIcon=True
-LookupTablePageSize=5
-
-[InputMethod]
-DefaultIM=fcitx-keyboard-us
-# 显式启用列表，确保 F12 切换时能找到 googlepinyin
-EnabledIMList=fcitx-keyboard-us:True,googlepinyin:True
-IMList=fcitx-keyboard-us:True,googlepinyin:True

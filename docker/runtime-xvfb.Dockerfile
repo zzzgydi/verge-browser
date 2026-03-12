@@ -35,10 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfontconfig1 \
     fcitx5 \
     fcitx5-chinese-addons \
-    fcitx5-frontend-all \
     fcitx5-frontend-gtk2 \
     fcitx5-frontend-gtk3 \
-    fcitx5-config-qt \
+    fcitx5-frontend-qt5 \
     dbus-x11 \
     locales \
     && echo "zh_CN.UTF-8 UTF-8" > /etc/locale.gen \

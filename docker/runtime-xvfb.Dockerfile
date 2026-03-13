@@ -32,19 +32,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-color-emoji \
     fonts-liberation \
     fontconfig \
-    fcitx \
-    fcitx-bin \
-    fcitx-table-all \
-    fcitx-googlepinyin \
-    fcitx-config-gtk \
-    fcitx-frontend-all \
-    fcitx-frontend-gtk2 \
-    fcitx-frontend-gtk3 \
-    fcitx-ui-classic \
+    libfontconfig1 \
+    fcitx5 \
+    fcitx5-chinese-addons \
+    fcitx5-frontend-gtk2 \
+    fcitx5-frontend-gtk3 \
+    fcitx5-frontend-qt5 \
     dbus-x11 \
     locales \
     && echo "zh_CN.UTF-8 UTF-8" > /etc/locale.gen \
     && locale-gen \
+    && (find /usr/lib -name gtk-query-immodules-3.0 -exec {} --update-cache \; || true) \
     && rm -rf /var/lib/apt/lists/*
 
 ENV XMODIFIERS="@im=fcitx" \
@@ -58,7 +56,8 @@ RUN mkdir -p /workspace/downloads /workspace/uploads /workspace/browser-profile 
 COPY apps/runtime-xvfb/scripts/ /opt/sandbox/scripts/
 COPY apps/runtime-xvfb/openbox/ /opt/sandbox/openbox/
 COPY apps/runtime-xvfb/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY apps/runtime-xvfb/fcitx/profile /root/.config/fcitx/profile
+COPY apps/runtime-xvfb/fcitx/profile5 /root/.config/fcitx5/profile_src
+RUN mkdir -p /root/.config/fcitx5
 
 RUN chmod +x /opt/sandbox/scripts/*.sh
 

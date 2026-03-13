@@ -8,6 +8,7 @@ OPENBOX_CONFIG="${OPENBOX_CONFIG:-/opt/sandbox/openbox/rc.xml}"
 Xvfb "${DISPLAY_NUM}" -screen 0 "${XVFB_WHD}" -ac +extension RANDR &
 sleep 2
 
+# Set keyboard layout to US to ensure basic compatibility
 setxkbmap us || true
 
 DISPLAY="${DISPLAY_NUM}" openbox --config-file "${OPENBOX_CONFIG}" &

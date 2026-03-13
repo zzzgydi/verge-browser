@@ -33,6 +33,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation \
     fontconfig \
     libfontconfig1 \
+    libgl1-mesa-dri \
+    libglapi-mesa \
+    libosmesa6 \
+    mesa-utils \
     fcitx5 \
     fcitx5-chinese-addons \
     fcitx5-frontend-gtk2 \

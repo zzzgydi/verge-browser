@@ -13,6 +13,7 @@ class CreateSandboxRequest(BaseModel):
     default_url: str | None = None
     width: int = Field(default=1280, ge=320, le=7680)
     height: int = Field(default=1024, ge=240, le=4320)
+    enable_gpu: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -60,6 +61,7 @@ class SandboxResponse(BaseModel):
     last_active_at: datetime
     width: int
     height: int
+    enable_gpu: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
     browser: BrowserRuntimeInfo
     container_id: str | None = None

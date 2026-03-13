@@ -23,6 +23,17 @@ until xdpyinfo -display "${DISPLAY_NUM}" >/dev/null 2>&1 || [ "${COUNT}" -eq "${
   COUNT=$((COUNT + 1))
 done
 
+GPU_FLAGS=("--disable-gpu")
+if [ "${GPU_ENABLED:-false}" = "true" ]; then
+  GPU_FLAGS=(
+    "--ignore-gpu-blocklist"
+    "--enable-webgl"
+    "--enable-webgl2"
+    "--use-gl=angle"
+    "--use-angle=swiftshader"
+  )
+fi
+
 exec chromium \
   --display="${DISPLAY_NUM}" \
   --no-sandbox \
@@ -30,7 +41,7 @@ exec chromium \
   --no-default-browser-check \
   --disable-background-networking \
   --disable-dev-shm-usage \
-  --disable-gpu \
+  "${GPU_FLAGS[@]}" \
   --disable-popup-blocking \
   --disable-features=TranslateUI \
   --window-position=0,0 \

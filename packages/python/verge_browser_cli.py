@@ -37,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--kind", default="xvfb_vnc", choices=["xvfb_vnc", "xpra"])
     create.add_argument("--width", type=int, default=1280)
     create.add_argument("--height", type=int, default=1024)
+    create.add_argument("--enable-gpu", action="store_true", default=False)
     create.add_argument("--default-url", default=None)
     create.add_argument("--image", default=None)
 
@@ -198,6 +199,7 @@ def _dispatch(client: VergeClient, args: argparse.Namespace) -> Any:
             kind=args.kind,
             width=args.width,
             height=args.height,
+            enable_gpu=args.enable_gpu,
             default_url=args.default_url,
             image=args.image,
         )

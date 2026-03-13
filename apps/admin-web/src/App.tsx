@@ -28,6 +28,7 @@ type Sandbox = {
   last_active_at: string;
   width: number;
   height: number;
+  enable_gpu: boolean;
   metadata: Record<string, unknown>;
   browser: {
     browser_version?: string | null;
@@ -168,6 +169,7 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createAlias, setCreateAlias] = useState("");
   const [createKind, setCreateKind] = useState<"xvfb_vnc" | "xpra">("xvfb_vnc");
+  const [createEnableGpu, setCreateEnableGpu] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const {
@@ -202,6 +204,7 @@ export function App() {
           kind: createKind,
           width: 1280,
           height: 1024,
+          enable_gpu: createEnableGpu,
         }),
       });
       setCreateAlias("");
@@ -329,6 +332,14 @@ export function App() {
                   <option value="xvfb_vnc">xvfb + vnc</option>
                   <option value="xpra">xpra</option>
                 </select>
+                <label className="gpu-label">
+                  <input
+                    type="checkbox"
+                    checked={createEnableGpu}
+                    onChange={(e) => setCreateEnableGpu(e.target.checked)}
+                  />
+                  GPU
+                </label>
                 <button
             className="create-btn"
             onClick={() => void createSandbox()}
@@ -407,6 +418,10 @@ export function App() {
                   <p>
                     {selected.width} x {selected.height}
                   </p>
+                </div>
+                <div>
+                  <label>GPU</label>
+                  <p>{selected.enable_gpu ? "Enabled" : "Disabled"}</p>
                 </div>
                 <div>
                   <label>Created</label>

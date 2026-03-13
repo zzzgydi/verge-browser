@@ -127,6 +127,8 @@ docker run -d \
   verge-browser-api:latest
 ```
 
+> **Note**: For Linux hosts requiring GPU acceleration, add `--device /dev/dri:/dev/dri` to the `docker run` command so the API container can detect the GPU device.
+
 This mode expects the API container to see the same absolute project path as the host so it can mount sandbox workspaces into runtime containers correctly.
 
 For a complete list of deployment env vars, see [`docs/env.md`](./docs/env.md).

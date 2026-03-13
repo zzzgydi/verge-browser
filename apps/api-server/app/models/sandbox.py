@@ -51,6 +51,7 @@ class SandboxRecord(BaseModel):
     last_active_at: datetime = Field(default_factory=utcnow)
     width: int = 1280
     height: int = 1024
+    enable_gpu: bool = False
     image: str | None = None
     workspace_dir: Path
     downloads_dir: Path

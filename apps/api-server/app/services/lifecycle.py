@@ -57,6 +57,7 @@ class SandboxLifecycleService:
                     height=req.height,
                     default_url=req.default_url,
                     image=req.image,
+                    enable_gpu=req.enable_gpu,
                 )
                 container_id = create_result.container_id
                 host = create_result.host
@@ -75,6 +76,7 @@ class SandboxLifecycleService:
             last_active_at=utcnow(),
             width=req.width,
             height=req.height,
+            enable_gpu=req.enable_gpu,
             image=req.image,
             workspace_dir=workspace,
             downloads_dir=downloads,
@@ -175,6 +177,7 @@ class SandboxLifecycleService:
             height=sandbox.height,
             default_url=None,
             image=sandbox.image,
+            enable_gpu=sandbox.enable_gpu,
         )
         container_id = create_result.container_id
         host = create_result.host
@@ -238,6 +241,7 @@ class SandboxLifecycleService:
                 height=sandbox.height,
                 default_url=None,
                 image=sandbox.image,
+                enable_gpu=sandbox.enable_gpu,
             )
             container_id = create_result.container_id
             host = create_result.host

@@ -32,6 +32,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-color-emoji \
     fonts-liberation \
     fontconfig \
+    libgl1-mesa-dri \
+    libglapi-mesa \
+    libosmesa6 \
+    mesa-utils \
     fcitx \
     fcitx-bin \
     fcitx-table-all \

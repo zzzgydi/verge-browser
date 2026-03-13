@@ -72,7 +72,7 @@ async def test_resume_recreates_container_for_stopped_sandbox(tmp_path: Path, mo
     def fake_is_available() -> bool:
         return True
 
-    def fake_create_container(*, sandbox_id: str, kind: SandboxKind, workspace_dir: Path, width: int, height: int, default_url: str | None, image: str | None) -> ContainerCreateResult:
+    def fake_create_container(*, sandbox_id: str, kind: SandboxKind, workspace_dir: Path, width: int, height: int, default_url: str | None, image: str | None, enable_gpu: bool = False) -> ContainerCreateResult:
         create_calls.append(
             {
                 "sandbox_id": sandbox_id,
@@ -82,6 +82,7 @@ async def test_resume_recreates_container_for_stopped_sandbox(tmp_path: Path, mo
                 "height": height,
                 "default_url": default_url,
                 "image": image,
+                "enable_gpu": enable_gpu,
             }
         )
         return ContainerCreateResult(container_id="cid-2", host="10.0.0.22")
@@ -109,6 +110,7 @@ async def test_resume_recreates_container_for_stopped_sandbox(tmp_path: Path, mo
             "height": 1024,
             "default_url": None,
             "image": "custom-runtime:1",
+            "enable_gpu": False,
         }
     ]
     updated = registry.get("sb_test")

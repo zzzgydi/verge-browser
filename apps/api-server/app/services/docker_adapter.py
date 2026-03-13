@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import platform
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -59,6 +60,7 @@ class DockerAdapter:
         height: int,
         default_url: str | None,
         image: str | None,
+        enable_gpu: bool = False,
     ) -> ContainerCreateResult:
         settings = get_settings()
         image_name = image or settings.runtime_image_for_kind(kind)
@@ -67,13 +69,16 @@ class DockerAdapter:
         container_name = f"verge-sandbox-{sandbox_id}"
         display = settings.display_for_kind(kind)
         session_port = settings.session_port_for_kind(kind)
+        
+        shm_size = "2g" if enable_gpu else "1g"
+        
         cmd = [
             "docker",
             "run",
             "-d",
             "--name",
             container_name,
-            "--shm-size=1g",
+            f"--shm-size={shm_size}",
             "--network",
             settings.sandbox_runtime_network,
             "--label",
@@ -90,9 +95,17 @@ class DockerAdapter:
             f"BROWSER_WINDOW_HEIGHT={height}",
             "-e",
             f"DEFAULT_URL={default_url or settings.sandbox_default_url}",
+            "-e",
+            f"GPU_ENABLED={'true' if enable_gpu else 'false'}",
             "-v",
             f"{workspace_dir}:/workspace",
         ]
+        
+        if enable_gpu and platform.system() == "Linux":
+            # Passthrough DRI devices for hardware acceleration on Linux if available
+            if Path("/dev/dri").exists():
+                cmd.extend(["--device", "/dev/dri:/dev/dri"])
+            
         if kind == SandboxKind.XPRA:
             cmd.extend(["-e", f"XPRA_DISPLAY={display}", "-e", f"XPRA_PORT={session_port}"])
         else:

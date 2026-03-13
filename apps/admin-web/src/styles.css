@@ -183,6 +183,25 @@ select {
   text-wrap: nowrap;
 }
 
+.gpu-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.gpu-label input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  cursor: pointer;
+}
+
 .grid {
   display: grid;
   grid-template-columns: 380px minmax(0, 1fr);

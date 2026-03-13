@@ -127,6 +127,8 @@ docker run -d \
   verge-browser-api:latest
 ```
 
+> **提示**：如果宿主机是 Linux 且需要开启 GPU 加速，请在 `docker run` 时增加 `--device /dev/dri:/dev/dri` 以便 API 容器能检测到显卡设备。
+
 这种方式要求 API 容器看到的项目绝对路径与宿主机一致，这样它在创建运行时容器时才能正确挂载沙箱工作目录。
 
 完整的部署环境变量清单见 [`docs/env.md`](./docs/env.md)。

@@ -46,11 +46,18 @@ class VergeClient:
         kind: str = "xvfb_vnc",
         width: int = 1280,
         height: int = 1024,
+        enable_gpu: bool = False,
         default_url: str | None = None,
         image: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        payload: dict[str, Any] = {"kind": kind, "width": width, "height": height, "metadata": metadata or {}}
+        payload: dict[str, Any] = {
+            "kind": kind,
+            "width": width,
+            "height": height,
+            "enable_gpu": enable_gpu,
+            "metadata": metadata or {},
+        }
         if alias is not None:
             payload["alias"] = alias
         if default_url is not None:

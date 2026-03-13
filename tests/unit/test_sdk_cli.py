@@ -141,4 +141,4 @@ def test_sdk_create_sandbox_sends_kind() -> None:
     finally:
         client.close()
 
-    assert captured["json"] == {"kind": "xpra", "width": 1280, "height": 1024, "metadata": {}}
+    assert captured["json"] == {"kind": "xpra", "width": 1280, "height": 1024, "enable_gpu": False, "metadata": {}}

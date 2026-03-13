@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verge Browser Usage"
+  short_description: "Operate deployed Verge Browser sandboxes and pair them with agent-browser."
+  default_prompt: "Use $verge-browser-usage to operate a deployed Verge Browser service and combine it with agent-browser for browser automation."

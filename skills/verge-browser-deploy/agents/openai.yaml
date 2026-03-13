@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verge Browser Deploy"
+  short_description: "Deploy Verge Browser and verify the service is healthy."
+  default_prompt: "Use $verge-browser-deploy to deploy Verge Browser and verify the service is healthy."

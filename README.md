@@ -127,7 +127,10 @@ docker run -d \
   verge-browser-api:latest
 ```
 
-> **Note**: For Linux hosts requiring GPU acceleration, add `--device /dev/dri:/dev/dri` to the `docker run` command so the API container can detect the GPU device.
+> **Note**: For Linux hosts requiring GPU acceleration, add the appropriate flag to the `docker run` command so the API container can detect the GPU device:
+>
+> - **Intel / AMD**: `--device /dev/dri:/dev/dri`
+> - **NVIDIA** (requires [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) on the host): `--gpus all`
 
 This mode expects the API container to see the same absolute project path as the host so it can mount sandbox workspaces into runtime containers correctly.
 

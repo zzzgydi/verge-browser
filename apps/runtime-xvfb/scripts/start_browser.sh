@@ -42,8 +42,18 @@ done
 
 GPU_FLAGS=("--disable-gpu")
 if [ "${GPU_ENABLED:-false}" = "true" ]; then
-  if ls /dev/dri/renderD* >/dev/null 2>&1; then
-    echo "Hardware GPU detected (/dev/dri/renderD*), using EGL acceleration."
+  if [ -e /dev/nvidia0 ]; then
+    # NVIDIA GPU injected via nvidia-container-toolkit: use EGL backed by NVIDIA driver
+    echo "NVIDIA GPU detected, using EGL (nvidia-container-toolkit)."
+    GPU_FLAGS=(
+      "--ignore-gpu-blocklist"
+      "--enable-webgl"
+      "--enable-webgl2"
+      "--use-gl=egl"
+    )
+  elif ls /dev/dri/renderD* >/dev/null 2>&1; then
+    # Intel/AMD: Mesa EGL via DRI render node
+    echo "Intel/AMD GPU detected (/dev/dri/renderD*), using Mesa EGL."
     GPU_FLAGS=(
       "--ignore-gpu-blocklist"
       "--enable-webgl"
@@ -51,6 +61,7 @@ if [ "${GPU_ENABLED:-false}" = "true" ]; then
       "--use-gl=egl"
     )
   else
+    # No hardware GPU available, fall back to SwiftShader (CPU software rendering)
     echo "No hardware GPU found, falling back to SwiftShader (CPU software rendering)."
     GPU_FLAGS=(
       "--ignore-gpu-blocklist"

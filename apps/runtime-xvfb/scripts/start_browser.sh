@@ -42,13 +42,24 @@ done
 
 GPU_FLAGS=("--disable-gpu")
 if [ "${GPU_ENABLED:-false}" = "true" ]; then
-  GPU_FLAGS=(
-    "--ignore-gpu-blocklist"
-    "--enable-webgl"
-    "--enable-webgl2"
-    "--use-gl=angle"
-    "--use-angle=swiftshader"
-  )
+  if ls /dev/dri/renderD* >/dev/null 2>&1; then
+    echo "Hardware GPU detected (/dev/dri/renderD*), using EGL acceleration."
+    GPU_FLAGS=(
+      "--ignore-gpu-blocklist"
+      "--enable-webgl"
+      "--enable-webgl2"
+      "--use-gl=egl"
+    )
+  else
+    echo "No hardware GPU found, falling back to SwiftShader (CPU software rendering)."
+    GPU_FLAGS=(
+      "--ignore-gpu-blocklist"
+      "--enable-webgl"
+      "--enable-webgl2"
+      "--use-gl=angle"
+      "--use-angle=swiftshader"
+    )
+  fi
 fi
 
 exec chromium \

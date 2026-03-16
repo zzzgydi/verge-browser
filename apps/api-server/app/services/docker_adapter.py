@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import glob
 import json
 import platform
 import subprocess
@@ -80,6 +81,16 @@ class DockerAdapter:
         display = settings.display_for_kind(kind)
         session_port = settings.session_port_for_kind(kind)
 
+        # Detect available GPU hardware on the host for device pass-through (Linux-only).
+        # This is independent of GPU_ENABLED: even without hardware, GPU_ENABLED=true
+        # lets the container fall back to SwiftShader software WebGL rendering.
+        gpu_device: str | None = None
+        if enable_gpu and platform.system() == "Linux":
+            if Path("/dev/nvidia0").exists():
+                gpu_device = "nvidia"
+            elif glob.glob("/dev/dri/renderD*"):
+                gpu_device = "dri"
+
         shm_size = "2g" if enable_gpu else "1g"
 
         cmd = [
@@ -111,13 +122,12 @@ class DockerAdapter:
             f"{workspace_dir}:/workspace",
         ]
 
-        if enable_gpu and platform.system() == "Linux":
+        if gpu_device == "nvidia":
             # NVIDIA GPU: use NVIDIA Container Toolkit (requires nvidia-container-toolkit on host)
-            if Path("/dev/nvidia0").exists():
-                cmd.extend(["--gpus", "all"])
+            cmd.extend(["--gpus", "all"])
+        elif gpu_device == "dri":
             # Intel/AMD: pass through DRI render nodes for Mesa EGL
-            elif Path("/dev/dri").exists():
-                cmd.extend(["--device", "/dev/dri:/dev/dri"])
+            cmd.extend(["--device", "/dev/dri:/dev/dri"])
 
         if kind == SandboxKind.XPRA:
             cmd.extend(

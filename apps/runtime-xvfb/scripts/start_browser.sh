@@ -51,7 +51,7 @@ if [ "${GPU_ENABLED:-false}" = "true" ]; then
       "--enable-webgl2"
       "--use-gl=egl"
     )
-  elif ls /dev/dri/renderD* >/dev/null 2>&1; then
+  elif compgen -G "/dev/dri/renderD*" > /dev/null 2>&1; then
     # Intel/AMD: Mesa EGL via DRI render node
     echo "Intel/AMD GPU detected (/dev/dri/renderD*), using Mesa EGL."
     GPU_FLAGS=(

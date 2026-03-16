@@ -12,6 +12,7 @@ export VERGE_BROWSER_TOKEN=dev-admin-token
 ```bash
 verge-browser sandbox list --json
 verge-browser sandbox create --alias shopping --width 1440 --height 900
+verge-browser sandbox create --alias proxied --http-proxy http://proxy.example.com:8080 --no-proxy localhost,127.0.0.1
 verge-browser sandbox create --alias human-loop --kind xpra --json
 verge-browser sandbox get shopping --json
 verge-browser sandbox cdp shopping --json
@@ -45,6 +46,12 @@ from verge_browser import VergeClient
 
 client = VergeClient()
 sandbox = client.create_sandbox(alias="shopping", width=1440, height=900)
+proxied = client.create_sandbox(
+    alias="proxied",
+    http_proxy="http://proxy.example.com:8080",
+    https_proxy="http://proxy.example.com:8080",
+    no_proxy="localhost,127.0.0.1",
+)
 xpra_sandbox = client.create_sandbox(alias="manual-step", kind="xpra")
 detail = client.get_sandbox("shopping")
 cdp = client.get_cdp_info("shopping", mode="reusable", ttl_sec=300)
@@ -64,6 +71,12 @@ const client = new VergeClient({
 });
 
 const sandbox = await client.createSandbox({ alias: "shopping" });
+const proxied = await client.createSandbox({
+  alias: "proxied",
+  http_proxy: "http://proxy.example.com:8080",
+  https_proxy: "http://proxy.example.com:8080",
+  no_proxy: "localhost,127.0.0.1",
+});
 const xpraSandbox = await client.createSandbox({
   alias: "manual-step",
   kind: "xpra",

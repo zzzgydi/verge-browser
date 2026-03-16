@@ -62,6 +62,9 @@ Request:
   "default_url": "https://example.com",
   "width": 1440,
   "height": 900,
+  "http_proxy": "http://proxy.example.com:8080",
+  "https_proxy": "http://proxy.example.com:8080",
+  "no_proxy": "localhost,127.0.0.1",
   "metadata": {
     "purpose": "manual-test"
   }
@@ -96,6 +99,10 @@ Example `data` payload:
   "last_active_at": "2026-03-12T10:00:05Z",
   "width": 1440,
   "height": 900,
+  "enable_gpu": false,
+  "http_proxy": null,
+  "https_proxy": null,
+  "no_proxy": null,
   "metadata": {},
   "container_id": "docker-container-id",
   "browser": {

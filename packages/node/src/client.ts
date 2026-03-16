@@ -56,6 +56,9 @@ export interface SandboxResponse {
   width: number;
   height: number;
   enable_gpu: boolean;
+  http_proxy?: string | null;
+  https_proxy?: string | null;
+  no_proxy?: string | null;
   metadata: JsonObject;
   browser: BrowserInfo;
   container_id?: string | null;
@@ -85,6 +88,9 @@ export interface CreateSandboxPayload {
   enable_gpu?: boolean;
   default_url?: string;
   image?: string;
+  http_proxy?: string;
+  https_proxy?: string;
+  no_proxy?: string;
   metadata?: JsonObject;
 }
 

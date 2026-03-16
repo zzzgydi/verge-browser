@@ -49,6 +49,9 @@ class VergeClient:
         enable_gpu: bool = False,
         default_url: str | None = None,
         image: str | None = None,
+        http_proxy: str | None = None,
+        https_proxy: str | None = None,
+        no_proxy: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -64,6 +67,12 @@ class VergeClient:
             payload["default_url"] = default_url
         if image is not None:
             payload["image"] = image
+        if http_proxy is not None:
+            payload["http_proxy"] = http_proxy
+        if https_proxy is not None:
+            payload["https_proxy"] = https_proxy
+        if no_proxy is not None:
+            payload["no_proxy"] = no_proxy
         return self._request("POST", "/sandbox", json=payload)
 
     def get_sandbox(self, id_or_alias: str) -> dict[str, Any]:

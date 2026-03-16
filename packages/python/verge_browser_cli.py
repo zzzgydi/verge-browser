@@ -40,6 +40,9 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--enable-gpu", action="store_true", default=False)
     create.add_argument("--default-url", default=None)
     create.add_argument("--image", default=None)
+    create.add_argument("--http-proxy", default=None, dest="http_proxy")
+    create.add_argument("--https-proxy", default=None, dest="https_proxy")
+    create.add_argument("--no-proxy", default=None, dest="no_proxy")
 
     get_cmd = sandbox_subparsers.add_parser("get", parents=[parent_parser])
     get_cmd.add_argument("id_or_alias")
@@ -202,6 +205,9 @@ def _dispatch(client: VergeClient, args: argparse.Namespace) -> Any:
             enable_gpu=args.enable_gpu,
             default_url=args.default_url,
             image=args.image,
+            http_proxy=args.http_proxy,
+            https_proxy=args.https_proxy,
+            no_proxy=args.no_proxy,
         )
     if args.sandbox_command == "get":
         return client.get_sandbox(args.id_or_alias)

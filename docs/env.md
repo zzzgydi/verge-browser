@@ -86,6 +86,9 @@ These variables are used by the runtime images or injected by the API server whe
 | `BROWSER_WINDOW_WIDTH`  | All        | API server | Browser window width.                                       |
 | `BROWSER_WINDOW_HEIGHT` | All        | API server | Browser window height.                                      |
 | `DEFAULT_URL`           | All        | API server | Initial browser URL.                                        |
+| `HTTP_PROXY`            | All        | API server | HTTP proxy URL (injected when `http_proxy` is set on the sandbox). Both upper and lower-case variants are injected. |
+| `HTTPS_PROXY`           | All        | API server | HTTPS proxy URL (injected when `https_proxy` is set on the sandbox). Both upper and lower-case variants are injected. |
+| `NO_PROXY`              | All        | API server | Comma-separated proxy bypass list. Injected when `no_proxy` is set, or automatically defaults to `localhost,127.0.0.1` when any proxy is active. Both upper and lower-case variants are injected. |
 | `XPRA_DISPLAY`          | `xpra`     | API server | Xpra display.                                               |
 | `XPRA_PORT`             | `xpra`     | API server | Xpra HTML5 service port.                                    |
 | `XVFB_WHD`              | `xvfb_vnc` | API server | Xvfb screen geometry and depth, for example `1280x1024x24`. |

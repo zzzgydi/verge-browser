@@ -1,5 +1,7 @@
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+import asyncio
+import logging
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -8,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 
+from app.auth.tickets import ticket_store
 from app.config import get_settings
 from app.routes.browser import router as browser_router
 from app.routes.files import router as files_router
@@ -16,7 +19,9 @@ from app.routes.session import router as session_router
 from app.routes.sandboxes import router as sandbox_router
 from app.services.docker_adapter import docker_adapter
 from app.services.registry import registry
-from app.models.sandbox import SandboxStatus
+from app.models.sandbox import SandboxStatus, utcnow
+
+logger = logging.getLogger(__name__)
 
 
 def _error_response(status_code: int, message: str) -> JSONResponse:
@@ -56,9 +61,44 @@ def _reconcile_runtime_state() -> None:
         registry.put(sandbox)
 
 
+async def _ticket_prune_loop() -> None:
+    while True:
+        await asyncio.sleep(120)
+        ticket_store.prune()
+
+
+def _check_container_health() -> None:
+    for sandbox in registry.all():
+        if sandbox.status not in {SandboxStatus.RUNNING, SandboxStatus.STARTING}:
+            continue
+        if not sandbox.container_id:
+            continue
+        if not docker_adapter.container_exists(sandbox.container_id):
+            sandbox.status = SandboxStatus.DEGRADED
+            sandbox.updated_at = utcnow()
+            sandbox.metadata["runtime_error"] = "container exited unexpectedly"
+            registry.put(sandbox)
+
+
+async def _container_health_loop() -> None:
+    while True:
+        await asyncio.sleep(120)
+        _check_container_health()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    if settings.admin_auth_token == "dev-admin-token":
+        logger.warning(
+            "VERGE_ADMIN_AUTH_TOKEN is set to the default insecure value; "
+            "set a strong secret before exposing this service."
+        )
+    if settings.ticket_secret == "ticket-secret":
+        logger.warning(
+            "VERGE_TICKET_SECRET is set to the default insecure value; "
+            "set a random 32+ character string before exposing this service."
+        )
     registry.load_from_disk(
         settings.sandbox_base_dir,
         workspace_subdir=settings.workspace_subdir,
@@ -67,7 +107,17 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         browser_profile_subdir=settings.browser_profile_subdir,
     )
     _reconcile_runtime_state()
-    yield
+    prune_task = asyncio.create_task(_ticket_prune_loop())
+    health_task = asyncio.create_task(_container_health_loop())
+    try:
+        yield
+    finally:
+        prune_task.cancel()
+        health_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await prune_task
+        with suppress(asyncio.CancelledError):
+            await health_task
 
 
 def _configure_admin_routes(app: FastAPI, admin_static_dir: Path) -> None:

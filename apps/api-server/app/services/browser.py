@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import logging
+import shlex
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -298,10 +299,10 @@ printf '{"window_id":"%s","x":%s,"y":%s,"width":%s,"height":%s,"title":%s}\n' \
             text = json.dumps(action.text or "")
             return f"python3 - <<'PY'\nimport json, subprocess\nsubprocess.run(['xdotool','type','--delay','20',json.loads({text!r})], check=True)\nPY"
         if action.type == BrowserActionType.KEY_PRESS:
-            return f"xdotool key {json.dumps(action.key or '')}"
+            return f"xdotool key {shlex.quote(action.key or '')}"
         if action.type == BrowserActionType.HOTKEY:
             combo = "+".join(action.keys)
-            return f"xdotool key {json.dumps(combo)}"
+            return f"xdotool key {shlex.quote(combo)}"
         raise RuntimeError(f"unsupported action type: {action.type}")
 
 

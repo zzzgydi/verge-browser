@@ -175,8 +175,9 @@ async def _session_ws_proxy(websocket: WebSocket, sandbox_id: str) -> None:
         await websocket.close(code=1011, reason="session proxy unavailable")
         return
 
-    await websocket.accept(subprotocol=client_subprotocol)
     try:
+        await websocket.accept(subprotocol=client_subprotocol)
+
         async def client_to_upstream() -> None:
             while True:
                 message = await websocket.receive()

@@ -58,6 +58,9 @@ class SandboxLifecycleService:
                     default_url=req.default_url,
                     image=req.image,
                     enable_gpu=req.enable_gpu,
+                    http_proxy=req.http_proxy,
+                    https_proxy=req.https_proxy,
+                    no_proxy=req.no_proxy,
                 )
                 container_id = create_result.container_id
                 host = create_result.host
@@ -78,6 +81,9 @@ class SandboxLifecycleService:
             height=req.height,
             enable_gpu=req.enable_gpu,
             image=req.image,
+            http_proxy=req.http_proxy,
+            https_proxy=req.https_proxy,
+            no_proxy=req.no_proxy,
             workspace_dir=workspace,
             downloads_dir=downloads,
             uploads_dir=uploads,
@@ -178,6 +184,9 @@ class SandboxLifecycleService:
             default_url=None,
             image=sandbox.image,
             enable_gpu=sandbox.enable_gpu,
+            http_proxy=sandbox.http_proxy,
+            https_proxy=sandbox.https_proxy,
+            no_proxy=sandbox.no_proxy,
         )
         container_id = create_result.container_id
         host = create_result.host
@@ -242,6 +251,9 @@ class SandboxLifecycleService:
                 default_url=None,
                 image=sandbox.image,
                 enable_gpu=sandbox.enable_gpu,
+                http_proxy=sandbox.http_proxy,
+                https_proxy=sandbox.https_proxy,
+                no_proxy=sandbox.no_proxy,
             )
             container_id = create_result.container_id
             host = create_result.host

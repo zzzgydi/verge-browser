@@ -14,6 +14,9 @@ class CreateSandboxRequest(BaseModel):
     width: int = Field(default=1280, ge=320, le=7680)
     height: int = Field(default=1024, ge=240, le=4320)
     enable_gpu: bool = False
+    http_proxy: str | None = None
+    https_proxy: str | None = None
+    no_proxy: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -62,6 +65,9 @@ class SandboxResponse(BaseModel):
     width: int
     height: int
     enable_gpu: bool = False
+    http_proxy: str | None = None
+    https_proxy: str | None = None
+    no_proxy: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     browser: BrowserRuntimeInfo
     container_id: str | None = None

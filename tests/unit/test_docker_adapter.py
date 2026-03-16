@@ -181,3 +181,122 @@ def test_list_managed_container_refs_reads_sandbox_labels(monkeypatch) -> None:
         "cid-2",
     ]
     assert [(ref.container_id, ref.sandbox_id) for ref in refs] == [("cid-1", "sb_1"), ("cid-2", None)]
+
+
+def _make_fake_run(calls: list[list[str]], container_id: str = "cid-proxy"):
+    """Return a fake subprocess.run that records docker commands."""
+    import subprocess
+
+    def fake_run(cmd: list[str], check: bool, capture_output: bool, text: bool, **kwargs) -> subprocess.CompletedProcess:
+        calls.append(cmd)
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout="[]", stderr="")
+        if cmd[:2] == ["docker", "run"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout=f"{container_id}\n", stderr="")
+        if cmd[:2] == ["docker", "inspect"]:
+            return subprocess.CompletedProcess(
+                cmd, 0,
+                stdout='[{"NetworkSettings":{"Networks":{"bridge":{"IPAddress":"172.17.0.5"}}}}]',
+                stderr="",
+            )
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    return fake_run
+
+
+def test_create_container_injects_http_proxy_only(monkeypatch) -> None:
+    adapter = DockerAdapter()
+    calls: list[list[str]] = []
+    monkeypatch.setattr("app.services.docker_adapter.subprocess.run", _make_fake_run(calls))
+
+    adapter.create_container(
+        sandbox_id="sb_p1",
+        kind=SandboxKind.XVFB_VNC,
+        workspace_dir=Path("/tmp/ws"),
+        width=1280,
+        height=1024,
+        default_url=None,
+        image="verge-browser-runtime-xvfb:latest",
+        http_proxy="http://proxy.corp:8080",
+    )
+
+    docker_run = calls[1]
+    assert "HTTP_PROXY=http://proxy.corp:8080" in docker_run
+    assert "http_proxy=http://proxy.corp:8080" in docker_run
+    assert not any(v.startswith("HTTPS_PROXY=") for v in docker_run)
+    assert not any(v.startswith("https_proxy=") for v in docker_run)
+    # Default no_proxy injected when http_proxy is active
+    assert "NO_PROXY=localhost,127.0.0.1" in docker_run
+    assert "no_proxy=localhost,127.0.0.1" in docker_run
+
+
+def test_create_container_injects_https_proxy_only(monkeypatch) -> None:
+    adapter = DockerAdapter()
+    calls: list[list[str]] = []
+    monkeypatch.setattr("app.services.docker_adapter.subprocess.run", _make_fake_run(calls))
+
+    adapter.create_container(
+        sandbox_id="sb_p2",
+        kind=SandboxKind.XVFB_VNC,
+        workspace_dir=Path("/tmp/ws"),
+        width=1280,
+        height=1024,
+        default_url=None,
+        image="verge-browser-runtime-xvfb:latest",
+        https_proxy="http://proxy.corp:8080",
+    )
+
+    docker_run = calls[1]
+    assert not any(v.startswith("HTTP_PROXY=") for v in docker_run)
+    assert not any(v.startswith("http_proxy=") for v in docker_run)
+    assert "HTTPS_PROXY=http://proxy.corp:8080" in docker_run
+    assert "https_proxy=http://proxy.corp:8080" in docker_run
+    assert "NO_PROXY=localhost,127.0.0.1" in docker_run
+    assert "no_proxy=localhost,127.0.0.1" in docker_run
+
+
+def test_create_container_injects_all_three_proxy_fields(monkeypatch) -> None:
+    adapter = DockerAdapter()
+    calls: list[list[str]] = []
+    monkeypatch.setattr("app.services.docker_adapter.subprocess.run", _make_fake_run(calls))
+
+    adapter.create_container(
+        sandbox_id="sb_p3",
+        kind=SandboxKind.XVFB_VNC,
+        workspace_dir=Path("/tmp/ws"),
+        width=1280,
+        height=1024,
+        default_url=None,
+        image="verge-browser-runtime-xvfb:latest",
+        http_proxy="http://proxy.corp:8080",
+        https_proxy="http://proxy.corp:8443",
+        no_proxy="localhost,127.0.0.1,.internal",
+    )
+
+    docker_run = calls[1]
+    assert "HTTP_PROXY=http://proxy.corp:8080" in docker_run
+    assert "http_proxy=http://proxy.corp:8080" in docker_run
+    assert "HTTPS_PROXY=http://proxy.corp:8443" in docker_run
+    assert "https_proxy=http://proxy.corp:8443" in docker_run
+    assert "NO_PROXY=localhost,127.0.0.1,.internal" in docker_run
+    assert "no_proxy=localhost,127.0.0.1,.internal" in docker_run
+
+
+def test_create_container_no_proxy_env_when_proxy_omitted(monkeypatch) -> None:
+    adapter = DockerAdapter()
+    calls: list[list[str]] = []
+    monkeypatch.setattr("app.services.docker_adapter.subprocess.run", _make_fake_run(calls))
+
+    adapter.create_container(
+        sandbox_id="sb_p4",
+        kind=SandboxKind.XVFB_VNC,
+        workspace_dir=Path("/tmp/ws"),
+        width=1280,
+        height=1024,
+        default_url=None,
+        image="verge-browser-runtime-xvfb:latest",
+    )
+
+    docker_run = calls[1]
+    for var in ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy"):
+        assert not any(v.startswith(f"{var}=") for v in docker_run), f"unexpected {var} in command"

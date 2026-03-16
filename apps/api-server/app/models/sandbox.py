@@ -53,6 +53,9 @@ class SandboxRecord(BaseModel):
     height: int = 1024
     enable_gpu: bool = False
     image: str | None = None
+    http_proxy: str | None = None
+    https_proxy: str | None = None
+    no_proxy: str | None = None
     workspace_dir: Path
     downloads_dir: Path
     uploads_dir: Path

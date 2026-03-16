@@ -73,6 +73,21 @@ if [ "${GPU_ENABLED:-false}" = "true" ]; then
   fi
 fi
 
+PROXY_FLAGS=()
+if [ -n "${HTTP_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]; then
+  if [ -n "${HTTP_PROXY:-}" ] && [ -n "${HTTPS_PROXY:-}" ]; then
+    _proxy_server="http=${HTTP_PROXY};https=${HTTPS_PROXY}"
+  elif [ -n "${HTTP_PROXY:-}" ]; then
+    _proxy_server="${HTTP_PROXY}"
+  else
+    _proxy_server="${HTTPS_PROXY}"
+  fi
+  PROXY_FLAGS+=("--proxy-server=${_proxy_server}")
+fi
+if [ -n "${NO_PROXY:-}" ]; then
+  PROXY_FLAGS+=("--proxy-bypass-list=${NO_PROXY}")
+fi
+
 exec chromium \
   --lang=zh-CN \
   --gtk-version=3 \
@@ -88,6 +103,7 @@ exec chromium \
   "${GPU_FLAGS[@]}" \
   --disable-popup-blocking \
   --disable-features=TranslateUI \
+  "${PROXY_FLAGS[@]}" \
   --window-position=0,0 \
   --window-size="${BROWSER_WINDOW_WIDTH},${BROWSER_WINDOW_HEIGHT}" \
   --start-maximized \

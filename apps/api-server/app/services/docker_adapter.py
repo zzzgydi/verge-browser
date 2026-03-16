@@ -68,6 +68,9 @@ class DockerAdapter:
         default_url: str | None,
         image: str | None,
         enable_gpu: bool = False,
+        http_proxy: str | None = None,
+        https_proxy: str | None = None,
+        no_proxy: str | None = None,
     ) -> ContainerCreateResult:
         settings = get_settings()
         image_name = image or settings.runtime_image_for_kind(kind)
@@ -121,6 +124,15 @@ class DockerAdapter:
             "-v",
             f"{workspace_dir}:/workspace",
         ]
+
+        if http_proxy:
+            cmd.extend(["-e", f"HTTP_PROXY={http_proxy}", "-e", f"http_proxy={http_proxy}"])
+        if https_proxy:
+            cmd.extend(["-e", f"HTTPS_PROXY={https_proxy}", "-e", f"https_proxy={https_proxy}"])
+        # Always set NO_PROXY when any proxy is active; fall back to safe default.
+        effective_no_proxy = no_proxy if no_proxy is not None else ("localhost,127.0.0.1" if (http_proxy or https_proxy) else None)
+        if effective_no_proxy is not None:
+            cmd.extend(["-e", f"NO_PROXY={effective_no_proxy}", "-e", f"no_proxy={effective_no_proxy}"])
 
         if gpu_device == "nvidia":
             # NVIDIA GPU: use NVIDIA Container Toolkit (requires nvidia-container-toolkit on host)

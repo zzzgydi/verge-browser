@@ -34,6 +34,11 @@ class TicketStore:
         for jti in expired:
             self._consumed.pop(jti, None)
 
+    def prune(self) -> None:
+        now = int(datetime.now(timezone.utc).timestamp())
+        with self._lock:
+            self._prune_locked(now)
+
 
 ticket_store = TicketStore()
 

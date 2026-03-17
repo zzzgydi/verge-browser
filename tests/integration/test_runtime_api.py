@@ -141,7 +141,19 @@ def test_runtime_browser_endpoints(docker_runtime_ready: None, clean_sandbox_bas
             cookies=client.cookies,
         )
         assert session_asset.status_code == 200
-        assert "noVNC" in session_asset.text or "RFB" in session_asset.text
+        assert "Verge Browser Session" in session_asset.text
+
+        clipboard_write = client.post(
+            f"/sandbox/{sandbox_id}/clipboard",
+            json={"text": "hello clipboard"},
+            cookies=client.cookies,
+        )
+        assert clipboard_write.status_code == 200
+        assert clipboard_write.json() == {"status": "ok"}
+
+        clipboard_read = client.get(f"/sandbox/{sandbox_id}/clipboard", cookies=client.cookies)
+        assert clipboard_read.status_code == 200
+        assert clipboard_read.json() == {"status": "ok", "text": "hello clipboard"}
     finally:
         deleted = client.delete(f"/sandbox/{sandbox_id}", headers=AUTH_HEADERS)
         assert deleted.status_code == 200

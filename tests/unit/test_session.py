@@ -201,7 +201,7 @@ async def test_xvfb_session_entry_redirects_to_novnc(monkeypatch: pytest.MonkeyP
     )
 
     assert response.status_code == 302
-    assert response.headers["location"].startswith("/sandbox/sb_test/session/vnc.html?")
+    assert response.headers["location"] == "/sandbox/sb_test/session/vnc.html"
     assert "Path=/sandbox/sb_test/session" in response.headers["set-cookie"]
 
 

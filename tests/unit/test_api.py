@@ -168,6 +168,36 @@ def test_session_ticket_requires_existing_sandbox() -> None:
     assert response.status_code == 404
 
 
+def test_clipboard_endpoints_require_session_cookie() -> None:
+    created = client.post("/sandbox", json={}, headers=AUTH_HEADERS)
+    assert created.status_code == 201
+    sandbox_id = body(created)["id"]
+
+    response = client.get(f"/sandbox/{sandbox_id}/clipboard")
+
+    assert response.status_code == 401
+    assert response.json()["message"] == "missing sandbox session"
+
+
+def test_session_vnc_page_is_project_owned() -> None:
+    created = client.post("/sandbox", json={}, headers=AUTH_HEADERS)
+    assert created.status_code == 201
+    sandbox_id = body(created)["id"]
+
+    ticket_resp = client.post(f"/sandbox/{sandbox_id}/session/apply", headers=AUTH_HEADERS)
+    assert ticket_resp.status_code == 200
+    ticket = body(ticket_resp)["ticket"]
+
+    entry = client.get(f"/sandbox/{sandbox_id}/session/?ticket={ticket}")
+    assert entry.status_code == 200
+    assert client.cookies.get("sandbox_session")
+
+    vnc_page = client.get(f"/sandbox/{sandbox_id}/session/vnc.html", cookies=client.cookies)
+    assert vnc_page.status_code == 200
+    assert "Verge Browser Session" in vnc_page.text
+    assert 'import RFB from "./core/rfb.js";' in vnc_page.text
+
+
 def test_cdp_info_returns_ticketed_websocket_url() -> None:
     created = client.post("/sandbox", json={"alias": "cdp-demo"}, headers=AUTH_HEADERS)
     assert created.status_code == 201

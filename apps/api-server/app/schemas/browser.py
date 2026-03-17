@@ -89,3 +89,16 @@ class ScreenshotRequest(BaseModel):
     format: Literal["png", "jpeg", "webp"] = "png"
     quality: int | None = Field(default=None, ge=1, le=100)
     target_id: str | None = None
+
+
+class ClipboardWriteRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=64 * 1024)
+
+
+class ClipboardReadResponse(BaseModel):
+    status: Literal["ok"]
+    text: str
+
+
+class ClipboardWriteResponse(BaseModel):
+    status: Literal["ok"]

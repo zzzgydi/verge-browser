@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from app.auth.tickets import ticket_store
 from app.config import get_settings
 from app.routes.browser import router as browser_router
+from app.routes.clipboard import router as clipboard_router
 from app.routes.files import router as files_router
 from app.routes.health import router as health_router
 from app.routes.session import router as session_router
@@ -172,6 +173,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(sandbox_router)
     app.include_router(browser_router)
+    app.include_router(clipboard_router)
     app.include_router(session_router)
     app.include_router(files_router)
     return app

@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Verge noVNC Session</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #101820;
+      --panel: rgba(16, 24, 32, 0.88);
+      --panel-strong: rgba(23, 35, 47, 0.96);
+      --border: rgba(255, 255, 255, 0.16);
+      --text: #f4f7fb;
+      --muted: #a7b6c4;
+      --accent: #f5b700;
+      --danger: #ff6b6b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background:
+        radial-gradient(circle at top, rgba(245, 183, 0, 0.18), transparent 28%),
+        linear-gradient(160deg, #12212b 0%, #0c1218 55%, #070b0f 100%);
+      color: var(--text);
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+    }
+
+    .title {
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .status {
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    #screen {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    #screen canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .overlay[hidden] {
+      display: none;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(3, 8, 12, 0.62);
+    }
+
+    .dialog {
+      width: min(560px, 100%);
+      padding: 20px;
+      border-radius: 18px;
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+    }
+
+    .dialog h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .dialog p {
+      margin: 0 0 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .dialog textarea {
+      width: 100%;
+      min-height: 180px;
+      resize: vertical;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(6, 10, 14, 0.7);
+      color: var(--text);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #151006;
+    }
+
+    button.secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text);
+    }
+
+    .error {
+      color: var(--danger);
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div>
+      <div class="title">Verge Browser Session</div>
+      <div class="hint">Use Ctrl/Cmd+C and Ctrl/Cmd+V inside the remote browser.</div>
+    </div>
+    <div id="status" class="status">Connecting…</div>
+  </div>
+  <div id="screen"></div>
+
+  <div id="fallback" class="overlay" hidden>
+    <div class="dialog">
+      <h2 id="fallback-title">Clipboard Access Required</h2>
+      <p id="fallback-message"></p>
+      <textarea id="fallback-text"></textarea>
+      <div id="fallback-error" class="error"></div>
+      <div class="actions">
+        <button id="fallback-cancel" class="secondary" type="button">Close</button>
+        <button id="fallback-action" class="primary" type="button">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import RFB from "./core/rfb.js";
+
+    const statusEl = document.getElementById("status");
+    const screenEl = document.getElementById("screen");
+    const fallbackEl = document.getElementById("fallback");
+    const fallbackTitleEl = document.getElementById("fallback-title");
+    const fallbackMessageEl = document.getElementById("fallback-message");
+    const fallbackTextEl = document.getElementById("fallback-text");
+    const fallbackErrorEl = document.getElementById("fallback-error");
+    const fallbackActionEl = document.getElementById("fallback-action");
+    const fallbackCancelEl = document.getElementById("fallback-cancel");
+
+    const sessionRoot = new URL(".", window.location.href).pathname.replace(/\/$/, "");
+    const sandboxRoot = sessionRoot.replace(/\/session$/, "");
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${wsProtocol}//${window.location.host}${sessionRoot}/websockify`;
+    const clipboardUrl = `${sandboxRoot}/clipboard`;
+
+    let rfb;
+    let lastRemoteClipboard = "";
+    let fallbackMode = null;
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle("error", isError);
+    }
+
+    function modalOpen() {
+      return !fallbackEl.hasAttribute("hidden");
+    }
+
+    function showFallback({ title, message, value = "", actionLabel, mode }) {
+      fallbackMode = mode;
+      fallbackTitleEl.textContent = title;
+      fallbackMessageEl.textContent = message;
+      fallbackTextEl.value = value;
+      fallbackActionEl.textContent = actionLabel;
+      fallbackErrorEl.textContent = "";
+      fallbackTextEl.readOnly = mode === "copy";
+      fallbackEl.removeAttribute("hidden");
+      window.setTimeout(() => fallbackTextEl.focus(), 0);
+      if (mode === "copy") {
+        fallbackTextEl.select();
+      }
+    }
+
+    function hideFallback() {
+      fallbackMode = null;
+      fallbackEl.setAttribute("hidden", "");
+      fallbackErrorEl.textContent = "";
+      screenEl.focus?.();
+    }
+
+    async function requestJson(url, options = {}) {
+      const response = await fetch(url, {
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
+        ...options,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.status === "error") {
+        const code = payload.code || "request_failed";
+        const message = payload.message || `request failed with status ${response.status}`;
+        const error = new Error(message);
+        error.code = code;
+        throw error;
+      }
+      return payload;
+    }
+
+    async function postRemoteClipboard(text) {
+      await requestJson(clipboardUrl, {
+        method: "POST",
+        body: JSON.stringify({ text }),
+      });
+    }
+
+    async function readRemoteClipboard() {
+      const payload = await requestJson(clipboardUrl);
+      return payload.text || "";
+    }
+
+    async function getLocalClipboardText() {
+      if (!navigator.clipboard?.readText) {
+        throw new Error("Clipboard API is unavailable");
+      }
+      return navigator.clipboard.readText();
+    }
+
+    async function setLocalClipboardText(text) {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard API is unavailable");
+      }
+      await navigator.clipboard.writeText(text);
+    }
+
+    async function syncLocalToRemote() {
+      try {
+        const text = await getLocalClipboardText();
+        if (!text) {
+          return;
+        }
+        await postRemoteClipboard(text);
+        setStatus("Local clipboard sent to sandbox");
+      } catch (error) {
+        showFallback({
+          title: "Paste Into Sandbox",
+          message: "Browser clipboard access was blocked. Paste the text manually and submit it to the remote browser.",
+          actionLabel: "Send Text",
+          mode: "paste",
+        });
+        setStatus(error.message || "Clipboard read failed", true);
+      }
+    }
+
+    async function syncRemoteToLocal() {
+      const attempts = 5;
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise((resolve) => window.setTimeout(resolve, 150));
+        } else {
+          await new Promise((resolve) => window.setTimeout(resolve, 150));
+        }
+        try {
+          const text = await readRemoteClipboard();
+          if (!text || text === lastRemoteClipboard) {
+            continue;
+          }
+          await setLocalClipboardText(text);
+          lastRemoteClipboard = text;
+          setStatus("Remote clipboard synced to local browser");
+          return;
+        } catch (error) {
+          if (error.code === "clipboard_empty" || error.code === "rate_limited") {
+            continue;
+          }
+          try {
+            const text = await readRemoteClipboard();
+            showFallback({
+              title: "Copy From Sandbox",
+              message: "Browser clipboard write was blocked. Copy the text manually from the box below.",
+              value: text,
+              actionLabel: "Try Native Copy",
+              mode: "copy",
+            });
+          } catch (_) {
+            showFallback({
+              title: "Copy From Sandbox",
+              message: "Browser clipboard write was blocked and automatic retry did not succeed.",
+              actionLabel: "Close",
+              mode: "copy",
+            });
+          }
+          setStatus(error.message || "Clipboard write failed", true);
+          return;
+        }
+      }
+    }
+
+    function isClipboardHotkey(event) {
+      const modifier = event.ctrlKey || event.metaKey;
+      if (!modifier || event.altKey) {
+        return null;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "c" || key === "x") {
+        return "copy";
+      }
+      if (key === "v") {
+        return "paste";
+      }
+      return null;
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (modalOpen()) {
+        return;
+      }
+      const action = isClipboardHotkey(event);
+      if (action === "copy") {
+        void syncRemoteToLocal();
+      } else if (action === "paste") {
+        void syncLocalToRemote();
+      }
+    }, true);
+
+    document.addEventListener("copy", () => {
+      if (!modalOpen()) {
+        void syncRemoteToLocal();
+      }
+    }, true);
+
+    document.addEventListener("paste", (event) => {
+      if (modalOpen()) {
+        return;
+      }
+      const text = event.clipboardData?.getData("text/plain");
+      if (text) {
+        void postRemoteClipboard(text).catch((error) => {
+          setStatus(error.message || "Clipboard write failed", true);
+        });
+      } else {
+        void syncLocalToRemote();
+      }
+    }, true);
+
+    fallbackCancelEl.addEventListener("click", hideFallback);
+    fallbackActionEl.addEventListener("click", async () => {
+      fallbackErrorEl.textContent = "";
+      if (fallbackMode === "paste") {
+        try {
+          await postRemoteClipboard(fallbackTextEl.value);
+          hideFallback();
+          setStatus("Manual clipboard text sent to sandbox");
+        } catch (error) {
+          fallbackErrorEl.textContent = error.message || "Clipboard write failed";
+        }
+        return;
+      }
+      if (fallbackMode === "copy") {
+        try {
+          await setLocalClipboardText(fallbackTextEl.value);
+          hideFallback();
+          setStatus("Fallback text copied to local clipboard");
+        } catch (error) {
+          fallbackErrorEl.textContent = error.message || "Native clipboard write failed";
+          fallbackTextEl.select();
+        }
+        return;
+      }
+      hideFallback();
+    });
+
+    rfb = new RFB(screenEl, wsUrl, { credentials: {} });
+    rfb.scaleViewport = true;
+    rfb.resizeSession = false;
+    rfb.clipViewport = false;
+    rfb.focusOnClick = true;
+    rfb.addEventListener("connect", () => setStatus("Connected"));
+    rfb.addEventListener("disconnect", (event) => {
+      const clean = event.detail?.clean;
+      setStatus(clean ? "Disconnected" : "Connection lost", !clean);
+    });
+  </script>
+</body>
+</html>

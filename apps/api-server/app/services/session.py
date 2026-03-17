@@ -33,14 +33,7 @@ class SessionService:
     def browser_session_redirect_url(self, sandbox: SandboxRecord) -> str:
         if sandbox.kind == SandboxKind.XPRA:
             return ""
-        query = urlencode(
-            {
-                "path": f"/sandbox/{sandbox.id}/session/websockify",
-                "resize": "scale",
-                "autoconnect": "true",
-            }
-        )
-        return f"/sandbox/{sandbox.id}/session/vnc.html?{query}"
+        return f"/sandbox/{sandbox.id}/session/vnc.html"
 
     async def proxy_http(self, sandbox: SandboxRecord, asset_path: str = "", query: str | None = None) -> Response:
         if sandbox.status in {SandboxStatus.FAILED, SandboxStatus.STOPPED} or sandbox.container_id is None:

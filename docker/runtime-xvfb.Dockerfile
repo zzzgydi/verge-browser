@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     openbox \
     x11vnc \
+    xclip \
     novnc \
     websockify \
     socat \

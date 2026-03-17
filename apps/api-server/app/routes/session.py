@@ -5,10 +5,12 @@ import logging
 import secrets
 from contextlib import suppress
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from threading import Lock
 
 import websockets
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 
 from app.auth.tickets import issue_ticket, verify_ticket
 from app.config import get_settings
@@ -22,6 +24,7 @@ router = APIRouter(prefix="/sandbox/{sandbox_id}/session", tags=["session"])
 _sessions: dict[str, dict[str, object]] = {}
 _sessions_lock = Lock()
 logger = logging.getLogger(__name__)
+_vnc_session_page = Path(__file__).resolve().parent.parent / "static" / "vnc_session.html"
 
 
 def _canonical_sandbox_id(sandbox, fallback: str) -> str:
@@ -138,7 +141,10 @@ async def session_asset_proxy(
     sandbox=Depends(require_sandbox),
     sandbox_session: str | None = Cookie(default=None),
 ) -> Response:
-    _validate_session(sandbox_session, _canonical_sandbox_id(sandbox, sandbox_id))
+    canonical_id = _canonical_sandbox_id(sandbox, sandbox_id)
+    _validate_session(sandbox_session, canonical_id)
+    if sandbox.kind == SandboxKind.XVFB_VNC and asset_path == "vnc.html":
+        return FileResponse(_vnc_session_page)
     return await session_service.proxy_http(sandbox, asset_path, request.url.query)
 
 

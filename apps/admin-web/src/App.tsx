@@ -229,17 +229,20 @@ export function App() {
     try {
       if (action === "delete") {
         await api(`/sandbox/${sandbox.id}`, token, { method: "DELETE" });
-        setSelectedId(null);
         toast.success("Sandbox deleted successfully");
+        const remaining = sandboxes.filter((s) => s.id !== sandbox.id);
+        setSelectedId(remaining[0]?.id ?? null);
       } else if (action === "session") {
         sessionWindow = window.open("", "_blank");
         if (!sessionWindow) {
-          throw new Error("Popup blocked. Allow popups for this site and retry.");
+          throw new Error(
+            "Popup blocked. Allow popups for this site and retry.",
+          );
         }
         sessionWindow.opener = null;
         sessionWindow.document.title = "Opening session...";
         sessionWindow.document.body.innerHTML =
-          "<p style=\"font-family: sans-serif; padding: 16px;\">Opening session...</p>";
+          '<p style="font-family: sans-serif; padding: 16px;">Opening session...</p>';
         const ticket = await api<{ ticket: string; session_url: string }>(
           `/sandbox/${sandbox.id}/session/apply`,
           token,
@@ -327,30 +330,30 @@ export function App() {
           </p>
           <h1>Sandbox Control</h1>
         </div>
-              <div className="toolbar-actions">
-                <input
-                  value={createAlias}
-                  onChange={(event) => setCreateAlias(event.target.value)}
-                  placeholder="alias (optional)"
-                />
-                <select
-                  value={createKind}
-                  onChange={(event) =>
-                    setCreateKind(event.target.value as "xvfb_vnc" | "xpra")
-                  }
-                >
-                  <option value="xvfb_vnc">xvfb + vnc</option>
-                  <option value="xpra">xpra</option>
-                </select>
-                <label className="gpu-label">
-                  <input
-                    type="checkbox"
-                    checked={createEnableGpu}
-                    onChange={(e) => setCreateEnableGpu(e.target.checked)}
-                  />
-                  GPU
-                </label>
-                <button
+        <div className="toolbar-actions">
+          <input
+            value={createAlias}
+            onChange={(event) => setCreateAlias(event.target.value)}
+            placeholder="alias (optional)"
+          />
+          <select
+            value={createKind}
+            onChange={(event) =>
+              setCreateKind(event.target.value as "xvfb_vnc" | "xpra")
+            }
+          >
+            <option value="xvfb_vnc">xvfb + vnc</option>
+            <option value="xpra">xpra</option>
+          </select>
+          <label className="gpu-label">
+            <input
+              type="checkbox"
+              checked={createEnableGpu}
+              onChange={(e) => setCreateEnableGpu(e.target.checked)}
+            />
+            GPU
+          </label>
+          <button
             className="create-btn"
             onClick={() => void createSandbox()}
             disabled={isActionLoading}
@@ -419,12 +422,12 @@ export function App() {
               </div>
 
               <div className="detail-grid">
-                    <div>
-                      <label>Kind</label>
-                      <p>{selected.kind}</p>
-                    </div>
-                    <div>
-                      <label>Viewport</label>
+                <div>
+                  <label>Kind</label>
+                  <p>{selected.kind}</p>
+                </div>
+                <div>
+                  <label>Viewport</label>
                   <p>
                     {selected.width} x {selected.height}
                   </p>

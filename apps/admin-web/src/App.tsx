@@ -225,12 +225,21 @@ export function App() {
     sandbox: Sandbox,
   ) {
     setIsActionLoading(true);
+    let sessionWindow: Window | null = null;
     try {
       if (action === "delete") {
         await api(`/sandbox/${sandbox.id}`, token, { method: "DELETE" });
         setSelectedId(null);
         toast.success("Sandbox deleted successfully");
       } else if (action === "session") {
+        sessionWindow = window.open("", "_blank");
+        if (!sessionWindow) {
+          throw new Error("Popup blocked. Allow popups for this site and retry.");
+        }
+        sessionWindow.opener = null;
+        sessionWindow.document.title = "Opening session...";
+        sessionWindow.document.body.innerHTML =
+          "<p style=\"font-family: sans-serif; padding: 16px;\">Opening session...</p>";
         const ticket = await api<{ ticket: string; session_url: string }>(
           `/sandbox/${sandbox.id}/session/apply`,
           token,
@@ -239,7 +248,7 @@ export function App() {
             body: JSON.stringify({ mode: "permanent" }),
           },
         );
-        window.open(ticket.session_url, "_blank", "noopener,noreferrer");
+        sessionWindow.location.replace(ticket.session_url);
         toast.success("Session opened");
       } else if (action === "cdp") {
         const ticket = await api<{ ticket: string; cdp_url: string }>(
@@ -260,6 +269,7 @@ export function App() {
       }
       await refresh();
     } catch {
+      sessionWindow?.close();
       // Error is already toasted by api()
     } finally {
       setIsActionLoading(false);

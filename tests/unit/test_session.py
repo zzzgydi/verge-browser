@@ -173,7 +173,7 @@ async def test_session_entry_sets_cookie(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert response.status_code == 200
     assert "sandbox_session=" in response.headers["set-cookie"]
-    assert "Path=/sandbox/sb_test/session" in response.headers["set-cookie"]
+    assert "Path=/sandbox/sb_test" in response.headers["set-cookie"]
     session._sessions.clear()
 
 
@@ -202,7 +202,7 @@ async def test_xvfb_session_entry_redirects_to_novnc(monkeypatch: pytest.MonkeyP
 
     assert response.status_code == 302
     assert response.headers["location"] == "/sandbox/sb_test/session/vnc.html"
-    assert "Path=/sandbox/sb_test/session" in response.headers["set-cookie"]
+    assert "Path=/sandbox/sb_test" in response.headers["set-cookie"]
 
 
 @pytest.mark.asyncio

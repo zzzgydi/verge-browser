@@ -128,7 +128,7 @@ async def session_entry(
         httponly=True,
         max_age=600,
         samesite="lax",
-        path=f"/sandbox/{canonical_id}/session",
+        path=f"/sandbox/{canonical_id}",
     )
     return response
 

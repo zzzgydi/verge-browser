@@ -196,10 +196,25 @@
     let rfb;
     let lastRemoteClipboard = "";
     let fallbackMode = null;
+    let suppressPasteEventUntil = 0;
+    let statusResetTimer = null;
+    const XK_Control_L = 0xffe3;
+    const XK_v = 0x0076;
 
-    function setStatus(message, isError = false) {
+    function setStatus(message, isError = false, { persistent = false, durationMs = isError ? 4000 : 2500 } = {}) {
+      if (statusResetTimer) {
+        window.clearTimeout(statusResetTimer);
+        statusResetTimer = null;
+      }
       statusEl.textContent = message;
       statusEl.classList.toggle("error", isError);
+      if (!persistent && message) {
+        statusResetTimer = window.setTimeout(() => {
+          statusEl.textContent = "";
+          statusEl.classList.remove("error");
+          statusResetTimer = null;
+        }, durationMs);
+      }
     }
 
     function modalOpen() {
@@ -255,6 +270,16 @@
       });
     }
 
+    function sendRemotePasteShortcut() {
+      if (!rfb?.sendKey) {
+        throw new Error("Remote keyboard bridge is unavailable");
+      }
+      rfb.focus?.();
+      rfb.sendKey(XK_Control_L, "ControlLeft", true);
+      rfb.sendKey(XK_v, "KeyV");
+      rfb.sendKey(XK_Control_L, "ControlLeft", false);
+    }
+
     async function readRemoteClipboard() {
       const payload = await requestJson(clipboardUrl);
       return payload.text || "";
@@ -274,13 +299,18 @@
       await navigator.clipboard.writeText(text);
     }
 
-    async function syncLocalToRemote() {
+    async function syncLocalToRemote({ triggerPaste = false } = {}) {
       try {
         const text = await getLocalClipboardText();
         if (!text) {
           return;
         }
         await postRemoteClipboard(text);
+        if (triggerPaste) {
+          sendRemotePasteShortcut();
+          setStatus("Local clipboard pasted into sandbox");
+          return;
+        }
         setStatus("Local clipboard sent to sandbox");
       } catch (error) {
         showFallback({
@@ -360,7 +390,10 @@
       if (action === "copy") {
         void syncRemoteToLocal();
       } else if (action === "paste") {
-        void syncLocalToRemote();
+        event.preventDefault();
+        event.stopPropagation();
+        suppressPasteEventUntil = Date.now() + 250;
+        void syncLocalToRemote({ triggerPaste: true });
       }
     }, true);
 
@@ -374,13 +407,25 @@
       if (modalOpen()) {
         return;
       }
+      if (Date.now() < suppressPasteEventUntil) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
       const text = event.clipboardData?.getData("text/plain");
       if (text) {
-        void postRemoteClipboard(text).catch((error) => {
-          setStatus(error.message || "Clipboard write failed", true);
-        });
+        void postRemoteClipboard(text)
+          .then(() => {
+            sendRemotePasteShortcut();
+            setStatus("Local clipboard pasted into sandbox");
+          })
+          .catch((error) => {
+            setStatus(error.message || "Clipboard write failed", true);
+          });
       } else {
-        void syncLocalToRemote();
+        void syncLocalToRemote({ triggerPaste: true });
       }
     }, true);
 
@@ -416,10 +461,10 @@
     rfb.resizeSession = false;
     rfb.clipViewport = false;
     rfb.focusOnClick = true;
-    rfb.addEventListener("connect", () => setStatus("Connected"));
+    rfb.addEventListener("connect", () => setStatus("Connected", false, { persistent: true }));
     rfb.addEventListener("disconnect", (event) => {
       const clean = event.detail?.clean;
-      setStatus(clean ? "Disconnected" : "Connection lost", !clean);
+      setStatus(clean ? "Disconnected" : "Connection lost", !clean, { persistent: true });
     });
   </script>
 </body>

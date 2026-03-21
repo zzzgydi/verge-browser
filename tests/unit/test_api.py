@@ -198,6 +198,37 @@ def test_session_vnc_page_is_project_owned() -> None:
     assert 'import RFB from "./core/rfb.js";' in vnc_page.text
 
 
+def test_clipboard_endpoint_accepts_session_cookie_from_entry(monkeypatch: pytest.MonkeyPatch) -> None:
+    sandbox = SandboxRecord(
+        id="sb_clipboard",
+        kind=SandboxKind.XVFB_VNC,
+        status=SandboxStatus.RUNNING,
+        workspace_dir=Path("test-artifacts") / "verge-browser" / "workspace",
+        downloads_dir=Path("test-artifacts") / "verge-browser" / "workspace" / "downloads",
+        uploads_dir=Path("test-artifacts") / "verge-browser" / "workspace" / "uploads",
+        browser_profile_dir=Path("test-artifacts") / "verge-browser" / "workspace" / "browser-profile",
+        container_id="cid-clipboard",
+        runtime=RuntimeEndpoint(host="127.0.0.1", session_port=6080, display=":99"),
+    )
+    registry.put(sandbox)
+
+    async def fake_read_text(_sandbox) -> str:
+        return "hello"
+
+    monkeypatch.setattr("app.routes.clipboard.clipboard_service.read_text", fake_read_text)
+
+    ticket_resp = client.post("/sandbox/sb_clipboard/session/apply", headers=AUTH_HEADERS)
+    assert ticket_resp.status_code == 200
+    ticket = body(ticket_resp)["ticket"]
+
+    entry = client.get(f"/sandbox/sb_clipboard/session/?ticket={ticket}")
+    assert entry.status_code == 200
+
+    clipboard = client.get("/sandbox/sb_clipboard/clipboard")
+    assert clipboard.status_code == 200
+    assert clipboard.json() == {"status": "ok", "text": "hello"}
+
+
 def test_cdp_info_returns_ticketed_websocket_url() -> None:
     created = client.post("/sandbox", json={"alias": "cdp-demo"}, headers=AUTH_HEADERS)
     assert created.status_code == 201

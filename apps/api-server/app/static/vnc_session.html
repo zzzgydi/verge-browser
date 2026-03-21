@@ -155,7 +155,7 @@
   <div class="toolbar">
     <div>
       <div class="title">Verge Browser Session</div>
-      <div class="hint">Use Ctrl/Cmd+C and Ctrl/Cmd+V inside the remote browser.</div>
+      <div class="hint">Use Ctrl+C and Ctrl+V inside the remote browser.</div>
     </div>
     <div id="status" class="status">Connecting…</div>
   </div>
@@ -198,6 +198,7 @@
     let fallbackMode = null;
     let suppressPasteEventUntil = 0;
     let statusResetTimer = null;
+    let remoteClipboardSyncInFlight = null;
     const XK_Control_L = 0xffe3;
     const XK_v = 0x0076;
 
@@ -221,6 +222,12 @@
       return !fallbackEl.hasAttribute("hidden");
     }
 
+    function focusRemoteSession() {
+      screenEl.setAttribute("tabindex", "0");
+      screenEl.focus?.({ preventScroll: true });
+      rfb?.focus?.();
+    }
+
     function showFallback({ title, message, value = "", actionLabel, mode }) {
       fallbackMode = mode;
       fallbackTitleEl.textContent = title;
@@ -240,7 +247,7 @@
       fallbackMode = null;
       fallbackEl.setAttribute("hidden", "");
       fallbackErrorEl.textContent = "";
-      screenEl.focus?.();
+      focusRemoteSession();
     }
 
     async function requestJson(url, options = {}) {
@@ -268,16 +275,32 @@
         method: "POST",
         body: JSON.stringify({ text }),
       });
+      lastRemoteClipboard = text;
     }
 
-    function sendRemotePasteShortcut() {
+    function delay(ms) {
+      return new Promise((resolve) => window.setTimeout(resolve, ms));
+    }
+
+    function sendRemoteShortcut(keysym, code) {
       if (!rfb?.sendKey) {
         throw new Error("Remote keyboard bridge is unavailable");
       }
-      rfb.focus?.();
+      focusRemoteSession();
       rfb.sendKey(XK_Control_L, "ControlLeft", true);
-      rfb.sendKey(XK_v, "KeyV");
+      rfb.sendKey(keysym, code);
       rfb.sendKey(XK_Control_L, "ControlLeft", false);
+    }
+
+    function sendRemotePasteShortcut() {
+      sendRemoteShortcut(XK_v, "KeyV");
+    }
+
+    async function pasteTextIntoRemote(text) {
+      await postRemoteClipboard(text);
+      // Give the remote application a moment to observe the new clipboard owner.
+      await delay(80);
+      sendRemotePasteShortcut();
     }
 
     async function readRemoteClipboard() {
@@ -305,12 +328,12 @@
         if (!text) {
           return;
         }
-        await postRemoteClipboard(text);
         if (triggerPaste) {
-          sendRemotePasteShortcut();
+          await pasteTextIntoRemote(text);
           setStatus("Local clipboard pasted into sandbox");
           return;
         }
+        await postRemoteClipboard(text);
         setStatus("Local clipboard sent to sandbox");
       } catch (error) {
         showFallback({
@@ -324,52 +347,58 @@
     }
 
     async function syncRemoteToLocal() {
-      const attempts = 5;
-      for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (attempt > 0) {
-          await new Promise((resolve) => window.setTimeout(resolve, 150));
-        } else {
-          await new Promise((resolve) => window.setTimeout(resolve, 150));
-        }
-        try {
-          const text = await readRemoteClipboard();
-          if (!text || text === lastRemoteClipboard) {
-            continue;
-          }
-          await setLocalClipboardText(text);
-          lastRemoteClipboard = text;
-          setStatus("Remote clipboard synced to local browser");
-          return;
-        } catch (error) {
-          if (error.code === "clipboard_empty" || error.code === "rate_limited") {
-            continue;
-          }
+      if (remoteClipboardSyncInFlight) {
+        return remoteClipboardSyncInFlight;
+      }
+      const baselineText = lastRemoteClipboard;
+      remoteClipboardSyncInFlight = (async () => {
+        const attempts = 8;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 200));
           try {
             const text = await readRemoteClipboard();
-            showFallback({
-              title: "Copy From Sandbox",
-              message: "Browser clipboard write was blocked. Copy the text manually from the box below.",
-              value: text,
-              actionLabel: "Try Native Copy",
-              mode: "copy",
-            });
-          } catch (_) {
-            showFallback({
-              title: "Copy From Sandbox",
-              message: "Browser clipboard write was blocked and automatic retry did not succeed.",
-              actionLabel: "Close",
-              mode: "copy",
-            });
+            if (!text || text === baselineText) {
+              continue;
+            }
+            await setLocalClipboardText(text);
+            lastRemoteClipboard = text;
+            setStatus("Remote clipboard synced to local browser");
+            return;
+          } catch (error) {
+            if (error.code === "clipboard_empty" || error.code === "rate_limited") {
+              continue;
+            }
+            try {
+              const text = await readRemoteClipboard();
+              showFallback({
+                title: "Copy From Sandbox",
+                message: "Browser clipboard write was blocked. Copy the text manually from the box below.",
+                value: text,
+                actionLabel: "Try Native Copy",
+                mode: "copy",
+              });
+            } catch (_) {
+              showFallback({
+                title: "Copy From Sandbox",
+                message: "Browser clipboard write was blocked and automatic retry did not succeed.",
+                actionLabel: "Close",
+                mode: "copy",
+              });
+            }
+            setStatus(error.message || "Clipboard write failed", true);
+            return;
           }
-          setStatus(error.message || "Clipboard write failed", true);
-          return;
         }
+      })();
+      try {
+        await remoteClipboardSyncInFlight;
+      } finally {
+        remoteClipboardSyncInFlight = null;
       }
     }
 
     function isClipboardHotkey(event) {
-      const modifier = event.ctrlKey || event.metaKey;
-      if (!modifier || event.altKey) {
+      if (!event.ctrlKey || event.metaKey || event.altKey) {
         return null;
       }
       const key = event.key.toLowerCase();
@@ -397,10 +426,13 @@
       }
     }, true);
 
-    document.addEventListener("copy", () => {
-      if (!modalOpen()) {
-        void syncRemoteToLocal();
+    document.addEventListener("copy", (event) => {
+      if (modalOpen()) {
+        return;
       }
+      event.preventDefault();
+      event.stopPropagation();
+      void syncRemoteToLocal();
     }, true);
 
     document.addEventListener("paste", (event) => {
@@ -416,9 +448,8 @@
       event.stopPropagation();
       const text = event.clipboardData?.getData("text/plain");
       if (text) {
-        void postRemoteClipboard(text)
+        void pasteTextIntoRemote(text)
           .then(() => {
-            sendRemotePasteShortcut();
             setStatus("Local clipboard pasted into sandbox");
           })
           .catch((error) => {
@@ -429,14 +460,26 @@
       }
     }, true);
 
+    window.addEventListener("focus", () => {
+      if (!modalOpen()) {
+        focusRemoteSession();
+      }
+    });
+
+    screenEl.addEventListener("pointerdown", () => {
+      if (!modalOpen()) {
+        focusRemoteSession();
+      }
+    });
+
     fallbackCancelEl.addEventListener("click", hideFallback);
     fallbackActionEl.addEventListener("click", async () => {
       fallbackErrorEl.textContent = "";
       if (fallbackMode === "paste") {
         try {
-          await postRemoteClipboard(fallbackTextEl.value);
+          await pasteTextIntoRemote(fallbackTextEl.value);
           hideFallback();
-          setStatus("Manual clipboard text sent to sandbox");
+          setStatus("Manual clipboard text pasted into sandbox");
         } catch (error) {
           fallbackErrorEl.textContent = error.message || "Clipboard write failed";
         }
@@ -461,7 +504,10 @@
     rfb.resizeSession = false;
     rfb.clipViewport = false;
     rfb.focusOnClick = true;
-    rfb.addEventListener("connect", () => setStatus("Connected", false, { persistent: true }));
+    rfb.addEventListener("connect", () => {
+      focusRemoteSession();
+      setStatus("Connected", false, { persistent: true });
+    });
     rfb.addEventListener("disconnect", (event) => {
       const clean = event.detail?.clean;
       setStatus(clean ? "Disconnected" : "Connection lost", !clean, { persistent: true });

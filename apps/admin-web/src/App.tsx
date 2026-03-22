@@ -461,15 +461,40 @@ export function App() {
           {selected ? (
             <>
               <div className="panel-header">
-                <div>
+                <div className="header-info">
                   <h2>{selected.alias || selected.id}</h2>
                   <p className="muted">{selected.id}</p>
                 </div>
-                <span
-                  className={`status status-${selected.status.toLowerCase()}`}
-                >
-                  {selected.status}
-                </span>
+
+                <div className="header-actions">
+                  <div
+                    className={`status-box status status-${selected.status.toLowerCase()}`}
+                  >
+                    {selected.status}
+                  </div>
+
+                  <div className="header-action-row">
+                    <button
+                      onClick={() => void runAction("pause", selected)}
+                      disabled={isActionLoading || !canPauseSelected}
+                    >
+                      Pause
+                    </button>
+                    <button
+                      onClick={() => void runAction("resume", selected)}
+                      disabled={isActionLoading || !canResumeSelected}
+                    >
+                      Resume
+                    </button>
+                    <button
+                      className="danger"
+                      onClick={() => void runAction("delete", selected)}
+                      disabled={isActionLoading}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="detail-grid">
@@ -498,18 +523,6 @@ export function App() {
               </div>
 
               <div className="action-row">
-                <button
-                  onClick={() => void runAction("pause", selected)}
-                  disabled={isActionLoading || !canPauseSelected}
-                >
-                  Pause
-                </button>
-                <button
-                  onClick={() => void runAction("resume", selected)}
-                  disabled={isActionLoading || !canResumeSelected}
-                >
-                  Resume
-                </button>
                 <div className="action-with-option">
                   <button
                     onClick={() => void runAction("session", selected)}
@@ -552,13 +565,6 @@ export function App() {
                     ))}
                   </select>
                 </div>
-                <button
-                  className="danger"
-                  onClick={() => void runAction("delete", selected)}
-                  disabled={isActionLoading}
-                >
-                  Delete
-                </button>
               </div>
               {selectedActionHint ? (
                 <p className="muted">{selectedActionHint}</p>

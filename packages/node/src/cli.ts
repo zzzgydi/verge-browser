@@ -44,6 +44,8 @@ interface SandboxOptions extends GlobalOptions {
   defaultUrl?: string;
   image?: string;
   metadata?: string;
+  mode?: "one_time" | "reusable" | "permanent";
+  ttlSec?: number;
 }
 
 interface BrowserScreenshotOptions extends GlobalOptions {
@@ -86,6 +88,8 @@ const VALUE_OPTIONS = new Map<string, string>([
   ["--payload", "--payload <json>"],
   ["--content", "--content <text>"],
   ["--output", "--output <path>"],
+  ["--mode", "--mode <mode>"],
+  ["--ttl-sec", "--ttl-sec <seconds>"],
 ]);
 
 const TOP_LEVEL_COMMANDS = new Set(["sandbox", "browser", "files"]);
@@ -96,7 +100,7 @@ const defaultIo: CliIo = {
 };
 
 function parseDimensionOption(
-  name: "--width" | "--height",
+  name: "--width" | "--height" | "--ttl-sec",
   value: number | string | Array<number | string> | undefined | null,
 ): number | undefined {
   if (Array.isArray(value)) {
@@ -198,6 +202,8 @@ function createCli(
     .option("--enable-gpu", "Enable GPU acceleration (WebGL)")
     .option("--image <image>", "Runtime image override")
     .option("--metadata <json>", "Sandbox metadata as JSON object")
+    .option("--mode <mode>", "Ticket mode: one_time, reusable, or permanent")
+    .option("--ttl-sec <seconds>", "Ticket lifetime in seconds", { type: ["number"] })
     .action(
       async (
         action: string,
@@ -249,8 +255,20 @@ function createCli(
         if (action === "pause") return client.pauseSandbox(idOrAlias);
         if (action === "resume") return client.resumeSandbox(idOrAlias);
         if (action === "rm") return client.deleteSandbox(idOrAlias);
-        if (action === "cdp") return client.getCdpInfo(idOrAlias);
-        if (action === "session") return client.getSessionUrl(idOrAlias);
+        if (action === "cdp") {
+          const ttlSec = parseDimensionOption("--ttl-sec", options.ttlSec);
+          return client.getCdpInfo(idOrAlias, {
+            ...(options.mode ? { mode: options.mode } : {}),
+            ...(ttlSec !== undefined ? { ttl_sec: ttlSec } : {}),
+          });
+        }
+        if (action === "session") {
+          const ttlSec = parseDimensionOption("--ttl-sec", options.ttlSec);
+          return client.getSessionUrl(idOrAlias, {
+            ...(options.mode ? { mode: options.mode } : {}),
+            ...(ttlSec !== undefined ? { ttl_sec: ttlSec } : {}),
+          });
+        }
         if (action === "restart") return client.restartBrowser(idOrAlias);
         throw new VergeConfigError(`unsupported sandbox command: ${action}`);
       },

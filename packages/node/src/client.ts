@@ -367,9 +367,12 @@ export class VergeClient {
     });
   }
 
-  async getSessionUrl(idOrAlias: string): Promise<SessionUrlResponse> {
+  async getSessionUrl(idOrAlias: string, options: { mode?: AccessTicketMode; ttl_sec?: number } = {}): Promise<SessionUrlResponse> {
     const sandbox = await this.getSandbox(idOrAlias);
-    const ticket = await this.createSessionTicket(String(sandbox.id), { mode: 'one_time' });
+    const ticket = await this.createSessionTicket(String(sandbox.id), {
+      mode: options.mode ?? 'one_time',
+      ...(options.ttl_sec !== undefined ? { ttl_sec: options.ttl_sec } : {}),
+    });
     return {
       sandbox_id: sandbox.id,
       ...(sandbox.alias !== undefined ? { alias: sandbox.alias } : {}),

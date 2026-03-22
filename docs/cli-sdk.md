@@ -1,6 +1,6 @@
-# SDK 与 CLI 快速上手
+# SDK & CLI Quick Start
 
-## 环境变量
+## Environment Variables
 
 ```bash
 export VERGE_BROWSER_URL=http://127.0.0.1:8000
@@ -16,7 +16,10 @@ verge-browser sandbox create --alias proxied --http-proxy http://proxy.example.c
 verge-browser sandbox create --alias human-loop --kind xpra --json
 verge-browser sandbox get shopping --json
 verge-browser sandbox cdp shopping --json
+verge-browser sandbox cdp shopping --mode reusable --ttl-sec 300 --json
+verge-browser sandbox cdp shopping --mode permanent --json
 verge-browser sandbox session shopping --json
+verge-browser sandbox session shopping --mode reusable --ttl-sec 120 --json
 verge-browser sandbox restart shopping --json
 verge-browser sandbox pause shopping --json
 verge-browser sandbox resume shopping --json
@@ -31,13 +34,14 @@ verge-browser files download shopping /workspace/notes.txt --output ./notes.txt 
 verge-browser files rm shopping /workspace/notes.txt --json
 ```
 
-说明：
+Notes:
 
-- SDK 与 CLI 默认请求 `/sandbox/...`
-- JSON 业务响应会自动解包 `{ code, message, data }`
-- `sandbox cdp` 会调用 `POST /sandbox/{id}/cdp/apply`
-- `sandbox session` 会调用 `POST /sandbox/{id}/session/apply`
-- `sandbox create` 默认创建 `xvfb_vnc` 沙盒，也可通过 `--kind xpra` 选择 Xpra
+- The SDK and CLI send requests to `/sandbox/...` by default.
+- JSON responses are automatically unwrapped from `{ code, message, data }`.
+- `sandbox cdp` calls `POST /sandbox/{id}/cdp/apply` with default mode `reusable`.
+- `sandbox session` calls `POST /sandbox/{id}/session/apply` with default mode `one_time`.
+- Use `--mode` to specify the ticket mode (`one_time` / `reusable` / `permanent`) and `--ttl-sec` to set the expiry in seconds.
+- `sandbox create` defaults to the `xvfb_vnc` sandbox type; use `--kind xpra` to select Xpra instead.
 
 ## Python SDK
 
@@ -58,7 +62,7 @@ cdp = client.get_cdp_info("shopping", mode="reusable", ttl_sec=300)
 session = client.get_session_url("shopping")
 ```
 
-`cdp["cdp_url"]` 是可直接使用的带签名 ticket 的 WebSocket 地址。
+`cdp["cdp_url"]` is a signed-ticket WebSocket URL ready for direct use.
 
 ## Node SDK
 
@@ -89,13 +93,13 @@ const cdp = await client.getCdpInfo("shopping", {
 const session = await client.getSessionUrl("shopping");
 ```
 
-## 人机协同工作流
+## Human-in-the-Loop Workflow
 
-1. Agent 创建 sandbox 并执行初始自动化。
-2. 需要人工接管时，调用 `get_session_url()` 或 `verge-browser sandbox session <id-or-alias>`。
-3. 人类完成操作后，Agent 通过 `get_cdp_info()` 或 `verge-browser sandbox cdp <id-or-alias>` 继续自动化。
+1. The agent creates a sandbox and runs initial automation.
+2. When human takeover is needed, call `get_session_url()` or `verge-browser sandbox session <id-or-alias>`.
+3. After the human completes their actions, the agent resumes automation via `get_cdp_info()` or `verge-browser sandbox cdp <id-or-alias>`.
 
-补充：
+Notes:
 
-- `xvfb_vnc` 和 `xpra` 都使用统一的 `session_url`
-- 具体下发的是 noVNC 还是 Xpra 页面，由沙盒 `kind` 决定
+- Both `xvfb_vnc` and `xpra` sandbox types expose a unified `session_url`.
+- Whether noVNC or the Xpra page is served depends on the sandbox `kind`.

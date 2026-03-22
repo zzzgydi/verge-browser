@@ -21,10 +21,17 @@ def test_create_session_prunes_expired_entries() -> None:
         "expires_at": now - timedelta(seconds=1),
     }
 
-    session_id = session._create_session("sb_new")
+    session_id = session._create_session("sb_new", ttl_sec=600)
 
     assert session_id in session._sessions
     assert "expired" not in session._sessions
+    session._sessions.clear()
+
+
+def test_create_session_supports_permanent_entries() -> None:
+    session_id = session._create_session("sb_new", ttl_sec=None)
+
+    assert session._sessions[session_id]["expires_at"] is None
     session._sessions.clear()
 
 
@@ -150,7 +157,14 @@ def test_validate_session_rejects_expired_session() -> None:
 
 @pytest.mark.asyncio
 async def test_session_entry_sets_cookie(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(session, "verify_ticket", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        session,
+        "verify_ticket",
+        lambda *args, **kwargs: {
+            "mode": "reusable",
+            "exp": int((datetime.now(timezone.utc) + timedelta(seconds=120)).timestamp()),
+        },
+    )
 
     async def fake_proxy_http(*args, **kwargs):
         from fastapi import Response
@@ -174,12 +188,22 @@ async def test_session_entry_sets_cookie(monkeypatch: pytest.MonkeyPatch) -> Non
     assert response.status_code == 200
     assert "sandbox_session=" in response.headers["set-cookie"]
     assert "Path=/sandbox/sb_test" in response.headers["set-cookie"]
+    assert "Max-Age=" in response.headers["set-cookie"]
+    max_age = int(response.headers["set-cookie"].split("Max-Age=", 1)[1].split(";", 1)[0])
+    assert 1 <= max_age <= 120
     session._sessions.clear()
 
 
 @pytest.mark.asyncio
 async def test_xvfb_session_entry_redirects_to_novnc(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(session, "verify_ticket", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        session,
+        "verify_ticket",
+        lambda *args, **kwargs: {
+            "mode": "permanent",
+            "exp": None,
+        },
+    )
     sandbox = SandboxRecord(
         id="sb_test",
         kind=SandboxKind.XVFB_VNC,
@@ -203,6 +227,10 @@ async def test_xvfb_session_entry_redirects_to_novnc(monkeypatch: pytest.MonkeyP
     assert response.status_code == 302
     assert response.headers["location"] == "/sandbox/sb_test/session/vnc.html"
     assert "Path=/sandbox/sb_test" in response.headers["set-cookie"]
+    assert "Max-Age" not in response.headers["set-cookie"]
+    session_id = response.headers["set-cookie"].split("sandbox_session=", 1)[1].split(";", 1)[0]
+    assert session._sessions[session_id]["expires_at"] is None
+    session._sessions.clear()
 
 
 @pytest.mark.asyncio

@@ -21,7 +21,7 @@ from app.schemas.sandbox import CreateSessionTicketRequest, CreateSessionTicketR
 from app.services.session import session_service
 
 router = APIRouter(prefix="/sandbox/{sandbox_id}/session", tags=["session"])
-_sessions: dict[str, dict[str, object]] = {}
+_sessions: dict[str, dict[str, str | datetime | None]] = {}
 _sessions_lock = Lock()
 logger = logging.getLogger(__name__)
 _vnc_session_page = Path(__file__).resolve().parent.parent / "static" / "vnc_session.html"
@@ -33,18 +33,23 @@ def _canonical_sandbox_id(sandbox, fallback: str) -> str:
 
 def _prune_sessions(now: datetime | None = None) -> None:
     current = now or datetime.now(timezone.utc)
-    expired = [session_id for session_id, payload in _sessions.items() if current > payload["expires_at"]]
+    expired = [
+        session_id
+        for session_id, payload in _sessions.items()
+        if payload["expires_at"] is not None and current > payload["expires_at"]
+    ]
     for session_id in expired:
         _sessions.pop(session_id, None)
 
 
-def _create_session(sandbox_id: str) -> str:
+def _create_session(sandbox_id: str, *, ttl_sec: int | None) -> str:
     session_id = secrets.token_urlsafe(24)
+    expires_at = None if ttl_sec is None else datetime.now(timezone.utc) + timedelta(seconds=ttl_sec)
     with _sessions_lock:
         _prune_sessions()
         _sessions[session_id] = {
             "sandbox_id": sandbox_id,
-            "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
+            "expires_at": expires_at,
         }
     return session_id
 
@@ -57,7 +62,8 @@ def _validate_session(session_id: str | None, sandbox_id: str) -> None:
         if session is None or session["sandbox_id"] != sandbox_id:
             _prune_sessions()
             raise HTTPException(status_code=403, detail="invalid sandbox session")
-        if datetime.now(timezone.utc) > session["expires_at"]:
+        expires_at = session["expires_at"]
+        if expires_at is not None and datetime.now(timezone.utc) > expires_at:
             _sessions.pop(session_id, None)
             _prune_sessions()
             raise HTTPException(status_code=401, detail="expired sandbox session")
@@ -114,8 +120,11 @@ async def session_entry(
 ) -> Response:
     del request
     canonical_id = _canonical_sandbox_id(sandbox, sandbox_id)
-    verify_ticket(ticket, sandbox_id=canonical_id, ticket_type="session", scope="connect", consume=True)
-    session_id = _create_session(canonical_id)
+    ticket_payload = verify_ticket(ticket, sandbox_id=canonical_id, ticket_type="session", scope="connect", consume=True)
+    session_ttl_sec = None if ticket_payload.get("mode") == "permanent" else ticket_payload.get("exp")
+    if session_ttl_sec is not None:
+        session_ttl_sec = max(1, int(session_ttl_sec - datetime.now(timezone.utc).timestamp()))
+    session_id = _create_session(canonical_id, ttl_sec=session_ttl_sec)
     if sandbox.kind == SandboxKind.XPRA:
         response = await session_service.proxy_http(sandbox)
     else:
@@ -126,7 +135,7 @@ async def session_entry(
         "sandbox_session",
         session_id,
         httponly=True,
-        max_age=600,
+        max_age=session_ttl_sec,
         samesite="lax",
         path=f"/sandbox/{canonical_id}",
     )

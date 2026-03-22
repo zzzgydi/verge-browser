@@ -44,6 +44,26 @@ type ApiEnvelope<T> = {
   data: T;
 };
 
+type AccessTicketMode = "one_time" | "reusable" | "permanent";
+
+type AccessPreset = {
+  key: string;
+  label: string;
+  mode: AccessTicketMode;
+  ttlSec?: number;
+};
+
+const ACCESS_PRESETS: AccessPreset[] = [
+  { key: "one_time_60", label: "1 min", mode: "one_time", ttlSec: 60 },
+  { key: "reusable_300", label: "5 min", mode: "reusable", ttlSec: 300 },
+  { key: "reusable_900", label: "15 min", mode: "reusable", ttlSec: 900 },
+  { key: "reusable_3600", label: "1 hour", mode: "reusable", ttlSec: 3600 },
+  { key: "permanent", label: "Permanent", mode: "permanent" },
+];
+
+const DEFAULT_SESSION_PRESET_KEY = "reusable_900";
+const DEFAULT_CDP_PRESET_KEY = "reusable_300";
+
 function canPause(status: string) {
   return status !== "STOPPED";
 }
@@ -170,6 +190,10 @@ export function App() {
   const [createAlias, setCreateAlias] = useState("");
   const [createKind, setCreateKind] = useState<"xvfb_vnc" | "xpra">("xvfb_vnc");
   const [createEnableGpu, setCreateEnableGpu] = useState(false);
+  const [sessionPresetKey, setSessionPresetKey] = useState(
+    DEFAULT_SESSION_PRESET_KEY,
+  );
+  const [cdpPresetKey, setCdpPresetKey] = useState(DEFAULT_CDP_PRESET_KEY);
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const {
@@ -186,6 +210,12 @@ export function App() {
     ? canOpenSession(selectedStatus)
     : false;
   const selectedActionHint = selectedStatus ? actionHint(selectedStatus) : null;
+  const sessionPreset =
+    ACCESS_PRESETS.find((preset) => preset.key === sessionPresetKey) ??
+    ACCESS_PRESETS[0];
+  const cdpPreset =
+    ACCESS_PRESETS.find((preset) => preset.key === cdpPresetKey) ??
+    ACCESS_PRESETS[0];
 
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
@@ -248,7 +278,12 @@ export function App() {
           token,
           {
             method: "POST",
-            body: JSON.stringify({ mode: "permanent" }),
+            body: JSON.stringify({
+              mode: sessionPreset.mode,
+              ...(sessionPreset.ttlSec !== undefined
+                ? { ttl_sec: sessionPreset.ttlSec }
+                : {}),
+            }),
           },
         );
         sessionWindow.location.replace(ticket.session_url);
@@ -259,7 +294,12 @@ export function App() {
           token,
           {
             method: "POST",
-            body: JSON.stringify({ mode: "reusable" }),
+            body: JSON.stringify({
+              mode: cdpPreset.mode,
+              ...(cdpPreset.ttlSec !== undefined
+                ? { ttl_sec: cdpPreset.ttlSec }
+                : {}),
+            }),
           },
         );
         await navigator.clipboard.writeText(ticket.cdp_url);
@@ -324,57 +364,68 @@ export function App() {
   return (
     <main className="shell">
       <section className="toolbar">
-        <div>
+        <div className="toolbar-titlebox">
           <p className="eyebrow">
             <span>Verge Browser</span>
           </p>
-          <h1>Sandbox Control</h1>
+          <h1 className="toolbar-title">Sandbox Control</h1>
         </div>
-        <div className="toolbar-actions">
-          <input
-            value={createAlias}
-            onChange={(event) => setCreateAlias(event.target.value)}
-            placeholder="alias (optional)"
-          />
-          <select
-            value={createKind}
-            onChange={(event) =>
-              setCreateKind(event.target.value as "xvfb_vnc" | "xpra")
-            }
-          >
-            <option value="xvfb_vnc">xvfb + vnc</option>
-            <option value="xpra">xpra</option>
-          </select>
-          <label className="gpu-label">
+        <div>
+          <div className="toolbar-actions">
+            <button className="ghost" onClick={() => void refresh()}>
+              Refresh
+            </button>
+            <button className="ghost" onClick={logout}>
+              Logout
+            </button>
+            <a
+              href="https://github.com/zzzgydi/verge-browser"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="github-link"
+              title="View on GitHub"
+            >
+              <GitHubIcon />
+            </a>
+          </div>
+
+          <div className="toolbar-actions" style={{ marginTop: 8 }}>
             <input
-              type="checkbox"
-              checked={createEnableGpu}
-              onChange={(e) => setCreateEnableGpu(e.target.checked)}
+              className="toolbar-input"
+              value={createAlias}
+              onChange={(event) => setCreateAlias(event.target.value)}
+              placeholder="alias (optional)"
             />
-            GPU
-          </label>
-          <button
-            className="create-btn"
-            onClick={() => void createSandbox()}
-            disabled={isActionLoading}
-          >
-            {isActionLoading ? "Creating..." : "Create Sandbox"}
-          </button>
-          <button className="ghost" onClick={() => void refresh()}>
-            Refresh
-          </button>
-          <button className="ghost" onClick={logout}>
-            Logout
-          </button>
-          <a
-            href="https://github.com/zzzgydi/verge-browser"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="github-link"
-            title="View on GitHub"
-          >
-            <GitHubIcon />
-          </a>
+            <select
+              className="toolbar-select"
+              value={createKind}
+              onChange={(event) =>
+                setCreateKind(event.target.value as "xvfb_vnc" | "xpra")
+              }
+            >
+              <option value="xvfb_vnc">xvfb + vnc</option>
+              <option value="xpra">xpra</option>
+            </select>
+            <label className="toggle-chip" aria-label="Enable GPU acceleration">
+              <input
+                type="checkbox"
+                checked={createEnableGpu}
+                onChange={(e) => setCreateEnableGpu(e.target.checked)}
+              />
+              <span className="toggle-indicator" aria-hidden="true" />
+              <span className="toggle-text">
+                <strong>GPU</strong>
+                <small>Support WebGL</small>
+              </span>
+            </label>
+            <button
+              className="create-btn"
+              onClick={() => void createSandbox()}
+              disabled={isActionLoading}
+            >
+              {isActionLoading ? "Creating..." : "Create Sandbox"}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -459,18 +510,48 @@ export function App() {
                 >
                   Resume
                 </button>
-                <button
-                  onClick={() => void runAction("session", selected)}
-                  disabled={isActionLoading || !canOpenSessionSelected}
-                >
-                  Open Session
-                </button>
-                <button
-                  onClick={() => void runAction("cdp", selected)}
-                  disabled={isActionLoading || !canOpenSessionSelected}
-                >
-                  Connect CDP
-                </button>
+                <div className="action-with-option">
+                  <button
+                    onClick={() => void runAction("session", selected)}
+                    disabled={isActionLoading || !canOpenSessionSelected}
+                  >
+                    Open Session
+                  </button>
+                  <select
+                    aria-label="Session link expiry"
+                    value={sessionPresetKey}
+                    onChange={(event) =>
+                      setSessionPresetKey(event.target.value)
+                    }
+                    disabled={isActionLoading}
+                  >
+                    {ACCESS_PRESETS.map((preset) => (
+                      <option key={preset.key} value={preset.key}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="action-with-option">
+                  <button
+                    onClick={() => void runAction("cdp", selected)}
+                    disabled={isActionLoading || !canOpenSessionSelected}
+                  >
+                    Connect CDP
+                  </button>
+                  <select
+                    aria-label="CDP link expiry"
+                    value={cdpPresetKey}
+                    onChange={(event) => setCdpPresetKey(event.target.value)}
+                    disabled={isActionLoading}
+                  >
+                    {ACCESS_PRESETS.map((preset) => (
+                      <option key={preset.key} value={preset.key}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   className="danger"
                   onClick={() => void runAction("delete", selected)}

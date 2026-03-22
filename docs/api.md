@@ -232,6 +232,19 @@ Request:
 }
 ```
 
+| Field     | Type   | Default      | Description                          |
+| --------- | ------ | ------------ | ------------------------------------ |
+| `mode`    | string | `"reusable"` | Ticket mode (see below).             |
+| `ttl_sec` | int    | `60`         | Ticket lifetime in seconds (1–86400). When omitted, falls back to `VERGE_TICKET_TTL_SEC` (default `60`). |
+
+**Ticket modes:**
+
+| Mode         | Description                                                         |
+| ------------ | ------------------------------------------------------------------- |
+| `one_time`   | Consumed on first connection. Cannot be reused.                     |
+| `reusable`   | Can be connected to repeatedly until the TTL expires. **(default)** |
+| `permanent`  | Never expires. No TTL.                                              |
+
 Response `data`:
 
 ```json
@@ -252,7 +265,7 @@ Browser-level CDP proxy. Requires `ticket=...` in the query string.
 
 ### `POST /sandbox/{sandbox_id}/session/apply`
 
-Apply for an Xpra session access ticket and return a ticketed entry URL.
+Apply for a session access ticket and return a ticketed entry URL.
 
 Request:
 
@@ -262,6 +275,19 @@ Request:
   "ttl_sec": 60
 }
 ```
+
+| Field     | Type   | Default      | Description                          |
+| --------- | ------ | ------------ | ------------------------------------ |
+| `mode`    | string | `"one_time"` | Ticket mode (see below).             |
+| `ttl_sec` | int    | `60`         | Ticket lifetime in seconds (1–86400). When omitted, falls back to `VERGE_TICKET_TTL_SEC` (default `60`). |
+
+**Ticket modes:**
+
+| Mode         | Description                                                         |
+| ------------ | ------------------------------------------------------------------- |
+| `one_time`   | Consumed on first use. Cannot be reused. **(default)**              |
+| `reusable`   | Can be used repeatedly until the TTL expires.                       |
+| `permanent`  | Never expires. No TTL.                                              |
 
 Response `data`:
 

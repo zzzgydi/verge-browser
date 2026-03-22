@@ -61,6 +61,7 @@ Then the shortest lifecycle flow is:
 verge-browser sandbox create --alias demo --default-url https://example.com --json
 verge-browser sandbox get demo --json
 verge-browser sandbox cdp demo --json
+verge-browser sandbox cdp demo --mode reusable --ttl-sec 300 --json
 verge-browser sandbox session demo --json
 verge-browser sandbox rm demo --json
 ```
@@ -125,6 +126,8 @@ agent-browser --cdp "$CDP_URL" press Enter
 
 Rules:
 
+- CDP tickets default to `reusable` mode — the `cdp_url` can be reused across multiple connections until the TTL expires (default 60 seconds via `VERGE_TICKET_TTL_SEC`). Pass `mode: "permanent"` if you need a long-lived URL, or `mode: "one_time"` for single-use access.
+- Session tickets default to `one_time` mode — they are consumed on first use. Pass `mode: "reusable"` or `mode: "permanent"` if you need to reconnect.
 - request a fresh `cdp_url` if the previous ticket may have expired
 - re-run `snapshot -i` after navigation or significant DOM changes
 - if automation blocks on MFA or CAPTCHA, switch to `sandbox session`, let the human finish, then request a new CDP URL and continue

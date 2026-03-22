@@ -189,6 +189,7 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createAlias, setCreateAlias] = useState("");
   const [createKind, setCreateKind] = useState<"xvfb_vnc" | "xpra">("xvfb_vnc");
+  const [createResolution, setCreateResolution] = useState("1280x1024");
   const [createEnableGpu, setCreateEnableGpu] = useState(false);
   const [sessionPresetKey, setSessionPresetKey] = useState(
     DEFAULT_SESSION_PRESET_KEY,
@@ -227,13 +228,14 @@ export function App() {
   async function createSandbox() {
     setIsActionLoading(true);
     try {
+      const [resW, resH] = createResolution.split("x").map(Number);
       const detail = await api<Sandbox>("/sandbox", token, {
         method: "POST",
         body: JSON.stringify({
           alias: createAlias || undefined,
           kind: createKind,
-          width: 1280,
-          height: 1024,
+          width: resW,
+          height: resH,
           enable_gpu: createEnableGpu,
         }),
       });
@@ -405,6 +407,17 @@ export function App() {
             >
               <option value="xvfb_vnc">xvfb + vnc</option>
               <option value="xpra">xpra</option>
+            </select>
+            <select
+              className="toolbar-select"
+              value={createResolution}
+              onChange={(event) => setCreateResolution(event.target.value)}
+            >
+              <option value="1280x1024">1280x1024</option>
+              <option value="1366x768">1366x768</option>
+              <option value="1440x900">1440x900</option>
+              <option value="1920x1080">1920x1080</option>
+              <option value="2560x1440">2560x1440</option>
             </select>
             <label className="toggle-chip" aria-label="Enable GPU acceleration">
               <input

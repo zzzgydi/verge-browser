@@ -73,6 +73,7 @@ class BrowserService:
 
     async def _browser_version_payload(self, sandbox: SandboxRecord, *, normalize_ws_url: bool) -> dict:
         url = f"http://{sandbox.runtime.host}:{sandbox.runtime.cdp_port}/json/version"
+        used_exec_fallback = False
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
                 response = await client.get(url)
@@ -84,7 +85,8 @@ class BrowserService:
             else:
                 logger.info("browser version probe via HTTP not ready for sandbox %s; falling back to exec", sandbox.id)
             payload = self._browser_version_via_exec(sandbox)
-        if normalize_ws_url and payload.get("webSocketDebuggerUrl"):
+            used_exec_fallback = True
+        if payload.get("webSocketDebuggerUrl") and (normalize_ws_url or used_exec_fallback):
             payload["webSocketDebuggerUrl"] = self._normalize_cdp_ws_url(sandbox, payload["webSocketDebuggerUrl"])
         return payload
 

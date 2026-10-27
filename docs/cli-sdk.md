@@ -103,3 +103,6 @@ Notes:
 
 - Both `xvfb_vnc` and `xpra` sandbox types expose a unified `session_url`.
 - Whether noVNC or the Xpra page is served depends on the sandbox `kind`.
+- Stop agent actions before manual control; opening a session URL does not pause automation. Do not use `sandbox pause` for a live handoff because it removes the runtime container.
+
+See [Human Handoff](guides/human-handoff.md), [Persistent Browser Profiles](guides/persistent-profiles.md), and [Codex with Playwright MCP](integrations/codex.md) for the complete workflows and their limits.

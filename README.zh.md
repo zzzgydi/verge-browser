@@ -2,7 +2,11 @@
 
 [English](./README.md) | 中文
 
-面向 AI Agent 的浏览器沙箱平台，把 CDP 自动化、GUI 级截图、共享文件和可视化人工接管放进同一个隔离运行时。
+**可自托管的可视化浏览器沙箱，让 AI Agent 和人使用同一个浏览器。**
+
+在没有桌面的 Linux 服务器上运行带图形界面的 Chromium。Agent 可以通过 Playwright 等工具连接 CDP 来操作网页，人可以通过 noVNC 或 Xpra 查看同一个浏览器，并接手登录、MFA 等手动步骤。每个沙箱都有独立的浏览器 Profile 和共享文件目录。
+
+[快速开始](#快速开始) · [Linux 服务器部署](./docs/guides/headless-linux.md) · [Codex + Playwright MCP](./docs/integrations/codex.md) · [人工接管](./docs/guides/human-handoff.md)
 
 <p align="center">
   <img src="docs/assets/png-admin.png" alt="Verge Browser 管理控制台" width="48%" />
@@ -19,17 +23,39 @@
 - **GUI 级截图**：抓取完整浏览器窗口，而不只是页面内容
 - **人工接管**：对 noVNC 和 Xpra 提供统一 session 入口
 - **文件共享**：浏览器与 API 共用 `/workspace`，便于上传、下载和产物交换
+- **持久化浏览器 Profile**：暂停后恢复可复用工作目录和已写入磁盘的 Profile，但不保证还原运行中的标签页或浏览器内存
 
-## 为何存在
+## 适用场景
 
-多数浏览器自动化系统专注于无头页面控制，但这不足以支撑需要同时满足以下条件的 Agent 工作流：
+- 在没有桌面环境的 Linux VPS 上运行可视化浏览器，无需给宿主机安装桌面。
+- 给编程 Agent 提供远程浏览器，测试该浏览器能够访问的 Web 应用。
+- 人工完成登录或 MFA 后，让 Agent 在同一个浏览器中继续操作。
+- 为不同任务或账号保留独立的浏览器 Profile 和文件。
+- 直接查看远程浏览器任务，不必搬到本机浏览器重做。
 
-- 通过 CDP 进行浏览器自动化
-- 对整个浏览器窗口进行视觉推理
-- 自动化卡住时由人接管
-- 在同一环境里共享文件
+## 兼容性与边界
 
-Verge Browser 的目标，就是把浏览器、GUI 和文件都放进同一个隔离沙箱里，避免工作流被拆散到多个系统中。
+| 能力 | 支持范围与限制 |
+| --- | --- |
+| Linux 自托管 / Docker | 支持单节点部署；宿主机不需要桌面，容器内运行 GUI Chromium |
+| Playwright / Puppeteer | 通过带票据的 CDP WebSocket 连接，不是 Playwright 协议服务 |
+| Codex / Playwright MCP | 通过 CDP 对接外部工具，需要配置客户端和更新票据，不内置 Codex 任务编排 |
+| 人工接管 | noVNC 或 Xpra 操作同一个浏览器；接管前需要调用方停止 Agent 操作 |
+| Profile 与文件持久化 | 暂停和恢复保留磁盘数据，删除沙箱会删除数据，不保证网站登录始终有效 |
+| 多沙箱 | 使用独立容器和工作目录，不是经过强化隔离的非互信多租户服务 |
+| GUI 截图 | 支持浏览器窗口截图，也支持通过 CDP 截取页面 |
+
+如果本地测试只需要页面自动化，直接使用 Playwright 通常更简单。需要让自动化、可视化浏览器和人工操作共用一个环境时，再使用 Verge Browser。
+
+## 集成指南
+
+以下指南目前以英文维护：
+
+- [Codex 连接自托管浏览器](./docs/integrations/codex.md)：配置 Playwright MCP、使用限定沙箱的 CDP 票据，并交给人接管。
+- [Playwright 和 Playwright MCP 连接 CDP](./docs/integrations/playwright-mcp.md)：连接现有浏览器，而不是另起一个浏览器。
+- [无桌面的 Linux 服务器部署](./docs/guides/headless-linux.md)：通过 SSH 隧道访问，不直接暴露 API。
+- [人工接管](./docs/guides/human-handoff.md)：停止自动化、完成手动步骤、重新读取页面后继续。
+- [浏览器 Profile 持久化](./docs/guides/persistent-profiles.md)：说明暂停、恢复、重启和删除分别保留什么。
 
 ## Agent Skills
 
@@ -51,6 +77,8 @@ docker compose -f deployments/docker-compose.yml up api
 打开 [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin) 开始使用。
 
 本地开发时，如未覆盖 `VERGE_ADMIN_AUTH_TOKEN`，可直接使用默认 admin token `dev-admin-token` 登录。
+
+这个 Compose 示例会把 8000 端口发布到宿主机的所有网络接口，未另行配置时使用开发密钥。不要直接照搬到公网 VPS；请使用 [Linux 私有部署指南](./docs/guides/headless-linux.md)。
 
 部署相关环境变量可参考 [`docs/env.md`](./docs/env.md)。
 
@@ -317,7 +345,7 @@ Verge Browser 聚焦于浏览器控制：
 
 - 运行时容器启动，包含 Chromium、Xvfb/Openbox 或 Xpra，以及 CDP 中继
 - 通过 API 创建沙箱
-- 持久化沙箱元数据，并在服务启动时恢复为 `STOPPED`
+- 持久化沙箱元数据，服务启动时重新关联仍在运行的容器；没有运行容器的记录保持 `STOPPED`
 - 复用工作目录的 `pause` / `resume`
 - 真实窗口截图
 - 通过 CDP 进行页面截图

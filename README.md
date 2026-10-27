@@ -2,7 +2,11 @@
 
 English | [中文](./README.zh.md)
 
-A browser sandbox platform for AI agents, combining CDP automation, GUI-level screenshots, shared files, and visual human handoff in one isolated runtime.
+**A self-hosted visual browser sandbox for AI agents and humans.**
+
+Run real GUI Chromium on a headless Linux server. Automate websites through CDP with tools such as Playwright, watch the same browser through noVNC or Xpra, and take over for login, MFA, or other manual steps. Each sandbox has its own browser profile and shared files.
+
+[Quick Start](#quick-start) · [Linux Server Deployment](./docs/guides/headless-linux.md) · [Codex + Playwright MCP](./docs/integrations/codex.md) · [Human Handoff](./docs/guides/human-handoff.md)
 
 <p align="center">
   <img src="docs/assets/png-admin.png" alt="Verge Browser admin console" width="48%" />
@@ -19,17 +23,37 @@ A browser sandbox platform for AI agents, combining CDP automation, GUI-level sc
 - **GUI-Level Screenshots**: capture the full browser window, not only page content
 - **Human Handoff**: unified session entry for both noVNC and Xpra
 - **File Sharing**: browser and APIs share `/workspace` for uploads, downloads, and artifacts
+- **Persistent Browser Profiles**: reuse the workspace and on-disk profile after pause/resume; this is not a snapshot of running tabs or browser memory
 
-## Why This Exists
+## When to Use It
 
-Most browser automation systems focus on headless page control. That is not enough for agent workflows that need to combine:
+- Run a visual browser on a Linux VPS without installing a desktop environment on the host.
+- Give a coding agent a remote browser for testing a reachable web application.
+- Handle login or MFA yourself, then let the agent continue in the same browser.
+- Keep separate browser profiles and files for different tasks or accounts.
+- Inspect a remote browser task without moving it to your local browser.
 
-- browser automation through CDP
-- visual reasoning over the full browser window
-- human takeover when automation stalls
-- shared files inside the same environment
+## Compatibility and Limits
 
-Verge Browser keeps browser, GUI, and files in one isolated sandbox so those workflows remain continuous instead of split across multiple tools.
+| Capability | Support and boundary |
+| --- | --- |
+| Self-hosted Linux / Docker | Single-node deployment; GUI Chromium runs inside the container, even when the host has no desktop |
+| Playwright / Puppeteer | Connect through the ticketed CDP WebSocket endpoint; this is not a Playwright protocol server |
+| Codex / Playwright MCP | External integration via CDP; requires client configuration and ticket renewal, not built-in Codex orchestration |
+| Human takeover | noVNC or Xpra controls the same browser; the caller must stop agent actions before a person takes over |
+| Persistent profile and files | On-disk data survives pause/resume; deletion removes it, and website login validity is not guaranteed |
+| Multiple sandboxes | Separate containers and workspaces; not a hardened, mutually untrusted multi-tenant service |
+| Full GUI screenshots | Browser window capture as well as page screenshots through CDP |
+
+For a local test that needs only page automation, standalone Playwright may be simpler. Verge Browser is useful when automation, a visible desktop browser, and manual interaction need to share one environment.
+
+## Integration Guides
+
+- [Codex with a self-hosted browser](./docs/integrations/codex.md): configure Playwright MCP, use scoped CDP tickets, and hand off to a person.
+- [Playwright and Playwright MCP over CDP](./docs/integrations/playwright-mcp.md): connect to the existing browser rather than launching another one.
+- [Deploy on a headless Linux server](./docs/guides/headless-linux.md): keep the API private and access it through an SSH tunnel.
+- [Human handoff](./docs/guides/human-handoff.md): stop automation, complete the manual step, and read the page again.
+- [Persistent browser profiles](./docs/guides/persistent-profiles.md): what pause, resume, restart, and deletion actually preserve.
 
 ## Agent Skills
 
@@ -51,6 +75,8 @@ docker compose -f deployments/docker-compose.yml up api
 Open [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin) to start using.
 
 For local development, sign in with the default admin token `dev-admin-token` unless you override `VERGE_ADMIN_AUTH_TOKEN`.
+
+The Compose example publishes port 8000 on all host interfaces and uses development secrets unless configured otherwise. Do not use it unchanged on a public VPS; follow the [private Linux deployment guide](./docs/guides/headless-linux.md).
 
 Deployment-related environment variables are documented in [`docs/env.md`](./docs/env.md).
 
@@ -317,7 +343,7 @@ The current codebase already includes:
 
 - runtime container boot with Chromium, Xvfb/Openbox or Xpra, and a CDP relay
 - sandbox creation through the API
-- persisted sandbox metadata with startup recovery into `STOPPED`
+- persisted sandbox metadata with startup reconciliation of surviving runtime containers; records without a running container remain `STOPPED`
 - pause and resume lifecycle for reusing an existing workspace
 - real window screenshots
 - page screenshots through CDP

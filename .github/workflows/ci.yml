@@ -69,6 +69,14 @@ jobs:
       - name: Build runtime xvfb image
         run: docker build -f docker/runtime-xvfb.Dockerfile -t verge-browser-runtime-xvfb:latest .
 
+      - name: Verify Cloak is not preinstalled
+        run: |
+          docker run --rm --entrypoint /bin/sh verge-browser-runtime-xvfb:latest -ec '
+            test ! -e /root/.cloakbrowser
+            test ! -e /opt/verge/cloak
+            /opt/sandbox/cloak-venv/bin/python -c "from importlib.metadata import version; assert version(\"cloakbrowser\") == \"0.6.4\""
+          '
+
   runtime-image-xpra:
     runs-on: ubuntu-latest
     steps:

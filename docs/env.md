@@ -7,7 +7,7 @@ This document summarizes the environment variables used by the project during de
 - runtime container variables
 - SDK / CLI variables commonly used after deployment
 
-[`apps/api-server/app/config.py`](/Users/bytedance/Projects/Github/verge-browser/apps/api-server/app/config.py) uses `pydantic-settings`, reads the repository root `.env` file automatically, and applies the `VERGE_` prefix to all server-side settings.
+[`apps/api-server/app/config.py`](../apps/api-server/app/config.py) uses `pydantic-settings`, reads `.env` from the API process's working directory, and applies the `VERGE_` prefix to all server-side settings. The supplied Compose service uses the repository root as its working directory.
 
 ## 1. API Server
 
@@ -30,7 +30,7 @@ The variables below are read directly by the API server and can be set in the re
 | `VERGE_SANDBOX_RUNTIME_IMAGE`          | `verge-browser-runtime-xvfb:latest`        | No              | Generic runtime image setting. Current code paths prefer the kind-specific image settings below.                                               |
 | `VERGE_SANDBOX_RUNTIME_IMAGE_XVFB_VNC` | `verge-browser-runtime-xvfb:latest`        | No              | Runtime image for `xvfb_vnc`.                                                                                                                  |
 | `VERGE_SANDBOX_RUNTIME_IMAGE_XPRA`     | `verge-browser-runtime-xpra:latest`        | No              | Runtime image for `xpra`.                                                                                                                      |
-| `VERGE_SANDBOX_RUNTIME_NETWORK`        | `bridge`                                   | No              | Docker network used by runtime containers.                                                                                                     |
+| `VERGE_SANDBOX_RUNTIME_NETWORK`        | `bridge`                                   | No              | Docker network used by runtime containers. Compose overrides this to its project network so the API can reach them.                              |
 | `VERGE_SANDBOX_RUNTIME_MODE`           | `docker`                                   | No              | Runtime launch mode. The current implementation uses Docker.                                                                                   |
 | `VERGE_SANDBOX_DEFAULT_URL`            | `https://github.com/zzzgydi/verge-browser` | No              | Default URL opened by the browser.                                                                                                             |
 | `VERGE_SANDBOX_DEFAULT_WIDTH`          | `1280`                                     | No              | Default browser window width.                                                                                                                  |
@@ -65,7 +65,7 @@ These variables are not API server settings, but the current deployment assets d
 
 | Variable       | Default | Required | Description                                                                                                                                                                                                                                    |
 | -------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PROJECT_ROOT` | None    | Yes      | Used by [`deployments/docker-compose.yml`](/Users/bytedance/Projects/Github/verge-browser/deployments/docker-compose.yml) for `working_dir`, source mounts, and `VERGE_SANDBOX_BASE_DIR`. It must be the absolute repository path on the host. |
+| `PROJECT_ROOT` | None    | Yes      | Used by [`deployments/docker-compose.yml`](../deployments/docker-compose.yml) for `working_dir`, source mounts, and `VERGE_SANDBOX_BASE_DIR`. It must be the absolute repository path on the host. |
 
 The current Compose setup effectively injects this value into the API container:
 
@@ -131,6 +131,6 @@ These variables do not affect the server deployment itself, but they are commonl
 ## 5. Usage Notes
 
 - For production, at minimum set `VERGE_ENV`, `VERGE_SANDBOX_BASE_DIR`, `VERGE_ADMIN_AUTH_TOKEN`, and `VERGE_TICKET_SECRET`.
-- When using [`deployments/docker-compose.yml`](/Users/bytedance/Projects/Github/verge-browser/deployments/docker-compose.yml), export `PROJECT_ROOT` before starting Compose.
+- When using [`deployments/docker-compose.yml`](../deployments/docker-compose.yml), export `PROJECT_ROOT` before starting Compose.
 - If the API server runs inside a container, `VERGE_SANDBOX_BASE_DIR` must point to a path that is visible inside the API container and matches the host mount path, otherwise runtime workspace mounts will fail.
 - When debugging session or CDP issues, start by checking `DISPLAY`, `XPRA_PORT`, `WEBSOCKET_PROXY_PORT`, and `EXPOSED_CDP_PORT`.

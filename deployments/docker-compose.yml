@@ -7,6 +7,7 @@ services:
     working_dir: ${PROJECT_ROOT:?set PROJECT_ROOT to the repo absolute path}
     environment:
       VERGE_SANDBOX_BASE_DIR: ${PROJECT_ROOT:?set PROJECT_ROOT to the repo absolute path}/.local/sandboxes
+      VERGE_SANDBOX_RUNTIME_NETWORK: ${COMPOSE_PROJECT_NAME}_default
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:

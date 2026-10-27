@@ -3,11 +3,16 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
+from app.config import get_settings
 from app.models.sandbox import SandboxKind
 from app.services.docker_adapter import ContainerCreateResult, DockerAdapter
 
 
-def test_create_container_passes_matching_xvfb_and_browser_dimensions(monkeypatch) -> None:
+@pytest.mark.parametrize("network", ["bridge", "verge-test_default"])
+def test_create_container_passes_matching_xvfb_and_browser_dimensions(monkeypatch, network: str) -> None:
+    monkeypatch.setattr(get_settings(), "sandbox_runtime_network", network)
     adapter = DockerAdapter()
     calls: list[list[str]] = []
 
@@ -40,6 +45,7 @@ def test_create_container_passes_matching_xvfb_and_browser_dimensions(monkeypatc
 
     assert result == ContainerCreateResult(container_id="cid-123", host="172.17.0.2", error=None)
     docker_run = calls[1]
+    assert docker_run[docker_run.index("--network") + 1] == network
     assert "--name" in docker_run
     assert "verge-sandbox-sb_test" in docker_run
     assert "verge.managed=true" in docker_run

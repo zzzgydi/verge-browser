@@ -16,6 +16,10 @@ The source code for Xpra is available from its upstream project. If you distribu
 
 ## Other Runtime Dependencies
 
+The Linux amd64 Xvfb image also installs the optional CloakBrowser Python wrapper (MIT) and its locked Python dependencies, including Playwright (Apache-2.0), for the experimental runtime installer. Their package license notices remain in the runtime virtual environment. No CloakBrowser or Playwright browser binary is downloaded during the image build.
+
+CloakBrowser's compiled browser is separately licensed by CloakHQ and is **not** covered by the wrapper's MIT license. The opt-in installer obtains it from official channels into the deployment's private volume, preserving the original distribution files and notices. Do not redistribute that volume or include its contents in public images without the required separate permission. See the [upstream Binary License](https://github.com/CloakHQ/CloakBrowser/blob/main/BINARY-LICENSE.md) and the [experimental runtime guide](./docs/guides/cloak-experimental.md).
+
 The runtime images also install additional third-party packages from the base distribution package repositories, such as Chromium, Openbox, Supervisor, ImageMagick, and related system libraries and utilities. Each component remains licensed under its own terms.
 
 Before distributing built images externally, review the image contents and confirm that your distribution process satisfies the notice, attribution, and source-code obligations for all included components.

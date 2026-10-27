@@ -54,6 +54,7 @@ For a local test that needs only page automation, standalone Playwright may be s
 - [Deploy on a headless Linux server](./docs/guides/headless-linux.md): keep the API private and access it through an SSH tunnel.
 - [Human handoff](./docs/guides/human-handoff.md): stop automation, complete the manual step, and read the page again.
 - [Persistent browser profiles](./docs/guides/persistent-profiles.md): what pause, resume, restart, and deletion actually preserve.
+- [Experimental CloakBrowser runtime](./docs/guides/cloak-experimental.md): opt-in, separately installed Xvfb runtime experiment; not yet an API engine.
 
 ## Agent Skills
 

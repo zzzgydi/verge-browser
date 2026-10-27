@@ -40,6 +40,10 @@ done
   done
 ) &
 
+if [ "${BROWSER_ENGINE:-chromium}" = "cloakbrowser" ]; then
+  exec /opt/sandbox/cloak-venv/bin/python /opt/sandbox/cloak/cloak_runtime.py launch
+fi
+
 GPU_FLAGS=("--disable-gpu")
 if [ "${GPU_ENABLED:-false}" = "true" ]; then
   if [ -e /dev/nvidia0 ]; then

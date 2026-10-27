@@ -1,0 +1,50 @@
+# Standalone, opt-in PoC. This does not start or change the Verge API.
+services:
+  cloak-install:
+    image: verge-browser-runtime-xvfb:cloak-experimental
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: docker/runtime-xvfb.Dockerfile
+    entrypoint: ["/opt/sandbox/cloak-venv/bin/python", "/opt/sandbox/cloak/install_cloak.py"]
+    volumes:
+      - cloak-binaries:/opt/verge/cloak
+    secrets:
+      - source: cloak-license
+        target: cloak-license
+    profiles: ["install"]
+
+  cloak-xvfb:
+    image: verge-browser-runtime-xvfb:cloak-experimental
+    platform: linux/amd64
+    shm_size: 1gb
+    environment:
+      BROWSER_ENGINE: cloakbrowser
+      GPU_ENABLED: "false"
+      VERGE_CLOAK_LOCALE: ${VERGE_CLOAK_LOCALE:-zh-CN}
+      VERGE_CLOAK_TIMEZONE: ${VERGE_CLOAK_TIMEZONE:-UTC}
+      DEFAULT_URL: about:blank
+    ports:
+      - "127.0.0.1:${VERGE_CLOAK_CDP_PORT:-19223}:9223"
+      - "127.0.0.1:${VERGE_CLOAK_GUI_PORT:-16080}:6080"
+    volumes:
+      - cloak-binaries:/opt/verge/cloak:ro
+      - cloak-workspace:/workspace
+      - cloak-state:/root/.cloakbrowser
+      - type: bind
+        source: ${VERGE_CLOAK_LICENSE_FILE:?set VERGE_CLOAK_LICENSE_FILE to your license file}
+        target: /root/.cloakbrowser/license.key
+        read_only: true
+        bind:
+          create_host_path: false
+    profiles: ["experiment"]
+
+secrets:
+  cloak-license:
+    file: ${VERGE_CLOAK_LICENSE_FILE:?set VERGE_CLOAK_LICENSE_FILE to your license file}
+
+volumes:
+  cloak-binaries:
+    name: ${VERGE_CLOAK_BINARY_VOLUME:-verge-browser-cloak-binaries}
+  cloak-workspace:
+  cloak-state:

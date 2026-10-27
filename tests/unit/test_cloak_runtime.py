@@ -153,14 +153,23 @@ def official_fakes(monkeypatch, tmp_path, modules):
     key_file.write_text("test-secret-not-real")
     monkeypatch.setattr(modules.installer, "require_platform", lambda: None)
     monkeypatch.setattr(modules.installer, "package_version", lambda name: "0.6.4")
-    fake = SimpleNamespace(plan="solo", fail=False, calls=[])
+    fake = SimpleNamespace(
+        plan="solo", valid=True, fail=False, calls=[], version_calls=[], receipt_urls=[],
+        latest_version="155.0.8059.39.1", downloaded_version="155.0.8059.39.1", manifest_version=None,
+        directory=None,
+    )
     package = ModuleType("cloakbrowser")
     package.__path__ = []
     config = ModuleType("cloakbrowser.config")
     config.get_archive_name = lambda: "cloakbrowser-linux-x64.tar.gz"
     license_module = ModuleType("cloakbrowser.license")
-    license_module.validate_license = lambda key: SimpleNamespace(valid=True, plan=fake.plan)
-    license_module.get_pro_latest_version = lambda channel: "155.0.8059.39.1"
+    license_module.validate_license = lambda key: SimpleNamespace(valid=fake.valid, plan=fake.plan)
+
+    def get_pro_latest_version(channel):
+        fake.version_calls.append(channel)
+        return fake.latest_version
+
+    license_module.get_pro_latest_version = get_pro_latest_version
     download = ModuleType("cloakbrowser.download")
 
     def ensure_binary(**kwargs):
@@ -168,7 +177,7 @@ def official_fakes(monkeypatch, tmp_path, modules):
         if fake.fail:
             raise RuntimeError("upstream detail with test-secret-not-real")
         cache = Path(modules.installer.os.environ["CLOAKBROWSER_CACHE_DIR"])
-        binary = cache / "chromium-155.0.8059.39.1-pro/chrome"
+        binary = cache / (fake.directory or f"chromium-{fake.downloaded_version}-pro") / "chrome"
         binary.parent.mkdir(parents=True)
         binary.write_bytes(b"fake executable")
         binary.chmod(0o755)
@@ -177,10 +186,15 @@ def official_fakes(monkeypatch, tmp_path, modules):
 
     download.ensure_binary = ensure_binary
     download._verify_signature = lambda manifest, signature: None
-    download._parse_manifest_version = lambda text: "155.0.8059.39.1"
+    download._parse_manifest_version = lambda text: fake.manifest_version or fake.downloaded_version
     download._parse_checksums = lambda text: {"cloakbrowser-linux-x64.tar.gz": "b" * 64}
     httpx = ModuleType("httpx")
-    httpx.get = lambda *args, **kwargs: SimpleNamespace(content=b"signed-test-evidence", raise_for_status=lambda: None)
+
+    def get_receipt(url, **kwargs):
+        fake.receipt_urls.append(url)
+        return SimpleNamespace(content=b"signed-test-evidence", raise_for_status=lambda: None)
+
+    httpx.get = get_receipt
     for name, module in [("cloakbrowser", package), ("cloakbrowser.config", config), ("cloakbrowser.license", license_module), ("cloakbrowser.download", download), ("httpx", httpx)]:
         monkeypatch.setitem(sys.modules, name, module)
     # Keep installer environment mutations local to each test.
@@ -221,8 +235,10 @@ def test_reinstall_keeps_existing_immutable_release(modules, official_fakes, tmp
     assert len(list((root / "releases").iterdir())) == 1
 
 
-def test_install_failure_preserves_current_and_sanitizes_evidence(modules, official_fakes, tmp_path):
+@pytest.mark.parametrize("plan", ["free", "solo"])
+def test_install_failure_preserves_current_and_sanitizes_evidence(modules, official_fakes, tmp_path, plan):
     fake, key = official_fakes
+    fake.plan = plan
     root = tmp_path / "cache"
     modules.runtime.write_json(root / "current.json", {"artifact_id": "previous"})
     fake.fail = True
@@ -267,16 +283,66 @@ def test_install_finalization_failure_preserves_current_and_evidence(modules, of
     assert "CLOAKBROWSER_LICENSE_KEY" not in modules.installer.os.environ
 
 
-def test_free_key_does_not_sneak_into_pinned_mode(modules, official_fakes, tmp_path):
+def test_free_key_installs_official_latest_without_a_pin(modules, official_fakes, tmp_path):
     fake, key = official_fakes
     fake.plan = "free"
-    with pytest.raises(modules.runtime.RuntimeFailure, match="free keys"):
+    fake.downloaded_version = "156.0.8078.47.1"
+    modules.installer.os.environ["CLOAKBROWSER_VERSION"] = "154.0.0.0.1"
+    root = tmp_path / "cache"
+    result = modules.installer.install(root, key, True)
+    assert fake.calls == [{"license_key": "test-secret-not-real", "browser_version": None, "release_channel": "stable"}]
+    assert fake.version_calls == []
+    assert "CLOAKBROWSER_VERSION" not in modules.installer.os.environ
+    assert "CLOAKBROWSER_LICENSE_KEY" not in modules.installer.os.environ
+    assert result.version == fake.downloaded_version
+    source = f"https://cloakbrowser.dev/releases/pro/chromium-v{fake.downloaded_version}"
+    assert fake.receipt_urls == [f"{source}/SHA256SUMS", f"{source}/SHA256SUMS.sig"]
+    assert modules.runtime.installed_build(root)[0] == result
+
+
+@pytest.mark.parametrize("plan", ["free", "solo"])
+def test_invalid_key_does_not_download(modules, official_fakes, tmp_path, plan):
+    fake, key = official_fakes
+    fake.plan, fake.valid = plan, False
+    with pytest.raises(modules.runtime.RuntimeFailure, match="could not validate"):
         modules.installer.install(tmp_path / "cache", key, True)
     assert fake.calls == []
 
 
-def test_bad_signature_does_not_publish_or_replace_current(modules, official_fakes, tmp_path):
-    _, key = official_fakes
+@pytest.mark.parametrize("plan", ["free", "solo"])
+def test_manifest_version_mismatch_preserves_current(modules, official_fakes, tmp_path, plan):
+    fake, key = official_fakes
+    fake.plan = plan
+    fake.manifest_version = "154.0.0.0.1"
+    root = tmp_path / "cache"
+    modules.runtime.write_json(root / "current.json", {"artifact_id": "previous"})
+    with pytest.raises(modules.runtime.RuntimeFailure, match="signed release manifest"):
+        modules.installer.install(root, key, True)
+    assert not (root / "releases").exists()
+    assert json.loads((root / "current.json").read_text())["artifact_id"] == "previous"
+
+
+def test_paid_key_still_requires_the_resolved_version(modules, official_fakes, tmp_path):
+    fake, key = official_fakes
+    fake.downloaded_version = "154.0.0.0.1"
+    with pytest.raises(modules.runtime.RuntimeFailure, match="requested Stable version"):
+        modules.installer.install(tmp_path / "cache", key, True)
+    assert fake.receipt_urls == []
+
+
+@pytest.mark.parametrize("directory", ["chromium-146.0.7680.177.5", "chromium-latest-pro", "other"])
+def test_free_key_rejects_keyless_or_unknown_layout(modules, official_fakes, tmp_path, directory):
+    fake, key = official_fakes
+    fake.plan, fake.directory = "free", directory
+    with pytest.raises(modules.runtime.RuntimeFailure, match="unexpected Linux binary layout"):
+        modules.installer.install(tmp_path / "cache", key, True)
+    assert fake.receipt_urls == []
+
+
+@pytest.mark.parametrize("plan", ["free", "solo"])
+def test_bad_signature_does_not_publish_or_replace_current(modules, official_fakes, tmp_path, plan):
+    fake, key = official_fakes
+    fake.plan = plan
     root = tmp_path / "cache"
     modules.runtime.write_json(root / "current.json", {"artifact_id": "previous"})
 

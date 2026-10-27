@@ -7,7 +7,7 @@ This is the first-stage runtime experiment, not a supported engine in the Verge 
 ## Requirements and licensing
 
 - A Linux amd64 Docker runtime. ARM64 and Xpra are not supported by this experiment; emulation on another host is not an equivalent native validation.
-- A license belonging to your deployment, with permission to use the selected Stable build and pin its version. The installer rejects the free-key tier for this version-pinned experiment; it never silently downloads the old keyless build instead.
+- Your own CloakBrowser key. A [free GitHub key](https://cloakbrowser.dev/free) is enough to try this experiment: sign in with GitHub and receive the key by email, with no payment card required. The free tier provides the latest binary and one concurrent browser session; a paid subscription is not required.
 - Access to the official CloakHQ download and license services. A cached binary is not a promise of offline or indefinite access.
 - Internal use only under the applicable [CloakBrowser Binary License](https://github.com/CloakHQ/CloakBrowser/blob/main/BINARY-LICENSE.md). Downloading/installing the binary accepts its terms. This integration does not grant permission to redistribute it or offer a customer-controlled hosted browser service.
 
@@ -31,7 +31,9 @@ docker compose -f deployments/docker-compose.cloak-experimental.yml \
 
 Read the linked Binary License before passing the acceptance flag. No key is obtained or purchased by these commands.
 
-The installer resolves the current official Stable build, then uses `cloakbrowser==0.6.4` to download that exact build with the official Ed25519/manifest/version/SHA256 checks. It retains the original binary directory and license files, records the installed build and signed receipt, and updates `current.json` only after success. Download/path/checksum overrides from the wrapper environment are not accepted.
+The installer uses `cloakbrowser==0.6.4` and its official Ed25519/manifest/version/SHA256 checks. Free keys use the wrapper's latest Stable download without a version pin; paid keys resolve Stable first and request that exact version. The installer records the version actually returned and its signed receipt, retains the original binary directory and license files, and updates `current.json` only after success. It never falls back to the old keyless binary. Download/path/checksum overrides from the wrapper environment are not accepted.
+
+Free keys do not grant arbitrary version selection or rollback. Each explicit installation uses a fresh download cache to get the official latest Stable build. Runtime starts reuse the verified local installation, as with the wrapper's disabled auto-update mode; this is not a promise that an old build remains authorized indefinitely.
 
 By default the internal volume is `verge-browser-cloak-binaries`. Override `VERGE_CLOAK_BINARY_VOLUME` consistently for installation and runtime if needed. Run only one installer at a time. Failed staging directories contain a sanitized `failure.json` with the failing phase and exception type; they do not replace the current installation. Staging cleanup happens before publishing `current.json`, so cleanup failure also leaves the current version unchanged. A fully prepared release may remain after a failed finalization and can be reused on retry. Inspect and remove failed staging data manually when no installation is running.
 
@@ -58,7 +60,7 @@ Optional settings before the **first** start:
 | `VERGE_CLOAK_CDP_PORT` | `19223` | Host loopback CDP relay port |
 | `VERGE_CLOAK_GUI_PORT` | `16080` | Host loopback noVNC port |
 
-The experiment creates separate workspace and runtime-state volumes. It generates a seed once, saves it in both the profile and a private runtime record, and pins the installed artifact. Subsequent starts reuse that record, even if the deployment's current installation has changed. Missing or conflicting seed data fails explicitly; it does not rotate the identity. Do not import an existing Chromium profile.
+The experiment creates separate workspace and runtime-state volumes. It generates a seed once, saves it in both the profile and a private runtime record, and records the installed artifact. Subsequent starts reuse that record, even if the deployment's current installation has changed. Missing or conflicting seed data fails explicitly; it does not rotate the identity. Do not import an existing Chromium profile.
 
 The key is mounted read-only at `/root/.cloakbrowser/license.key`; the parent directory is private writable state, separate from the read-only binary volume. This prevents accidental exposure through the workspace file API, not malicious access by an administrator or a fully privileged browser/container controller. Only trusted internal use is intended.
 
@@ -87,7 +89,7 @@ docker compose -f deployments/docker-compose.cloak-experimental.yml rm -f cloak-
 
 The control command sends browser-level `Browser.close`, confirms process exit, and falls back to a bounded Supervisor stop if CDP is unavailable. It reports `graceful=true` only after a zero-code browser exit without a denial or launcher error. Crashes and license failures remain errors even if the process has already stopped, and the command returns a nonzero exit code. A normal fallback Supervisor stop reports `graceful=false` with a warning, rather than a false license error. It **does not claim the official session seat is already released**. If the command fails, preserve the container and inspect it instead of automatically forcing removal.
 
-Starting again reuses the workspace and state volumes. Do not use `down -v` unless you intend to delete the test identity and data. A newer installed build applies to a new profile, not an existing one. Runtime-image upgrade/pinning through the control plane is still future work; keep the tested image unchanged while reusing an experimental profile.
+Starting again reuses the workspace and state volumes. Do not use `down -v` unless you intend to delete the test identity and data. A newer installed build applies to a new profile, not an existing one. If the official service requires a newer build, stop the old browser, rerun the installer and use a new Compose project name for fresh workspace/state volumes, keeping the same binary volume and license file. Preserve the old volumes rather than deleting them. Runtime-image upgrades and profile migration through the control plane are still future work; keep the tested image unchanged while reusing an experimental profile.
 
 ## Opt-in integration test
 

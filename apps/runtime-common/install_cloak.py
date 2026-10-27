@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -53,17 +54,22 @@ def install(root: Path, key_file: Path, accepted: bool) -> InstalledBuild:
 
         entitlement = validate_license(key)
         if entitlement is None or not entitlement.valid:
-            raise RuntimeFailure("LICENSE_INVALID", "The official service could not validate this key; check the subscription and network.")
-        if entitlement.plan == "free":
-            raise RuntimeFailure("PIN_NOT_AVAILABLE", "This version-pinned experiment requires a plan supporting pinning; free keys are not supported.")
-        phase = "resolve_stable"
-        release_version = get_pro_latest_version("stable")
-        if not release_version:
-            raise RuntimeFailure("VERSION_UNAVAILABLE", "The official Stable version could not be resolved.")
+            raise RuntimeFailure("LICENSE_INVALID", "The official service could not validate this key; check the key and network.")
+        requested_version = None
+        if entitlement.plan != "free":
+            phase = "resolve_stable"
+            requested_version = get_pro_latest_version("stable")
+            if not requested_version:
+                raise RuntimeFailure("VERSION_UNAVAILABLE", "The official Stable version could not be resolved.")
         phase = "download_and_verify"
-        binary = Path(ensure_binary(license_key=key, browser_version=release_version, release_channel="stable"))
-        if binary.parent.parent.resolve() != cache.resolve() or binary.name != "chrome":
+        # Free keys must follow the official latest-build route, without a pin.
+        binary = Path(ensure_binary(license_key=key, browser_version=requested_version, release_channel="stable"))
+        release_match = re.fullmatch(r"chromium-([0-9]+(?:\.[0-9]+){3,4})-pro", binary.parent.name)
+        if binary.parent.parent.resolve() != cache.resolve() or binary.name != "chrome" or release_match is None:
             raise RuntimeFailure("INSTALL_LAYOUT", "The official installer returned an unexpected Linux binary layout.")
+        release_version = release_match.group(1)
+        if requested_version is not None and release_version != requested_version:
+            raise RuntimeFailure("VERSION_MISMATCH", "The official installer did not return the requested Stable version.")
 
         # The pinned wrapper has already verified the archive before extraction.
         # Retain the signed release evidence as well, without retaining credentials.

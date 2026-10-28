@@ -32,6 +32,9 @@ htmlcov/
 # Tools
 .claude/
 .local/
+.env
+.env.*
+!.env.example
 
 # Project specific
 spec/

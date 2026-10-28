@@ -6,8 +6,9 @@ WORKDIR /build
 
 COPY apps/admin-web /build/apps/admin-web
 
-RUN corepack enable && pnpm install --dir /build/apps/admin-web --frozen-lockfile
-RUN pnpm --dir /build/apps/admin-web build
+WORKDIR /build/apps/admin-web
+RUN corepack enable && pnpm install --frozen-lockfile
+RUN pnpm build
 
 FROM python:3.11-slim
 

@@ -14,4 +14,6 @@ dist
 *.egg-info
 .claude
 .local
+.env
+.env.*
 docs/spec

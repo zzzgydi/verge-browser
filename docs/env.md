@@ -140,7 +140,8 @@ Normal Chromium deployments need none of these settings. Use the [Cloak Compose 
 | `VERGE_CLOAK_LICENSE_FILE` | unset | Absolute Docker-host key path, mounted read-only at the same path inside the API. |
 | `VERGE_CLOAK_BINARY_DIR` | `/opt/verge/cloak` | API-side read-only mount of the installed binary volume. |
 | `VERGE_CLOAK_BINARY_VOLUME` | `verge-browser-cloak-binaries` | Docker volume shared by installer, API and Cloak sandboxes. |
-| `VERGE_CLOAK_RUNTIME_IMAGE` | `verge-browser-runtime-xvfb:latest` | Linux amd64 runtime image with Cloak launcher, but no bundled proprietary binary. |
+| `VERGE_CLOAK_RUNTIME_IMAGE` | `verge-browser-runtime-xvfb:latest` | Linux amd64 Xvfb runtime and installer image with Cloak launcher, but no bundled proprietary binary. |
+| `VERGE_CLOAK_RUNTIME_IMAGE_XPRA` | `verge-browser-runtime-xpra:latest` | Linux amd64 Xpra runtime with Cloak launcher. Rebuild on upgrade; real Xpra acceptance is still required. |
 | `VERGE_CLOAK_LOCALE` | `zh-CN` | Initial locale, stored per profile. |
 | `VERGE_CLOAK_TIMEZONE` | `UTC` | Initial IANA timezone, stored per profile. |
 

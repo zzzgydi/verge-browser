@@ -84,6 +84,8 @@ Deploy the normal API/admin service first; Chromium never requires a Cloak key. 
 
 Use the deployment owner's key file; a free GitHub key supports one running browser. Do not register or buy a key without authorization, bundle the proprietary binary in a public image, or put the key in sandbox requests. Verify authenticated `GET /runtime/engines` and create a disposable `browser_engine: "cloakbrowser"` sandbox. Configuration readiness is not license validation; real GUI/CDP and lifecycle checks still require a working key. Keep the existing Compose project name, host-path mapping and access restrictions when adding the overlay.
 
+For experimental Cloak + Xpra, rebuild `runtime-xpra` as well as the API and use `kind: "xpra"`. `VERGE_CLOAK_RUNTIME_IMAGE_XPRA` selects its image; `VERGE_CLOAK_RUNTIME_IMAGE` still selects Xvfb/the installer. Follow the returned `kinds` list, wait for Xpra's background readiness, and run the managed test with `VERGE_TEST_CLOAK_KIND=xpra`. Check the actual HTML5 desktop separately; a WebSocket ping does not verify rendering or input. Do not run concurrent Cloak checks with a single-seat key.
+
 If the user asks for a development setup, use the local-dev path from `references/deploy-checklist.md`.
 
 ## Base URL And Public Access

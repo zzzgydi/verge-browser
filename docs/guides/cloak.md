@@ -2,11 +2,11 @@
 
 Chromium needs no Cloak key. Start the normal Verge API and create Chromium sandboxes from `/admin`. CloakBrowser is an optional engine in the same console, using the same session links, CDP tickets, files and lifecycle API.
 
-**Validation:** the control-plane integration has unit tests. Real Cloak download, startup, GUI/CDP and license-seat behavior still require verification with your key. Start with a disposable profile, not production data.
+**Validation:** the control-plane integration has unit tests. The Xpra adapter is experimental and still needs real Cloak GUI/CDP and license-seat acceptance. Verify your selected runtime with your key and a disposable profile, not production data.
 
 ## Enable CloakBrowser
 
-This integration supports Linux amd64, Xvfb/noVNC and CPU rendering. A [free GitHub key](https://cloakbrowser.dev/free) works; it allows one running browser at a time. Xpra, GPU and authenticated proxies are not supported for Cloak yet. Ordinary Chromium retains both desktop runtimes.
+The adapters target Linux amd64 with CPU rendering, using either Xvfb/noVNC or Xpra/HTML5. A [free GitHub key](https://cloakbrowser.dev/free) works; it allows one running browser at a time across both runtimes. GPU and authenticated proxies are not supported for Cloak yet. Ordinary Chromium retains both desktop runtimes.
 
 Read the [official Binary License](https://github.com/CloakHQ/CloakBrowser/blob/main/BINARY-LICENSE.md). The public image contains only the MIT wrapper, not the proprietary browser. The explicit installation step downloads the binary from official channels into a private volume for your internal use. Neither a free key nor a Pro subscription grants third-party hosted-browser or redistribution rights.
 
@@ -19,7 +19,7 @@ export VERGE_CLOAK_LICENSE_FILE="$HOME/.config/verge-browser/cloak-license"
 # Write your key to this file using your normal secret-management process.
 chmod 600 "$VERGE_CLOAK_LICENSE_FILE"
 
-docker compose -f deployments/docker-compose.yml build api runtime-xvfb
+docker compose -f deployments/docker-compose.yml build api runtime-xvfb runtime-xpra
 
 docker compose -f deployments/docker-compose.yml -f deployments/docker-compose.cloak.yml \
   --profile install run --rm cloak-install --accept-binary-license
@@ -36,11 +36,19 @@ The normal deployment works without this overlay or any Cloak variables. The old
 
 ## API And CLI
 
-`GET /runtime/engines` (admin authentication required) reports engine availability without returning keys. Create a sandbox through the existing API:
+`GET /runtime/engines` (admin authentication required) reports engine availability without returning keys. Its `kinds` list contains the runtimes whose configured image declares the supported Cloak launcher; a missing or unsupported Xpra image does not disable Xvfb and vice versa. Images must have `io.verge.browser.launcher-version="1"` and include `cloakbrowser-linux-amd64` in `io.verge.browser.experimental-engines`. Old images without these labels are rejected before creating a profile: rebuild the image when upgrading, rather than relabeling an old image. This is a launcher compatibility check, not proof of a working license or compatible binary. Create a sandbox through the existing API:
 
 ```json
 {"alias":"cloak-demo","kind":"xvfb_vnc","browser_engine":"cloakbrowser"}
 ```
+
+For the experimental Xpra adapter, select **CloakBrowser** and **xpra** in the console, or use:
+
+```json
+{"alias":"cloak-xpra","kind":"xpra","browser_engine":"cloakbrowser"}
+```
+
+Both CLIs accept `--kind xpra --browser-engine cloakbrowser`. Xpra creation can return `STARTING`; wait for `RUNNING` before opening the session. Pause an existing Cloak sandbox first if your key allows only one running browser. A sandbox's desktop runtime cannot be switched in place.
 
 The default `browser_engine` is `chromium`, including records saved by older versions. Engine selection is immutable for a sandbox; create a separate sandbox rather than reusing a Chromium profile. Use `--browser-engine cloakbrowser` with either CLI, or `browser_engine="cloakbrowser"` in the Python SDK / `browser_engine: "cloakbrowser"` in the Node SDK.
 
@@ -52,7 +60,7 @@ Pause, delete and browser restart request `Browser.close` through the runtime co
 
 Each sandbox stores its seed and selected build in private state beside, not inside, its workspace. Pausing or restarting the API preserves that state. Reinstalling a newer official build changes the default for new sandboxes only. If an old build is no longer authorized, install the current build and create a new sandbox; this integration does not migrate profiles or promise indefinite access to old binaries.
 
-Optional server settings are `VERGE_CLOAK_RUNTIME_IMAGE`, `VERGE_CLOAK_BINARY_VOLUME`, `VERGE_CLOAK_LOCALE` and `VERGE_CLOAK_TIMEZONE`. Do not change the binary volume or runtime-image configuration while resuming existing Cloak profiles. The initial locale/timezone is stored with each profile.
+Optional server settings are `VERGE_CLOAK_RUNTIME_IMAGE` (Xvfb and the installer), `VERGE_CLOAK_RUNTIME_IMAGE_XPRA` (Xpra), `VERGE_CLOAK_BINARY_VOLUME`, `VERGE_CLOAK_LOCALE` and `VERGE_CLOAK_TIMEZONE`. Both runtimes share the same private binary volume, not separate downloads. Existing sandboxes retain their selected image name; keep that image and binary volume available when resuming them. The initial locale/timezone is stored with each profile.
 
 ## Verify The Managed Integration
 
@@ -61,6 +69,12 @@ With the API configured and a free browser seat available, set `VERGE_BROWSER_UR
 ```bash
 VERGE_TEST_CLOAK_MANAGED=1 PYTHONPATH=apps/api-server \
   pytest tests/integration/test_cloak_managed.py
+
+# Run separately with a free seat; never run the two checks concurrently.
+VERGE_TEST_CLOAK_MANAGED=1 VERGE_TEST_CLOAK_KIND=xpra PYTHONPATH=apps/api-server \
+  pytest tests/integration/test_cloak_managed.py
 ```
 
-This opt-in test creates its own sandbox through the API and checks screenshots, ticketed CDP/noVNC, pause/resume, browser restart, seed and localStorage persistence. It deletes only its own sandbox on success and preserves it on failure. Do not run `test_runtime_api.py` against a Docker daemon containing sandboxes you want to keep; its older fixture removes all managed containers.
+This opt-in test creates its own sandbox through the API and checks screenshots, ticketed CDP, session assets/transport, pause/resume, browser restart, seed and localStorage persistence. For Xpra, the WebSocket check verifies transport only, not an HTML5 desktop connection. Complete acceptance by opening an Xpra session in the console, navigating with the keyboard/mouse, checking Chinese input and reconnecting after pause/resume. Confirm that a second sequential Cloak sandbox can obtain the released seat. Xpra's root-window screenshot without an attached HTML5 client is not sufficient evidence of a visible desktop; inspect the connected session and page screenshot too.
+
+The test deletes only its own sandbox on success and preserves it on failure. Do not run `test_runtime_api.py` against a Docker daemon containing sandboxes you want to keep; its older fixture removes all managed containers.

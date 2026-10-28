@@ -77,7 +77,7 @@ Response notes:
 - Creation and detail responses no longer expose `cdp_url` or `session_url`
 - Browser runtime info is aggregated under `data.browser`
 - `kind` selects the runtime stack: `xvfb_vnc` or `xpra`
-- `browser_engine` selects `chromium` (default, no Cloak key needed) or `cloakbrowser`. Cloak requires server-side setup, Xvfb, GPU disabled and no per-request image override; see [setup](guides/cloak.md).
+- `browser_engine` selects `chromium` (default, no Cloak key needed) or `cloakbrowser`. Cloak requires server-side setup, GPU disabled and no per-request image override. Both `xvfb_vnc` and experimental `xpra` adapters are available; check `/runtime/engines` for configured `kinds` and see [setup and validation](guides/cloak.md).
 - If `image` is omitted, the server picks the default image for the selected `kind`
 
 ### `GET /runtime/engines`

@@ -195,6 +195,7 @@
     const clipboardUrl = `${sandboxRoot}/clipboard`;
 
     let rfb;
+    let remoteConnected = false;
     let lastRemoteClipboard = "";
     let fallbackMode = null;
     let suppressPasteEventUntil = 0;
@@ -260,10 +261,10 @@
         },
         ...options,
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload.status === "error") {
-        const code = payload.code || "request_failed";
-        const message = payload.message || `request failed with status ${response.status}`;
+      const payload = await response.json();
+      if (!response.ok || payload?.status !== "ok") {
+        const code = payload?.code || "request_failed";
+        const message = payload?.message || (response.ok ? "Invalid clipboard response" : `request failed with status ${response.status}`);
         const error = new Error(message);
         error.code = code;
         throw error;
@@ -284,6 +285,9 @@
     }
 
     function sendRemoteShortcut(keysym, code) {
+      if (!remoteConnected) {
+        throw new Error("Remote session is disconnected. Open a new session before retrying.");
+      }
       if (!rfb?.sendKey) {
         throw new Error("Remote keyboard bridge is unavailable");
       }
@@ -323,19 +327,22 @@
       await navigator.clipboard.writeText(text);
     }
 
+    function showRemotePasteFailure(text, error) {
+      showFallback({
+        title: "Paste Into Sandbox",
+        message: "Sending text to the sandbox failed. Your text is preserved below; check the error before retrying.",
+        value: text,
+        actionLabel: "Retry",
+        mode: "paste",
+      });
+      fallbackErrorEl.textContent = error.message;
+      setStatus(error.message || "Remote paste failed", true);
+    }
+
     async function syncLocalToRemote({ triggerPaste = false } = {}) {
+      let text;
       try {
-        const text = await getLocalClipboardText();
-        if (!text) {
-          return;
-        }
-        if (triggerPaste) {
-          await pasteTextIntoRemote(text);
-          setStatus("Local clipboard pasted into sandbox");
-          return;
-        }
-        await postRemoteClipboard(text);
-        setStatus("Local clipboard sent to sandbox");
+        text = await getLocalClipboardText();
       } catch (error) {
         showFallback({
           title: "Paste Into Sandbox",
@@ -344,6 +351,22 @@
           mode: "paste",
         });
         setStatus(error.message || "Clipboard read failed", true);
+        return;
+      }
+      if (!text) {
+        setStatus("Local clipboard has no text to paste", true);
+        return;
+      }
+      try {
+        if (triggerPaste) {
+          await pasteTextIntoRemote(text);
+          setStatus("Local clipboard pasted into sandbox");
+          return;
+        }
+        await postRemoteClipboard(text);
+        setStatus("Local clipboard sent to sandbox");
+      } catch (error) {
+        showRemotePasteFailure(text, error);
       }
     }
 
@@ -356,40 +379,37 @@
         const attempts = 8;
         for (let attempt = 0; attempt < attempts; attempt += 1) {
           await new Promise((resolve) => window.setTimeout(resolve, 200));
+          let text;
           try {
-            const text = await readRemoteClipboard();
-            if (!text || text === baselineText) {
+            text = await readRemoteClipboard();
+            // Wait for remote copy to settle, but repeated text must still refresh the local clipboard.
+            if (!text || (text === baselineText && attempt < attempts - 1)) {
               continue;
             }
-            await setLocalClipboardText(text);
-            lastRemoteClipboard = text;
-            setStatus("Remote clipboard synced to local browser");
-            return;
           } catch (error) {
             if (error.code === "clipboard_empty" || error.code === "rate_limited") {
               continue;
             }
-            try {
-              const text = await readRemoteClipboard();
-              showFallback({
-                title: "Copy From Sandbox",
-                message: "Browser clipboard write was blocked. Copy the text manually from the box below.",
-                value: text,
-                actionLabel: "Try Native Copy",
-                mode: "copy",
-              });
-            } catch (_) {
-              showFallback({
-                title: "Copy From Sandbox",
-                message: "Browser clipboard write was blocked and automatic retry did not succeed.",
-                actionLabel: "Close",
-                mode: "copy",
-              });
-            }
-            setStatus(error.message || "Clipboard write failed", true);
+            setStatus(error.message || "Remote clipboard read failed", true);
             return;
           }
+          try {
+            await setLocalClipboardText(text);
+            lastRemoteClipboard = text;
+            setStatus("Remote clipboard synced to local browser");
+          } catch (error) {
+            showFallback({
+              title: "Copy From Sandbox",
+              message: "Browser clipboard write was blocked. Copy the text manually from the box below.",
+              value: text,
+              actionLabel: "Try Native Copy",
+              mode: "copy",
+            });
+            setStatus(error.message || "Clipboard write failed", true);
+          }
+          return;
         }
+        setStatus("Remote clipboard did not become available; try copying again", true);
       })();
       try {
         await remoteClipboardSyncInFlight;
@@ -454,7 +474,7 @@
             setStatus("Local clipboard pasted into sandbox");
           })
           .catch((error) => {
-            setStatus(error.message || "Clipboard write failed", true);
+            showRemotePasteFailure(text, error);
           });
       } else {
         void syncLocalToRemote({ triggerPaste: true });
@@ -506,10 +526,12 @@
     rfb.clipViewport = false;
     rfb.focusOnClick = true;
     rfb.addEventListener("connect", () => {
+      remoteConnected = true;
       focusRemoteSession();
       setStatus("Connected", false, { persistent: true });
     });
     rfb.addEventListener("disconnect", (event) => {
+      remoteConnected = false;
       const clean = event.detail?.clean;
       setStatus(clean ? "Disconnected" : "Connection lost", !clean, { persistent: true });
     });

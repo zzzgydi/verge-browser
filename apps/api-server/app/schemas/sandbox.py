@@ -1,14 +1,15 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from app.models.sandbox import SandboxKind, SandboxStatus
+from app.models.sandbox import BrowserEngine, SandboxKind, SandboxStatus
 
 
 class CreateSandboxRequest(BaseModel):
     alias: str | None = Field(default=None, min_length=1, max_length=63)
     kind: SandboxKind = SandboxKind.XVFB_VNC
+    browser_engine: BrowserEngine = BrowserEngine.CHROMIUM
     image: str | None = None
     default_url: str | None = None
     width: int = Field(default=1280, ge=320, le=7680)
@@ -18,6 +19,24 @@ class CreateSandboxRequest(BaseModel):
     https_proxy: str | None = None
     no_proxy: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_engine(self) -> "CreateSandboxRequest":
+        if self.browser_engine == BrowserEngine.CLOAKBROWSER:
+            if self.kind != SandboxKind.XVFB_VNC or self.enable_gpu:
+                raise ValueError("CloakBrowser currently requires xvfb_vnc with GPU disabled")
+            if self.image is not None:
+                raise ValueError("Configure the CloakBrowser image on the server, not per sandbox")
+            if any("@" in value for value in (self.http_proxy or "", self.https_proxy or "")):
+                raise ValueError("Authenticated proxies are not supported for CloakBrowser yet")
+        return self
+
+
+class BrowserEngineAvailability(BaseModel):
+    browser_engine: BrowserEngine
+    available: bool
+    reason: str | None = None
+    kinds: list[SandboxKind]
 
 
 class UpdateSandboxRequest(BaseModel):
@@ -58,6 +77,7 @@ class SandboxResponse(BaseModel):
     id: str
     alias: str | None = None
     kind: SandboxKind
+    browser_engine: BrowserEngine = BrowserEngine.CHROMIUM
     status: SandboxStatus
     created_at: datetime
     updated_at: datetime

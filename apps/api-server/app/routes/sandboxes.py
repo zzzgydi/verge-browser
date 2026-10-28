@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.deps import get_current_subject, require_sandbox
-from app.models.sandbox import SandboxStatus
+from app.models.sandbox import BrowserEngine, SandboxStatus
 from app.schemas.common import ApiEnvelope, ok
 from app.schemas.sandbox import ActiveWindowInfo, BrowserRuntimeInfo, BrowserViewportRect, CreateSandboxRequest, RestartBrowserRequest, SandboxResponse, UpdateSandboxRequest, ViewportInfo
 from app.services.browser import browser_service
@@ -21,12 +21,17 @@ def _to_response(request: Request, sandbox, subject: str) -> SandboxResponse:
         id=sandbox.id,
         alias=sandbox.alias,
         kind=sandbox.kind,
+        browser_engine=sandbox.browser_engine,
         status=sandbox.status,
         created_at=sandbox.created_at,
         updated_at=sandbox.updated_at,
         last_active_at=sandbox.last_active_at,
         width=sandbox.width,
         height=sandbox.height,
+        enable_gpu=sandbox.enable_gpu,
+        http_proxy=sandbox.http_proxy,
+        https_proxy=sandbox.https_proxy,
+        no_proxy=sandbox.no_proxy,
         metadata=sandbox.metadata,
         container_id=sandbox.container_id,
         browser=BrowserRuntimeInfo(viewport=viewport),
@@ -34,6 +39,8 @@ def _to_response(request: Request, sandbox, subject: str) -> SandboxResponse:
 
 
 async def _enrich_response(request: Request, sandbox, subject: str) -> SandboxResponse:
+    if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER and sandbox.container_id and sandbox.status == SandboxStatus.RUNNING:
+        lifecycle_service.check_cloak_health(sandbox)
     response = _to_response(request, sandbox, subject)
     should_probe_browser = sandbox.container_id is not None and sandbox.status in {
         SandboxStatus.STARTING,

@@ -38,6 +38,7 @@ interface GlobalOptions {
 interface SandboxOptions extends GlobalOptions {
   alias?: string;
   kind?: "xvfb_vnc" | "xpra";
+  browserEngine?: "chromium" | "cloakbrowser";
   width?: number;
   height?: number;
   enableGpu?: boolean;
@@ -194,6 +195,7 @@ function createCli(
     )
     .option("--alias <alias>", "Sandbox alias")
     .option("--kind <kind>", "Sandbox kind: xvfb_vnc or xpra")
+    .option("--browser-engine <engine>", "Browser engine: chromium or cloakbrowser")
     .option("--width <width>", "Viewport width in pixels", { type: ["number"] })
     .option("--height <height>", "Viewport height in pixels", {
       type: ["number"],
@@ -224,6 +226,7 @@ function createCli(
           return client.createSandbox({
             ...(options.alias ? { alias: options.alias } : {}),
             ...(options.kind ? { kind: options.kind } : { kind: "xvfb_vnc" }),
+            ...(options.browserEngine ? { browser_engine: options.browserEngine } : {}),
             ...(width !== undefined ? { width } : {}),
             ...(height !== undefined ? { height } : {}),
             ...(options.defaultUrl ? { default_url: options.defaultUrl } : {}),

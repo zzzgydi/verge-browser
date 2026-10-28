@@ -122,6 +122,20 @@ test('sandbox create forwards kind selection', async () => {
   assert.equal(JSON.parse(requestBody).kind, 'xpra');
 });
 
+test('sandbox create forwards browser engine selection', async () => {
+  let body = '';
+  const exitCode = await runCli({
+    argv: ['sandbox', 'create', '--browser-engine', 'cloakbrowser', '--json'],
+    io: createIo(),
+    clientFactory: (options) => new VergeClient({ ...options, token: 'test', fetchImpl: async (_url, init) => {
+      body = String(init?.body);
+      return createJsonResponse(201, envelope(sandboxResponse()));
+    } }),
+  });
+  assert.equal(exitCode, 0);
+  assert.equal(JSON.parse(body).browser_engine, 'cloakbrowser');
+});
+
 test('sandbox list emits LLM-friendly text without --json', async () => {
   const io = createIo();
   const exitCode = await runCli({

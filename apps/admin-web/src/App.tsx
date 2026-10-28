@@ -22,6 +22,7 @@ type Sandbox = {
   id: string;
   alias: string | null;
   kind: "xvfb_vnc" | "xpra";
+  browser_engine: "chromium" | "cloakbrowser";
   status: string;
   created_at: string;
   updated_at: string;
@@ -36,6 +37,12 @@ type Sandbox = {
     web_socket_debugger_url_present: boolean;
     viewport: { width: number; height: number };
   };
+};
+
+type EngineAvailability = {
+  browser_engine: Sandbox["browser_engine"];
+  available: boolean;
+  reason: string | null;
 };
 
 type ApiEnvelope<T> = {
@@ -189,6 +196,7 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createAlias, setCreateAlias] = useState("");
   const [createKind, setCreateKind] = useState<"xvfb_vnc" | "xpra">("xvfb_vnc");
+  const [createEngine, setCreateEngine] = useState<Sandbox["browser_engine"]>("chromium");
   const [createResolution, setCreateResolution] = useState("1280x1024");
   const [createEnableGpu, setCreateEnableGpu] = useState(false);
   const [sessionPresetKey, setSessionPresetKey] = useState(
@@ -203,6 +211,12 @@ export function App() {
     isValidating,
     refresh,
   } = useSandboxes(token);
+  const { data: engines, mutate: refreshEngines } = useSWR<EngineAvailability[]>(
+    token ? ["browser-engines", token] : null,
+    ([, t]: [string, string]) => api<EngineAvailability[]>("/runtime/engines", t),
+    { refreshInterval: 30000 },
+  );
+  const cloak = engines?.find((engine) => engine.browser_engine === "cloakbrowser");
   const { detail: selected } = useSandboxDetail(token, selectedId);
   const selectedStatus = selected?.status ?? null;
   const canPauseSelected = selectedStatus ? canPause(selectedStatus) : false;
@@ -234,6 +248,7 @@ export function App() {
         body: JSON.stringify({
           alias: createAlias || undefined,
           kind: createKind,
+          browser_engine: createEngine,
           width: resW,
           height: resH,
           enable_gpu: createEnableGpu,
@@ -242,9 +257,11 @@ export function App() {
       setCreateAlias("");
       await refresh();
       setSelectedId(detail.id);
-      toast.success(
-        `Sandbox ${detail.alias || detail.id.slice(0, 8)} created successfully`,
-      );
+      if (detail.status === "FAILED" || detail.status === "DEGRADED") {
+        toast.error(String(detail.metadata.runtime_error || "Sandbox did not become ready. Inspect its details."));
+      } else {
+        toast.success(`Sandbox ${detail.alias || detail.id.slice(0, 8)} created successfully`);
+      }
     } catch {
       // Error is already toasted by api()
     } finally {
@@ -374,7 +391,7 @@ export function App() {
         </div>
         <div>
           <div className="toolbar-actions">
-            <button className="ghost" onClick={() => void refresh()}>
+            <button className="ghost" onClick={() => { void refresh(); void refreshEngines(); }}>
               Refresh
             </button>
             <button className="ghost" onClick={logout}>
@@ -399,8 +416,26 @@ export function App() {
               placeholder="alias (optional)"
             />
             <select
+              aria-label="Browser engine"
+              className="toolbar-select"
+              value={createEngine}
+              onChange={(event) => {
+                const engine = event.target.value as Sandbox["browser_engine"];
+                setCreateEngine(engine);
+                if (engine === "cloakbrowser") {
+                  setCreateKind("xvfb_vnc");
+                  setCreateEnableGpu(false);
+                }
+              }}
+            >
+              <option value="chromium">Chromium</option>
+              <option value="cloakbrowser" disabled={!cloak?.available}>CloakBrowser{cloak?.available ? "" : " (not configured)"}</option>
+            </select>
+            <select
+              aria-label="Desktop runtime"
               className="toolbar-select"
               value={createKind}
+              disabled={createEngine === "cloakbrowser"}
               onChange={(event) =>
                 setCreateKind(event.target.value as "xvfb_vnc" | "xpra")
               }
@@ -423,6 +458,7 @@ export function App() {
               <input
                 type="checkbox"
                 checked={createEnableGpu}
+                disabled={createEngine === "cloakbrowser"}
                 onChange={(e) => setCreateEnableGpu(e.target.checked)}
               />
               <span className="toggle-indicator" aria-hidden="true" />
@@ -434,11 +470,13 @@ export function App() {
             <button
               className="create-btn"
               onClick={() => void createSandbox()}
-              disabled={isActionLoading}
+              disabled={isActionLoading || (createEngine === "cloakbrowser" && !cloak?.available)}
             >
               {isActionLoading ? "Creating..." : "Create Sandbox"}
             </button>
           </div>
+          {cloak && !cloak.available ? <p className="muted engine-hint">{cloak.reason}</p> : null}
+          {createEngine === "cloakbrowser" ? <p className="muted engine-hint">Free keys support one running browser at a time. Pause it before creating another.</p> : null}
         </div>
       </section>
 
@@ -461,6 +499,7 @@ export function App() {
               >
                 <strong>{sandbox.alias || sandbox.id}</strong>
                 <span>{sandbox.id}</span>
+                <span>{sandbox.browser_engine === "cloakbrowser" ? "CloakBrowser" : "Chromium"}</span>
                 <span>{sandbox.status}</span>
               </button>
             ))}
@@ -511,6 +550,10 @@ export function App() {
               </div>
 
               <div className="detail-grid">
+                <div>
+                  <label>Browser</label>
+                  <p>{selected.browser_engine === "cloakbrowser" ? "CloakBrowser" : "Chromium"}</p>
+                </div>
                 <div>
                   <label>Kind</label>
                   <p>{selected.kind}</p>

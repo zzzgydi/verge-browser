@@ -12,6 +12,7 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 export type JsonObject = { [key: string]: JsonValue };
 export type SandboxStatus = 'STARTING' | 'RUNNING' | 'STOPPED' | 'FAILED' | 'DEGRADED';
 export type SandboxKind = 'xvfb_vnc' | 'xpra';
+export type BrowserEngine = 'chromium' | 'cloakbrowser';
 export type AccessTicketMode = 'one_time' | 'reusable' | 'permanent';
 export type ScreenshotFormat = 'png' | 'jpeg' | 'webp';
 export type ScreenshotType = 'window' | 'page';
@@ -49,6 +50,7 @@ export interface SandboxResponse {
   id: string;
   alias?: string | null;
   kind: SandboxKind;
+  browser_engine: BrowserEngine;
   status: SandboxStatus;
   created_at: string;
   updated_at: string;
@@ -83,6 +85,7 @@ export interface CdpInfoResponse {
 export interface CreateSandboxPayload {
   alias?: string;
   kind?: SandboxKind;
+  browser_engine?: BrowserEngine;
   width?: number;
   height?: number;
   enable_gpu?: boolean;

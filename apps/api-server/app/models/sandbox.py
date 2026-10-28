@@ -27,6 +27,11 @@ class SandboxKind(StrEnum):
     XPRA = "xpra"
 
 
+class BrowserEngine(StrEnum):
+    CHROMIUM = "chromium"
+    CLOAKBROWSER = "cloakbrowser"
+
+
 class RuntimeEndpoint(BaseModel):
     host: str = "127.0.0.1"
     cdp_port: int = 9223
@@ -45,6 +50,7 @@ class SandboxRecord(BaseModel):
     id: str
     alias: str | None = None
     kind: SandboxKind = SandboxKind.XVFB_VNC
+    browser_engine: BrowserEngine = BrowserEngine.CHROMIUM
     status: SandboxStatus
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

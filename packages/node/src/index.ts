@@ -15,6 +15,7 @@ export {
   type AccessTicketMode,
   type CdpInfoResponse,
   type CreateSandboxPayload,
+  type BrowserEngine,
   type UpdateSandboxPayload,
   type RequestErrorBody,
   type SessionUrlResponse,

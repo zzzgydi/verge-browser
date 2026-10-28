@@ -15,6 +15,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/healthz": "http://127.0.0.1:8000",
+      "/runtime": "http://127.0.0.1:8000",
       "/sandbox": {
         target: "http://127.0.0.1:8000",
         changeOrigin: true,

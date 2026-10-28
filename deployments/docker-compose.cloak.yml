@@ -1,0 +1,38 @@
+# Optional overlay for the normal Verge API. No standalone browser service.
+services:
+  api:
+    environment:
+      VERGE_CLOAK_ENABLED: "true"
+      VERGE_CLOAK_LICENSE_FILE: ${VERGE_CLOAK_LICENSE_FILE:?set an absolute host license file path}
+      VERGE_CLOAK_BINARY_DIR: /opt/verge/cloak
+      VERGE_CLOAK_BINARY_VOLUME: ${VERGE_CLOAK_BINARY_VOLUME:-verge-browser-cloak-binaries}
+      VERGE_CLOAK_RUNTIME_IMAGE: ${VERGE_CLOAK_RUNTIME_IMAGE:-verge-browser-runtime-xvfb:latest}
+      VERGE_CLOAK_LOCALE: ${VERGE_CLOAK_LOCALE:-zh-CN}
+      VERGE_CLOAK_TIMEZONE: ${VERGE_CLOAK_TIMEZONE:-UTC}
+    volumes:
+      - cloak-binaries:/opt/verge/cloak:ro
+      - type: bind
+        source: ${VERGE_CLOAK_LICENSE_FILE:?set an absolute host license file path}
+        target: ${VERGE_CLOAK_LICENSE_FILE:?set an absolute host license file path}
+        read_only: true
+        bind:
+          create_host_path: false
+
+  cloak-install:
+    image: ${VERGE_CLOAK_RUNTIME_IMAGE:-verge-browser-runtime-xvfb:latest}
+    platform: linux/amd64
+    entrypoint: ["/opt/sandbox/cloak-venv/bin/python", "/opt/sandbox/cloak/install_cloak.py"]
+    volumes:
+      - cloak-binaries:/opt/verge/cloak
+    secrets:
+      - source: cloak-license
+        target: cloak-license
+    profiles: ["install"]
+
+secrets:
+  cloak-license:
+    file: ${VERGE_CLOAK_LICENSE_FILE:?set an absolute host license file path}
+
+volumes:
+  cloak-binaries:
+    name: ${VERGE_CLOAK_BINARY_VOLUME:-verge-browser-cloak-binaries}

@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from threading import Lock
 
-from app.models.sandbox import SandboxKind, RuntimeEndpoint, SandboxRecord, SandboxStatus
+from app.models.sandbox import BrowserEngine, SandboxKind, RuntimeEndpoint, SandboxRecord, SandboxStatus
 
 
 def _kind_from_payload(payload: dict, runtime_payload: dict) -> SandboxKind:
@@ -70,6 +70,7 @@ class SandboxRegistry:
                         id=payload["id"],
                         alias=payload.get("alias"),
                         kind=kind,
+                        browser_engine=payload.get("browser_engine", BrowserEngine.CHROMIUM),
                         status=SandboxStatus.STOPPED,
                         created_at=payload["created_at"],
                         updated_at=payload["updated_at"],
@@ -77,6 +78,10 @@ class SandboxRegistry:
                         width=payload.get("width", 1280),
                         height=payload.get("height", 1024),
                         image=payload.get("image"),
+                        enable_gpu=payload.get("enable_gpu", False),
+                        http_proxy=payload.get("http_proxy"),
+                        https_proxy=payload.get("https_proxy"),
+                        no_proxy=payload.get("no_proxy"),
                         workspace_dir=workspace_dir,
                         downloads_dir=workspace_dir / downloads_subdir,
                         uploads_dir=workspace_dir / uploads_subdir,
@@ -106,6 +111,7 @@ class SandboxRegistry:
             "id": sandbox.id,
             "alias": sandbox.alias,
             "kind": sandbox.kind,
+            "browser_engine": sandbox.browser_engine,
             "created_at": sandbox.created_at.isoformat(),
             "updated_at": sandbox.updated_at.isoformat(),
             "last_active_at": sandbox.last_active_at.isoformat(),
@@ -113,6 +119,10 @@ class SandboxRegistry:
             "width": sandbox.width,
             "height": sandbox.height,
             "image": sandbox.image,
+            "enable_gpu": sandbox.enable_gpu,
+            "http_proxy": sandbox.http_proxy,
+            "https_proxy": sandbox.https_proxy,
+            "no_proxy": sandbox.no_proxy,
             "runtime": sandbox.runtime.model_dump(mode="json"),
             "metadata": sandbox.metadata,
         }

@@ -124,6 +124,12 @@ select {
   overflow: hidden;
 }
 
+.engine-hint {
+  max-width: 48rem;
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+}
+
 .login-shell {
   min-height: 100vh;
   display: grid;

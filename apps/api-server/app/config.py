@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     file_upload_limit_bytes: int = 100 * 1024 * 1024
     sandbox_start_timeout_sec: int = 60
 
+    cloak_enabled: bool = False
+    cloak_license_file: Path | None = None
+    cloak_binary_dir: Path = Path("/opt/verge/cloak")
+    cloak_binary_volume: str = "verge-browser-cloak-binaries"
+    cloak_runtime_image: str = "verge-browser-runtime-xvfb:latest"
+    cloak_locale: str = "zh-CN"
+    cloak_timezone: str = "UTC"
+
     model_config = SettingsConfigDict(
         env_prefix="VERGE_",
         env_file=".env",

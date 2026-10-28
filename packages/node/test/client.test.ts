@@ -71,6 +71,16 @@ test('createSandbox allows xpra kind override', async () => {
   assert.equal(JSON.parse(requestBody).kind, 'xpra');
 });
 
+test('createSandbox forwards browser engine independently of desktop kind', async () => {
+  let body = '';
+  const client = new VergeClient({ token: 'test', fetchImpl: async (_url, init) => {
+    body = String(init?.body);
+    return createJsonResponse(201, envelope(sandboxResponse({ browser_engine: 'cloakbrowser' })));
+  } });
+  await client.createSandbox({ browser_engine: 'cloakbrowser' });
+  assert.deepEqual(JSON.parse(body), { kind: 'xvfb_vnc', browser_engine: 'cloakbrowser' });
+});
+
 test('downloadFile returns binary payload and content type', async () => {
   const client = new VergeClient({
     token: 'token',

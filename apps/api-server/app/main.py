@@ -16,11 +16,13 @@ from app.routes.browser import router as browser_router
 from app.routes.clipboard import router as clipboard_router
 from app.routes.files import router as files_router
 from app.routes.health import router as health_router
+from app.routes.runtime import router as runtime_router
 from app.routes.session import router as session_router
 from app.routes.sandboxes import router as sandbox_router
 from app.services.docker_adapter import docker_adapter
 from app.services.registry import registry
-from app.models.sandbox import SandboxStatus, utcnow
+from app.services.lifecycle import lifecycle_service
+from app.models.sandbox import BrowserEngine, SandboxStatus, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,7 @@ def _reconcile_runtime_state() -> None:
 
         sandbox.container_id = container.container_id
         sandbox.runtime.host = docker_adapter.inspect_container_ip(container.container_id) or "127.0.0.1"
-        sandbox.status = SandboxStatus.RUNNING
+        sandbox.status = SandboxStatus.STARTING if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER else SandboxStatus.RUNNING
         sandbox.metadata.pop("runtime_error", None)
         registry.put(sandbox)
 
@@ -79,6 +81,8 @@ def _check_container_health() -> None:
             sandbox.updated_at = utcnow()
             sandbox.metadata["runtime_error"] = "container exited unexpectedly"
             registry.put(sandbox)
+        elif sandbox.browser_engine == BrowserEngine.CLOAKBROWSER and sandbox.status == SandboxStatus.RUNNING:
+            lifecycle_service.check_cloak_health(sandbox)
 
 
 async def _container_health_loop() -> None:
@@ -108,11 +112,16 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         browser_profile_subdir=settings.browser_profile_subdir,
     )
     _reconcile_runtime_state()
+    for sandbox in registry.all():
+        if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER and sandbox.status == SandboxStatus.STARTING:
+            lifecycle_service._schedule_readiness_probe(sandbox.id, timeout_sec=settings.sandbox_start_timeout_sec)
     prune_task = asyncio.create_task(_ticket_prune_loop())
     health_task = asyncio.create_task(_container_health_loop())
     try:
         yield
     finally:
+        for sandbox_id in tuple(lifecycle_service._readiness_tasks):
+            lifecycle_service._cancel_readiness_task(sandbox_id)
         prune_task.cancel()
         health_task.cancel()
         with suppress(asyncio.CancelledError):
@@ -171,6 +180,7 @@ def create_app() -> FastAPI:
 
     _configure_admin_routes(app, settings.admin_static_dir)
     app.include_router(health_router)
+    app.include_router(runtime_router)
     app.include_router(sandbox_router)
     app.include_router(browser_router)
     app.include_router(clipboard_router)

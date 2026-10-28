@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.config import get_settings
-from app.models.sandbox import SandboxKind
+from app.models.sandbox import BrowserEngine, SandboxKind
 
 
 @dataclass(frozen=True)
@@ -67,13 +67,14 @@ class DockerAdapter:
         height: int,
         default_url: str | None,
         image: str | None,
+        browser_engine: BrowserEngine = BrowserEngine.CHROMIUM,
         enable_gpu: bool = False,
         http_proxy: str | None = None,
         https_proxy: str | None = None,
         no_proxy: str | None = None,
     ) -> ContainerCreateResult:
         settings = get_settings()
-        image_name = image or settings.runtime_image_for_kind(kind)
+        image_name = image or (settings.cloak_runtime_image if browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(kind))
         if not self.image_exists(image_name):
             return ContainerCreateResult(
                 container_id=None,
@@ -121,9 +122,24 @@ class DockerAdapter:
             f"DEFAULT_URL={default_url or settings.sandbox_default_url}",
             "-e",
             f"GPU_ENABLED={'true' if enable_gpu else 'false'}",
+            "-e",
+            f"BROWSER_ENGINE={browser_engine.value}",
             "-v",
             f"{workspace_dir}:/workspace",
         ]
+
+        if browser_engine == BrowserEngine.CLOAKBROWSER:
+            state = workspace_dir.parent / "cloak-state"
+            state.mkdir(mode=0o700, parents=True, exist_ok=True)
+            cmd.extend([
+                "--platform", "linux/amd64",
+                "--label", "verge.browser.engine=cloakbrowser",
+                "--mount", f"type=volume,src={settings.cloak_binary_volume},dst=/opt/verge/cloak,readonly",
+                "--mount", f"type=bind,src={state},dst=/root/.cloakbrowser",
+                "--mount", f"type=bind,src={settings.cloak_license_file},dst=/root/.cloakbrowser/license.key,readonly",
+                "-e", f"VERGE_CLOAK_LOCALE={settings.cloak_locale}",
+                "-e", f"VERGE_CLOAK_TIMEZONE={settings.cloak_timezone}",
+            ])
 
         if http_proxy:
             cmd.extend(["-e", f"HTTP_PROXY={http_proxy}", "-e", f"http_proxy={http_proxy}"])
@@ -194,16 +210,37 @@ class DockerAdapter:
                 return ip
         return None
 
-    def remove_container(self, container_id: str) -> None:
+    def remove_container(self, container_id: str) -> bool:
         try:
-            subprocess.run(
+            result = subprocess.run(
                 ["docker", "rm", "-f", container_id],
                 check=False,
                 capture_output=True,
                 text=True,
+                timeout=30,
             )
-        except FileNotFoundError:
-            return
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+        return result.returncode == 0 or "No such container:" in result.stderr
+
+    def cloak_control(self, container_id: str, command: str) -> dict:
+        try:
+            result = subprocess.run(
+                ["docker", "exec", container_id, "/opt/sandbox/cloak-venv/bin/python",
+                 "/opt/sandbox/cloak/cloak_control.py", command],
+                check=False, capture_output=True, text=True, timeout=45 if command == "stop" else 8,
+            )
+            payload = json.loads(result.stdout)
+            if isinstance(payload, dict) and "error" in payload:
+                if result.returncode == 0 or payload["error"]:
+                    return payload
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            pass
+        return {"error": {"code": "CONTROL_UNAVAILABLE", "message": "Cloak browser control unavailable; preserve the container and inspect its logs."}}
+
+    def start_cloak_browser(self, container_id: str) -> bool:
+        result = self.cloak_control(container_id, "start")
+        return bool(result.get("started")) and not result.get("error")
 
     def list_managed_containers(self) -> list[str]:
         try:

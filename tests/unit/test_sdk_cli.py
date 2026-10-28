@@ -141,4 +141,17 @@ def test_sdk_create_sandbox_sends_kind() -> None:
     finally:
         client.close()
 
-    assert captured["json"] == {"kind": "xpra", "width": 1280, "height": 1024, "enable_gpu": False, "metadata": {}}
+    assert captured["json"] == {"kind": "xpra", "browser_engine": "chromium", "width": 1280, "height": 1024, "enable_gpu": False, "metadata": {}}
+
+
+def test_sdk_and_cli_select_cloak_engine() -> None:
+    from verge_browser_cli import build_parser
+    parsed = build_parser().parse_args(["sandbox", "create", "--browser-engine", "cloakbrowser"])
+    assert parsed.browser_engine == "cloakbrowser"
+    captured = {}
+    def handler(request):
+        captured.update(json.loads(request.content))
+        return httpx.Response(201, json={"code": 0, "message": "ok", "data": {"id": "sb_1"}})
+    client = VergeClient(token="test", http_client=httpx.Client(transport=httpx.MockTransport(handler), base_url="http://test"))
+    client.create_sandbox(browser_engine="cloakbrowser")
+    assert captured["browser_engine"] == "cloakbrowser"

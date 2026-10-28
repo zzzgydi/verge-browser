@@ -72,7 +72,8 @@ async def test_resume_recreates_container_for_stopped_sandbox(tmp_path: Path, mo
     def fake_is_available() -> bool:
         return True
 
-    def fake_create_container(*, sandbox_id: str, kind: SandboxKind, workspace_dir: Path, width: int, height: int, default_url: str | None, image: str | None, enable_gpu: bool = False, http_proxy: str | None = None, https_proxy: str | None = None, no_proxy: str | None = None) -> ContainerCreateResult:
+    def fake_create_container(*, sandbox_id: str, kind: SandboxKind, workspace_dir: Path, width: int, height: int, default_url: str | None, image: str | None, browser_engine="chromium", enable_gpu: bool = False, http_proxy: str | None = None, https_proxy: str | None = None, no_proxy: str | None = None) -> ContainerCreateResult:
+        assert browser_engine == "chromium"
         create_calls.append(
             {
                 "sandbox_id": sandbox_id,

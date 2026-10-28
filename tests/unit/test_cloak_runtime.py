@@ -501,7 +501,31 @@ def test_runtime_script_keeps_chromium_default_and_disables_cloak_retries():
     assert "startsecs=%(ENV_BROWSER_STARTSECS)s" in config
 
 
-def test_api_contract_does_not_pretend_experimental_engine_is_integrated():
+def test_api_contract_exposes_engine_with_chromium_default():
     from app.schemas.sandbox import CreateSandboxRequest
 
-    assert "browser_engine" not in CreateSandboxRequest.model_fields
+    assert CreateSandboxRequest().browser_engine == "chromium"
+    assert CreateSandboxRequest(browser_engine="cloakbrowser").browser_engine == "cloakbrowser"
+
+
+def test_control_start_clears_stale_denial_before_supervisor_start(modules, tmp_path, monkeypatch, capsys):
+    from contextlib import nullcontext
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "cloak-launch.json").write_text('{"old": true}')
+    (run_dir / "cloak-error.json").write_text('{"old": true}')
+    real_path = Path
+    monkeypatch.setattr(modules.control, "Path", lambda value: run_dir if value == "/run/sandbox" else real_path(value))
+    monkeypatch.setattr(modules.control, "process_info", lambda: {"statename": "EXITED", "exitstatus": 76})
+    called = []
+    def start(name, wait):
+        assert not (run_dir / "cloak-launch.json").exists()
+        assert not (run_dir / "cloak-error.json").exists()
+        called.append((name, wait))
+    server = SimpleNamespace(supervisor=SimpleNamespace(startProcess=start))
+    monkeypatch.setattr(modules.control.xmlrpc.client, "ServerProxy", lambda *args, **kwargs: nullcontext(server))
+    monkeypatch.setattr(sys, "argv", ["cloak_control.py", "start"])
+    assert modules.control.main() == 0
+    assert json.loads(capsys.readouterr().out)["started"] is True
+    assert called == [("chromium", True)]

@@ -44,6 +44,7 @@ class VergeClient:
         *,
         alias: str | None = None,
         kind: str = "xvfb_vnc",
+        browser_engine: str = "chromium",
         width: int = 1280,
         height: int = 1024,
         enable_gpu: bool = False,
@@ -56,6 +57,7 @@ class VergeClient:
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "kind": kind,
+            "browser_engine": browser_engine,
             "width": width,
             "height": height,
             "enable_gpu": enable_gpu,

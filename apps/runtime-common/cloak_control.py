@@ -133,10 +133,22 @@ def stop_browser(run_dir: Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["status", "stop"])
+    parser.add_argument("command", choices=["status", "stop", "start"])
     args = parser.parse_args()
     try:
-        result = diagnostics(Path("/run/sandbox")) if args.command == "status" else stop_browser(Path("/run/sandbox"))
+        run_dir = Path("/run/sandbox")
+        if args.command == "start":
+            if process_info()["statename"] not in {"STOPPED", "EXITED", "FATAL"}:
+                raise RuntimeFailure("ALREADY_RUNNING", "Stop the browser before starting it again.")
+            # Clear the previous denial before Supervisor launches the shell,
+            # which can wait for the input method before exec'ing the browser.
+            (run_dir / "cloak-launch.json").unlink(missing_ok=True)
+            (run_dir / "cloak-error.json").unlink(missing_ok=True)
+            with xmlrpc.client.ServerProxy("http://localhost/RPC2", transport=UnixTransport()) as server:
+                server.supervisor.startProcess("chromium", True)
+            result = {"started": True, "error": None}
+        else:
+            result = diagnostics(run_dir) if args.command == "status" else stop_browser(run_dir)
         print(json.dumps(result, sort_keys=True))
         return 1 if result.get("error") else 0
     except Exception as exc:

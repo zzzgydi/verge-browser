@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     create = sandbox_subparsers.add_parser("create", parents=[parent_parser])
     create.add_argument("--alias", default=None)
     create.add_argument("--kind", default="xvfb_vnc", choices=["xvfb_vnc", "xpra"])
+    create.add_argument("--browser-engine", default="chromium", choices=["chromium", "cloakbrowser"])
     create.add_argument("--width", type=int, default=1280)
     create.add_argument("--height", type=int, default=1024)
     create.add_argument("--enable-gpu", action="store_true", default=False)
@@ -200,6 +201,7 @@ def _dispatch(client: VergeClient, args: argparse.Namespace) -> Any:
         return client.create_sandbox(
             alias=args.alias,
             kind=args.kind,
+            browser_engine=args.browser_engine,
             width=args.width,
             height=args.height,
             enable_gpu=args.enable_gpu,

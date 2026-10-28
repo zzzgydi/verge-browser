@@ -1,5 +1,17 @@
 # VNC Clipboard
 
+## 当前实现与验证
+
+以下方案保留设计背景；当前会话页的实际行为以本节为准：
+
+- `Ctrl+C/X` 先由 noVNC 转发远端按键，再读取远端文本同步至本机。重复复制相同文本也会在有限等待后刷新本机剪贴板。
+- `Ctrl+V` 读取本机文本，等待 clipboard POST 成功，再向远端发送粘贴按键。这是本机到远端的文本桥接，不是独立的“只用远端剪贴板”快捷键。当前页面只承诺 Ctrl，尚未恢复早期方案中的 Cmd 支持。
+- 本机 Clipboard API 不可用时显示手动框；远端写入失败时保留输入并显示错误。本机复制权限失败时直接展示已读取文本，不额外读取远端剪贴板。
+- xclip 的后台选择区 owner 不再持有请求输出管道；xclip 执行上限为 5 秒，外层 Docker 命令上限为 10 秒，超时返回 `clipboard_timeout`。写入失败不会继续发送粘贴按键。
+- 无效成功响应和已知断线状态不再被当作粘贴成功。会话过期仍需重新取得 session URL，剪贴板修复不会延长鉴权有效期。
+
+回归测试通过 `node --test tests/unit/vnc_session.test.cjs` 和 `pytest tests/unit/test_clipboard.py tests/unit/test_vnc_session.py` 执行，不读取用户真实剪贴板。集成测试还会检查 X11 文本能否通过 Ctrl+V 进入 Chromium 输入框；需要运行中的 Docker 和已构建 runtime 镜像。合成测试不能替代实际 noVNC 会话验收。
+
 ## 需求
 
 本方案仅针对 `xvfb_vnc` 沙盒类型，为 noVNC 会话增加文本剪切板能力。

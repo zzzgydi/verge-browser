@@ -36,7 +36,10 @@ class ClipboardService:
     async def read_text(self, sandbox: SandboxRecord) -> str:
         self._ensure_available(sandbox)
         self._check_rate_limit(sandbox.id, "read")
-        proc = await asyncio.to_thread(docker_adapter.exec_shell, sandbox.container_id, self._read_command(sandbox))
+        try:
+            proc = await asyncio.to_thread(docker_adapter.exec_shell, sandbox.container_id, self._read_command(sandbox), timeout=10)
+        except subprocess.TimeoutExpired as exc:
+            raise ClipboardError(502, "clipboard_timeout", "clipboard read timed out") from exc
         payload = self._parse_exec_payload(proc)
         output = payload["stdout"]
         if not output:
@@ -50,7 +53,10 @@ class ClipboardService:
         self._ensure_available(sandbox)
         self._check_rate_limit(sandbox.id, "write")
         self._validate_text(text)
-        proc = await asyncio.to_thread(docker_adapter.exec_shell, sandbox.container_id, self._write_command(sandbox, text))
+        try:
+            proc = await asyncio.to_thread(docker_adapter.exec_shell, sandbox.container_id, self._write_command(sandbox, text), timeout=10)
+        except subprocess.TimeoutExpired as exc:
+            raise ClipboardError(502, "clipboard_timeout", "clipboard write timed out") from exc
         self._parse_exec_payload(proc)
         logger.info("clipboard write ok for sandbox %s length=%s sha256=%s", sandbox.id, len(text), self._digest(text))
 
@@ -121,7 +127,11 @@ import json
 import subprocess
 import sys
 
-proc = subprocess.run(["xclip", "-selection", "clipboard", "-o"], capture_output=True)
+try:
+    proc = subprocess.run(["xclip", "-selection", "clipboard", "-o"], capture_output=True, timeout=5)
+except subprocess.TimeoutExpired:
+    print(json.dumps({{"status": "error", "code": "clipboard_timeout", "message": "clipboard read timed out"}}))
+    raise SystemExit(0)
 stderr = proc.stderr.decode("utf-8", errors="replace").strip()
 if proc.returncode != 0:
     lowered = stderr.lower()
@@ -150,10 +160,21 @@ import base64
 import json
 import subprocess
 import sys
+import tempfile
 
 payload = base64.b64decode("{encoded}").decode("utf-8")
-proc = subprocess.run(["xclip", "-selection", "clipboard"], input=payload, text=True, capture_output=True)
-stderr = proc.stderr.strip()
+# The background selection owner inherits stdio; pipes would keep communicate() waiting.
+with tempfile.TemporaryFile() as errors:
+    try:
+        proc = subprocess.run(
+            ["xclip", "-selection", "clipboard"], input=payload, text=True,
+            stdout=subprocess.DEVNULL, stderr=errors, timeout=5,
+        )
+    except subprocess.TimeoutExpired:
+        print(json.dumps({{"status": "error", "code": "clipboard_timeout", "message": "clipboard write timed out"}}))
+        raise SystemExit(0)
+    errors.seek(0)
+    stderr = errors.read().decode("utf-8", errors="replace").strip()
 if proc.returncode != 0:
     lowered = stderr.lower()
     if "can't open display" in lowered or "unable to open display" in lowered:

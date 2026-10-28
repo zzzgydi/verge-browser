@@ -342,13 +342,14 @@ class DockerAdapter:
         )
 
     def exec_shell(
-        self, container_id: str, script: str, *, text: bool = True, check: bool = False
+        self, container_id: str, script: str, *, text: bool = True, check: bool = False, timeout: float | None = None
     ) -> subprocess.CompletedProcess:
         return subprocess.run(
             ["docker", "exec", container_id, "/bin/bash", "-lc", script],
             check=check,
             capture_output=True,
             text=text,
+            timeout=timeout,
         )
 
 

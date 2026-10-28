@@ -58,6 +58,7 @@ Request:
 {
   "alias": "manual-test",
   "kind": "xvfb_vnc",
+  "browser_engine": "chromium",
   "image": "verge-browser-runtime-xvfb:latest",
   "default_url": "https://example.com",
   "width": 1440,
@@ -76,7 +77,12 @@ Response notes:
 - Creation and detail responses no longer expose `cdp_url` or `session_url`
 - Browser runtime info is aggregated under `data.browser`
 - `kind` selects the runtime stack: `xvfb_vnc` or `xpra`
+- `browser_engine` selects `chromium` (default, no Cloak key needed) or `cloakbrowser`. Cloak requires server-side setup, Xvfb, GPU disabled and no per-request image override; see [setup](guides/cloak.md).
 - If `image` is omitted, the server picks the default image for the selected `kind`
+
+### `GET /runtime/engines`
+
+Report supported engines, allowed desktop kinds and configuration readiness. Requires admin authentication and never returns keys. A configured Cloak engine still depends on successful runtime license validation and available seats.
 
 ### `GET /sandbox`
 

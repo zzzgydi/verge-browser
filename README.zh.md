@@ -56,7 +56,7 @@
 - [无桌面的 Linux 服务器部署](./docs/guides/headless-linux.md)：通过 SSH 隧道访问，不直接暴露 API。
 - [人工接管](./docs/guides/human-handoff.md)：停止自动化、完成手动步骤、重新读取页面后继续。
 - [浏览器 Profile 持久化](./docs/guides/persistent-profiles.md)：说明暂停、恢复、重启和删除分别保留什么。
-- [CloakBrowser 实验运行时](./docs/guides/cloak-experimental.md)：单独安装内核的 Xvfb 验证入口，尚未接入正式 API。
+- [可选 CloakBrowser 引擎](./docs/guides/cloak.md)：配置免费或付费 key、私有安装内核后，在同一管理后台选择；真实 Cloak 运行仍待验收。
 
 ## Agent Skills
 

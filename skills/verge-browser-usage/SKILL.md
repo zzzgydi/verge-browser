@@ -68,6 +68,8 @@ verge-browser sandbox rm demo --json
 
 ## Core Commands
 
+Chromium is the default and needs no Cloak key. A source build with engine support can create a Cloak sandbox using `verge-browser sandbox create --alias cloak-demo --browser-engine cloakbrowser --json`, once the server reports it available through `GET /runtime/engines`. Cloak uses the same lifecycle, session and CDP commands; do not launch a separate Cloak service. Free keys support one active browser, so pause the previous Cloak sandbox first. If the installed CLI does not recognize the option, use the matching source build or the API rather than assuming the published package is updated.
+
 - List sandboxes:
   `verge-browser sandbox list --json`
 - Create a default sandbox:

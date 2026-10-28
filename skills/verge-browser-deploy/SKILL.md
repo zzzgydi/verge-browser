@@ -78,6 +78,12 @@ Expected health response:
 {"status":"ok"}
 ```
 
+### Optional CloakBrowser Engine
+
+Deploy the normal API/admin service first; Chromium never requires a Cloak key. To add CloakBrowser to the same console, follow `docs/guides/cloak.md` and add `deployments/docker-compose.cloak.yml` to the existing Compose stack. It provides a one-off official installer and private mounts for the API, not a standalone browser service.
+
+Use the deployment owner's key file; a free GitHub key supports one running browser. Do not register or buy a key without authorization, bundle the proprietary binary in a public image, or put the key in sandbox requests. Verify authenticated `GET /runtime/engines` and create a disposable `browser_engine: "cloakbrowser"` sandbox. Configuration readiness is not license validation; real GUI/CDP and lifecycle checks still require a working key. Keep the existing Compose project name, host-path mapping and access restrictions when adding the overlay.
+
 If the user asks for a development setup, use the local-dev path from `references/deploy-checklist.md`.
 
 ## Base URL And Public Access

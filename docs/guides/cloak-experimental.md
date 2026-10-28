@@ -1,6 +1,6 @@
 # Experimental CloakBrowser Runtime
 
-This is the first-stage runtime experiment, not a supported engine in the Verge API yet. It reuses the Xvfb image, X11 desktop, CDP relay and noVNC stack. It does not add BrowseForge, Cloak Manager, cloakserve or a Playwright server.
+For normal use, follow [CloakBrowser in the admin console](cloak.md). This document describes the standalone low-level diagnostic fixture. It reuses the Xvfb image, X11 desktop, CDP relay and noVNC stack. It does not add BrowseForge, Cloak Manager, cloakserve or a Playwright server.
 
 **Validation status:** unit tests and static configuration checks are available. Real Cloak startup, GUI/CDP compatibility, cookie persistence and license-seat release still require the opt-in Docker test below. Do not treat this as production-ready.
 
@@ -106,6 +106,6 @@ The test checks direct CDP, Verge's existing CDP-ticket proxy and screenshot/act
 
 Without the explicit test flag, this test skips before accessing Docker or secrets. Do not run `tests/integration/test_runtime_api.py` on a daemon with business sandboxes: its existing cleanup fixture removes all `verge.managed=true` containers.
 
-## Not implemented yet
+## Console integration
 
-The public API, Registry, DockerAdapter, lifecycle, SDKs and admin UI do not yet accept or manage `browser_engine`. Passing an unknown engine property to the current API must not be used to select Cloak. Phase two must add typed engine/configuration persistence, secret/volume wiring, readiness and browser-health checks, and graceful lifecycle operations before this becomes a normal Verge sandbox option.
+The API, Registry, DockerAdapter, lifecycle, SDKs and admin UI now accept `browser_engine`. Use the [normal API overlay](cloak.md), not this standalone fixture, to create Cloak sandboxes from the console. Xpra/ARM64/GPU, profile migration and real licensed-runtime acceptance remain outside the current verified scope.

@@ -130,6 +130,20 @@ These variables do not affect the server deployment itself, but they are commonl
 
 ## 5. Usage Notes
 
+### Optional CloakBrowser engine
+
+Normal Chromium deployments need none of these settings. Use the [Cloak Compose overlay](guides/cloak.md) to mount the key and private binary volume into the API.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `VERGE_CLOAK_ENABLED` | `false` | Enable the optional engine in the normal API and admin console. |
+| `VERGE_CLOAK_LICENSE_FILE` | unset | Absolute Docker-host key path, mounted read-only at the same path inside the API. |
+| `VERGE_CLOAK_BINARY_DIR` | `/opt/verge/cloak` | API-side read-only mount of the installed binary volume. |
+| `VERGE_CLOAK_BINARY_VOLUME` | `verge-browser-cloak-binaries` | Docker volume shared by installer, API and Cloak sandboxes. |
+| `VERGE_CLOAK_RUNTIME_IMAGE` | `verge-browser-runtime-xvfb:latest` | Linux amd64 runtime image with Cloak launcher, but no bundled proprietary binary. |
+| `VERGE_CLOAK_LOCALE` | `zh-CN` | Initial locale, stored per profile. |
+| `VERGE_CLOAK_TIMEZONE` | `UTC` | Initial IANA timezone, stored per profile. |
+
 - For production, at minimum set `VERGE_ENV`, `VERGE_SANDBOX_BASE_DIR`, `VERGE_ADMIN_AUTH_TOKEN`, and `VERGE_TICKET_SECRET`.
 - When using [`deployments/docker-compose.yml`](../deployments/docker-compose.yml), export `PROJECT_ROOT` before starting Compose.
 - If the API server runs inside a container, `VERGE_SANDBOX_BASE_DIR` must point to a path that is visible inside the API container and matches the host mount path, otherwise runtime workspace mounts will fail.

@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -196,6 +197,29 @@ def test_session_vnc_page_is_project_owned() -> None:
     assert vnc_page.status_code == 200
     assert "Verge Browser Session" in vnc_page.text
     assert 'import RFB from "./core/rfb.js";' in vnc_page.text
+    assert "Paste Local Text" in vnc_page.text
+    class ToolbarParser(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.in_toolbar = False
+            self.text: list[str] = []
+
+        def handle_starttag(self, tag, attrs) -> None:
+            if tag == "header":
+                self.in_toolbar = True
+
+        def handle_endtag(self, tag) -> None:
+            if tag == "header":
+                self.in_toolbar = False
+
+        def handle_data(self, data) -> None:
+            if self.in_toolbar and data.strip():
+                self.text.append(data.strip())
+
+    toolbar = ToolbarParser()
+    toolbar.feed(vnc_page.text)
+    assert toolbar.text == ["Verge", "Paste to remote", "Copy to local", "Connecting"]
+    assert 'document.addEventListener("keydown"' not in vnc_page.text
 
 
 def test_clipboard_endpoint_accepts_session_cookie_from_entry(monkeypatch: pytest.MonkeyPatch) -> None:

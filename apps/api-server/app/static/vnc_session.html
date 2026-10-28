@@ -7,179 +7,223 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23101820'/%3E%3Crect x='4' y='6' width='24' height='18' rx='3' fill='none' stroke='%23f5b700' stroke-width='2'/%3E%3Crect x='4' y='6' width='24' height='5' rx='3' fill='%23f5b700' opacity='.25'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.2' fill='%23f5b700'/%3E%3Ccircle cx='12.5' cy='8.5' r='1.2' fill='%23f5b700' opacity='.6'/%3E%3Cline x1='12' y1='28' x2='20' y2='28' stroke='%23f5b700' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='16' y1='24' x2='16' y2='28' stroke='%23f5b700' stroke-width='2'/%3E%3C/svg%3E">
   <style>
     :root {
-      color-scheme: light;
+      color-scheme: dark;
       --bg: #101820;
-      --panel: rgba(16, 24, 32, 0.88);
-      --panel-strong: rgba(23, 35, 47, 0.96);
-      --border: rgba(255, 255, 255, 0.16);
-      --text: #f4f7fb;
-      --muted: #a7b6c4;
+      --panel: #14202a;
+      --panel-strong: #192732;
+      --border: #2d3c47;
+      --text: #edf2f5;
+      --muted: #95a7b4;
       --accent: #f5b700;
-      --danger: #ff6b6b;
+      --danger: #ff9292;
+      --success: #79cbb0;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
 
     html, body {
       margin: 0;
       height: 100%;
-      background:
-        radial-gradient(circle at top, rgba(245, 183, 0, 0.18), transparent 28%),
-        linear-gradient(160deg, #12212b 0%, #0c1218 55%, #070b0f 100%);
+      background: var(--bg);
       color: var(--text);
       font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
 
     body {
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
-    }
-
-    .toolbar {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      background: var(--panel);
-      border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(16px);
-    }
-
-    .title {
-      font-size: 14px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .hint {
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .status {
-      font-size: 12px;
-      color: var(--accent);
-    }
-
-    #screen {
-      flex: 1;
-      min-height: 0;
+      height: 100dvh;
       overflow: hidden;
     }
 
-    #screen canvas {
-      width: 100%;
-      height: 100%;
+    .toolbar {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-shrink: 0;
+      align-items: center;
+      gap: 14px;
+      min-height: 42px;
+      padding: 5px 12px;
+      background: linear-gradient(110deg, #192631, var(--panel) 60%);
+      border-bottom: 1px solid var(--border);
     }
 
-    .overlay[hidden] {
-      display: none;
+    .brand, .clipboard-actions, .connection, button {
+      display: inline-flex;
+      align-items: center;
     }
+
+    .brand { gap: 7px; white-space: nowrap; }
+    .brand-mark { color: var(--accent); width: 21px; height: 21px; }
+    .brand-name { font-size: 14px; font-weight: 650; letter-spacing: -0.02em; }
+    .clipboard-actions { margin-left: auto; gap: 6px; }
+    .clipboard-actions button { min-height: 30px; padding: 5px 10px; }
+
+    button {
+      justify-content: center;
+      gap: 7px;
+      min-height: 36px;
+      padding: 8px 12px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      font: 500 12px/1.4 "Segoe UI", "Helvetica Neue", sans-serif;
+      cursor: pointer;
+      transition: background 120ms, border-color 120ms;
+      white-space: nowrap;
+    }
+
+    button svg { width: 15px; height: 15px; flex-shrink: 0; }
+    button.primary { background: var(--accent); color: #1e230f; border-color: var(--accent); }
+    button.primary:hover:not(:disabled) { background: #ffca35; border-color: #ffca35; }
+    button.secondary { background: #ffffff05; color: var(--text); border-color: var(--border); }
+    button.secondary:hover:not(:disabled) { background: #ffffff0c; border-color: #50616e; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button[aria-busy="true"] { cursor: progress; }
+    button[aria-busy="true"] svg { animation: working 700ms ease-in-out infinite alternate; }
+    button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+    .connection { gap: 7px; min-width: 85px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .connection::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .connection[data-state="connected"] { color: var(--success); }
+    .connection[data-state="connected"]::before { background: var(--success); box-shadow: 0 0 0 3px #79cbb00d; }
+    .connection[data-state="disconnected"] { color: var(--danger); }
+    .connection[data-state="disconnected"]::before { background: var(--danger); }
+
+    .status {
+      position: fixed;
+      z-index: 3;
+      top: 54px;
+      right: 16px;
+      max-width: min(460px, calc(100vw - 32px));
+      padding: 11px 14px;
+      border: 1px solid #476151;
+      border-radius: 8px;
+      background: #1b2b27;
+      box-shadow: 0 8px 30px #0004;
+      color: #d7eee2;
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+    .status:empty { display: none; }
+    .status.error { border-color: #704444; background: #302326; color: var(--danger); }
+
+    #screen { flex: 1; min-height: 0; overflow: hidden; }
+    #screen canvas { width: 100%; height: 100%; }
 
     .overlay {
       position: fixed;
+      z-index: 4;
       inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: grid;
+      place-items: center;
       padding: 20px;
-      background: rgba(3, 8, 12, 0.62);
+      background: #070d14a6;
+      backdrop-filter: blur(5px);
     }
 
     .dialog {
-      width: min(560px, 100%);
-      padding: 20px;
-      border-radius: 18px;
-      background: var(--panel-strong);
-      border: 1px solid var(--border);
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
-    }
-
-    .dialog h2 {
-      margin: 0 0 8px;
-      font-size: 18px;
-    }
-
-    .dialog p {
-      margin: 0 0 12px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    .dialog textarea {
-      width: 100%;
-      min-height: 180px;
-      resize: vertical;
-      padding: 12px;
+      width: min(500px, 100%);
+      max-height: calc(100dvh - 40px);
+      overflow: auto;
+      padding: 24px;
       border-radius: 12px;
+      background: linear-gradient(145deg, var(--panel-strong), #131e28);
+      border: 1px solid #3b4a56;
+      box-shadow: 0 24px 80px #0007;
+      animation: enter 150ms ease-out;
+    }
+
+    .dialog-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .dialog-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: #f5b70012; color: var(--accent); }
+    .dialog-icon svg { width: 19px; height: 19px; }
+    .dialog h2 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; }
+    .dialog p { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.65; }
+    .dialog textarea {
+      display: block;
+      width: 100%;
+      height: 190px;
+      min-height: 100px;
+      resize: vertical;
+      padding: 14px;
+      border-radius: 8px;
       border: 1px solid var(--border);
-      background: rgba(6, 10, 14, 0.7);
+      background: #0c151e;
       color: var(--text);
+      font: 13px/1.7 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
     }
+    .dialog textarea::placeholder { color: #657987; }
+    .dialog textarea[readonly] { border-style: dashed; }
+    .error { color: var(--danger); }
+    #fallback-error { margin-top: 12px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+    #fallback-error:empty { display: none; }
+    .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+    .actions button { min-width: 84px; }
 
-    .actions {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-      margin-top: 14px;
-    }
-
-    button {
-      border: 0;
-      border-radius: 999px;
-      padding: 10px 16px;
-      font: inherit;
-      cursor: pointer;
-    }
-
-    button.primary {
-      background: var(--accent);
-      color: #151006;
-    }
-
-    button.secondary {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--text);
-    }
-
-    .error {
-      color: var(--danger);
+    @keyframes enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes working { from { opacity: 0.35; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+    @media (max-width: 600px) {
+      .toolbar { flex-wrap: wrap; padding: 6px 12px; gap: 6px; }
+      .brand { flex: 1; gap: 8px; }
+      .brand-name { font-size: 14px; }
+      .connection { order: 1; min-width: auto; }
+      .clipboard-actions { order: 2; width: 100%; gap: 8px; }
+      .clipboard-actions button { flex: 1; min-height: 40px; }
+      .status { top: 92px; right: 12px; max-width: calc(100vw - 24px); }
+      .overlay { padding: 12px; }
+      .dialog { padding: 20px; max-height: calc(100dvh - 24px); }
     }
   </style>
 </head>
 <body>
-  <div class="toolbar">
-    <div>
-      <div class="title">Verge Browser Session</div>
-      <div class="hint">Use Ctrl+C and Ctrl+V inside the remote browser.</div>
+  <header class="toolbar">
+    <div class="brand" aria-label="Verge Browser Session">
+      <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="3.5" width="19" height="14" rx="3"/><path d="M3 8h18M8 21h8m-4-3.5V21"/><path d="M6 6h.01M9 6h.01" stroke-linecap="round"/></svg>
+      <span class="brand-name">Verge</span>
     </div>
-    <div id="status" class="status">Connecting…</div>
-  </div>
+    <div class="clipboard-actions" role="group" aria-label="Transfer clipboard text">
+      <button id="paste-local" class="secondary" type="button" aria-label="Paste Local Text" title="Paste your local clipboard into the remote browser" disabled>
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M11 4h5a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-5M2 10h10m-4-4 4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Paste to remote
+      </button>
+      <button id="copy-remote" class="secondary" type="button" aria-label="Copy Remote Text" title="Copy the remote clipboard to your computer" disabled>
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M11 4h5a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-5M12 10H2m4-4-4 4 4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Copy to local
+      </button>
+    </div>
+    <div id="connection" class="connection" role="status" aria-live="polite" data-state="connecting">Connecting</div>
+  </header>
+  <div id="status" class="status" role="status" aria-live="polite"></div>
   <div id="screen"></div>
 
   <div id="fallback" class="overlay" hidden>
-    <div class="dialog">
-      <h2 id="fallback-title">Clipboard Access Required</h2>
-      <p id="fallback-message"></p>
-      <textarea id="fallback-text"></textarea>
-      <div id="fallback-error" class="error"></div>
-      <div class="actions">
-        <button id="fallback-cancel" class="secondary" type="button">Close</button>
-        <button id="fallback-action" class="primary" type="button">Submit</button>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="fallback-title" aria-describedby="fallback-message">
+      <div class="dialog-heading">
+        <span class="dialog-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="5" width="14" height="16" rx="2"/><rect x="8" y="2.5" width="8" height="5" rx="1.5" fill="var(--panel-strong)"/><path d="M9 12h6m-6 4h4" stroke-linecap="round"/></svg></span>
+        <h2 id="fallback-title">Transfer text</h2>
       </div>
-    </div>
+      <p id="fallback-message"></p>
+      <textarea id="fallback-text" aria-labelledby="fallback-title" placeholder="Paste your text here..."></textarea>
+      <div id="fallback-error" class="error" role="alert"></div>
+      <div class="actions">
+        <button id="fallback-cancel" class="secondary" type="button">Cancel</button>
+        <button id="fallback-action" class="primary" type="button">Paste to remote</button>
+      </div>
+    </section>
   </div>
 
   <script type="module">
     import RFB from "./core/rfb.js";
 
     const statusEl = document.getElementById("status");
+    const connectionEl = document.getElementById("connection");
     const screenEl = document.getElementById("screen");
+    const pasteLocalEl = document.getElementById("paste-local");
+    const copyRemoteEl = document.getElementById("copy-remote");
     const fallbackEl = document.getElementById("fallback");
     const fallbackTitleEl = document.getElementById("fallback-title");
     const fallbackMessageEl = document.getElementById("fallback-message");
@@ -196,11 +240,9 @@
 
     let rfb;
     let remoteConnected = false;
-    let lastRemoteClipboard = "";
     let fallbackMode = null;
-    let suppressPasteEventUntil = 0;
+    let transferBusy = false;
     let statusResetTimer = null;
-    let remoteClipboardSyncInFlight = null;
     const XK_Control_L = 0xffe3;
     const XK_v = 0x0076;
 
@@ -224,6 +266,15 @@
       return !fallbackEl.hasAttribute("hidden");
     }
 
+    function updateTransferControls() {
+      const unavailable = !remoteConnected || transferBusy || modalOpen();
+      pasteLocalEl.disabled = unavailable;
+      copyRemoteEl.disabled = unavailable;
+      fallbackActionEl.disabled = transferBusy;
+      fallbackCancelEl.disabled = transferBusy;
+      fallbackTextEl.readOnly = transferBusy || fallbackMode === "copy";
+    }
+
     function focusRemoteSession() {
       screenEl.setAttribute("tabindex", "0");
       screenEl.focus?.({ preventScroll: true });
@@ -237,18 +288,22 @@
       fallbackTextEl.value = value;
       fallbackActionEl.textContent = actionLabel;
       fallbackErrorEl.textContent = "";
-      fallbackTextEl.readOnly = mode === "copy";
+      fallbackCancelEl.textContent = mode === "copy" ? "Close" : "Cancel";
       fallbackEl.removeAttribute("hidden");
-      window.setTimeout(() => fallbackTextEl.focus(), 0);
-      if (mode === "copy") {
-        fallbackTextEl.select();
-      }
+      updateTransferControls();
+      window.setTimeout(() => {
+        fallbackTextEl.focus();
+        if (mode === "copy") fallbackTextEl.select();
+      }, 0);
     }
 
     function hideFallback() {
+      // A dispatched clipboard write cannot be rolled back by closing the dialog.
+      if (transferBusy) return;
       fallbackMode = null;
       fallbackEl.setAttribute("hidden", "");
       fallbackErrorEl.textContent = "";
+      updateTransferControls();
       focusRemoteSession();
     }
 
@@ -264,7 +319,9 @@
       const payload = await response.json();
       if (!response.ok || payload?.status !== "ok") {
         const code = payload?.code || "request_failed";
-        const message = payload?.message || (response.ok ? "Invalid clipboard response" : `request failed with status ${response.status}`);
+        const message = response.status === 401 || response.status === 403
+          ? "Clipboard access expired or is invalid. Open a new session URL; remote Ctrl+C / Ctrl+V do not use this API."
+          : payload?.message || (response.ok ? "Invalid clipboard response" : `request failed with status ${response.status}`);
         const error = new Error(message);
         error.code = code;
         throw error;
@@ -277,7 +334,6 @@
         method: "POST",
         body: JSON.stringify({ text }),
       });
-      lastRemoteClipboard = text;
     }
 
     function delay(ms) {
@@ -329,7 +385,7 @@
 
     function showRemotePasteFailure(text, error) {
       showFallback({
-        title: "Paste Into Sandbox",
+        title: "Paste to remote",
         message: "Sending text to the sandbox failed. Your text is preserved below; check the error before retrying.",
         value: text,
         actionLabel: "Retry",
@@ -339,15 +395,15 @@
       setStatus(error.message || "Remote paste failed", true);
     }
 
-    async function syncLocalToRemote({ triggerPaste = false } = {}) {
+    async function pasteLocalClipboard() {
       let text;
       try {
         text = await getLocalClipboardText();
       } catch (error) {
         showFallback({
-          title: "Paste Into Sandbox",
-          message: "Browser clipboard access was blocked. Paste the text manually and submit it to the remote browser.",
-          actionLabel: "Send Text",
+          title: "Paste to remote",
+          message: "Clipboard access is unavailable. Paste your text below to send it to the remote browser.",
+          actionLabel: "Paste to remote",
           mode: "paste",
         });
         setStatus(error.message || "Clipboard read failed", true);
@@ -355,131 +411,58 @@
       }
       if (!text) {
         setStatus("Local clipboard has no text to paste", true);
+        focusRemoteSession();
         return;
       }
       try {
-        if (triggerPaste) {
-          await pasteTextIntoRemote(text);
-          setStatus("Local clipboard pasted into sandbox");
-          return;
-        }
-        await postRemoteClipboard(text);
-        setStatus("Local clipboard sent to sandbox");
+        await pasteTextIntoRemote(text);
+        setStatus("Text sent; remote paste shortcut dispatched");
       } catch (error) {
         showRemotePasteFailure(text, error);
       }
     }
 
-    async function syncRemoteToLocal() {
-      if (remoteClipboardSyncInFlight) {
-        return remoteClipboardSyncInFlight;
-      }
-      const baselineText = lastRemoteClipboard;
-      remoteClipboardSyncInFlight = (async () => {
-        const attempts = 8;
-        for (let attempt = 0; attempt < attempts; attempt += 1) {
-          await new Promise((resolve) => window.setTimeout(resolve, 200));
-          let text;
-          try {
-            text = await readRemoteClipboard();
-            // Wait for remote copy to settle, but repeated text must still refresh the local clipboard.
-            if (!text || (text === baselineText && attempt < attempts - 1)) {
-              continue;
-            }
-          } catch (error) {
-            if (error.code === "clipboard_empty" || error.code === "rate_limited") {
-              continue;
-            }
-            setStatus(error.message || "Remote clipboard read failed", true);
-            return;
-          }
-          try {
-            await setLocalClipboardText(text);
-            lastRemoteClipboard = text;
-            setStatus("Remote clipboard synced to local browser");
-          } catch (error) {
-            showFallback({
-              title: "Copy From Sandbox",
-              message: "Browser clipboard write was blocked. Copy the text manually from the box below.",
-              value: text,
-              actionLabel: "Try Native Copy",
-              mode: "copy",
-            });
-            setStatus(error.message || "Clipboard write failed", true);
-          }
-          return;
-        }
-        setStatus("Remote clipboard did not become available; try copying again", true);
-      })();
+    async function copyRemoteClipboard() {
+      let text;
       try {
-        await remoteClipboardSyncInFlight;
-      } finally {
-        remoteClipboardSyncInFlight = null;
+        text = await readRemoteClipboard();
+      } catch (error) {
+        setStatus(error.message || "Remote clipboard read failed", true, { persistent: true });
+        focusRemoteSession();
+        return;
+      }
+      try {
+        await setLocalClipboardText(text);
+        setStatus("Remote text copied to local clipboard");
+        focusRemoteSession();
+      } catch (error) {
+        showFallback({
+          title: "Copy to local",
+          message: "Your remote text is ready. Copy it below or use the button.",
+          value: text,
+          actionLabel: "Copy Text",
+          mode: "copy",
+        });
+        setStatus(error.message || "Clipboard write failed", true);
       }
     }
 
-    function isClipboardHotkey(event) {
-      if (!event.ctrlKey || event.metaKey || event.altKey) {
-        return null;
-      }
-      const key = event.key.toLowerCase();
-      if (key === "c" || key === "x") {
-        return "copy";
-      }
-      if (key === "v") {
-        return "paste";
-      }
-      return null;
+    // Remote hotkeys belong to noVNC. Only explicit buttons access the local clipboard.
+    for (const [button, transfer] of [[pasteLocalEl, pasteLocalClipboard], [copyRemoteEl, copyRemoteClipboard]]) {
+      button.addEventListener("click", async () => {
+        if (transferBusy || modalOpen() || !remoteConnected) return;
+        transferBusy = true;
+        updateTransferControls();
+        button.setAttribute("aria-busy", "true");
+        try {
+          await transfer();
+        } finally {
+          transferBusy = false;
+          button.removeAttribute("aria-busy");
+          updateTransferControls();
+        }
+      });
     }
-
-    document.addEventListener("keydown", (event) => {
-      if (modalOpen()) {
-        return;
-      }
-      const action = isClipboardHotkey(event);
-      if (action === "copy") {
-        void syncRemoteToLocal();
-      } else if (action === "paste") {
-        event.preventDefault();
-        event.stopPropagation();
-        suppressPasteEventUntil = Date.now() + 250;
-        void syncLocalToRemote({ triggerPaste: true });
-      }
-    }, true);
-
-    document.addEventListener("copy", (event) => {
-      if (modalOpen()) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      void syncRemoteToLocal();
-    }, true);
-
-    document.addEventListener("paste", (event) => {
-      if (modalOpen()) {
-        return;
-      }
-      if (Date.now() < suppressPasteEventUntil) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      const text = event.clipboardData?.getData("text/plain");
-      if (text) {
-        void pasteTextIntoRemote(text)
-          .then(() => {
-            setStatus("Local clipboard pasted into sandbox");
-          })
-          .catch((error) => {
-            showRemotePasteFailure(text, error);
-          });
-      } else {
-        void syncLocalToRemote({ triggerPaste: true });
-      }
-    }, true);
 
     window.addEventListener("focus", () => {
       if (!modalOpen()) {
@@ -494,30 +477,51 @@
     });
 
     fallbackCancelEl.addEventListener("click", hideFallback);
-    fallbackActionEl.addEventListener("click", async () => {
-      fallbackErrorEl.textContent = "";
-      if (fallbackMode === "paste") {
-        try {
-          await pasteTextIntoRemote(fallbackTextEl.value);
-          hideFallback();
-          setStatus("Manual clipboard text pasted into sandbox");
-        } catch (error) {
-          fallbackErrorEl.textContent = error.message || "Clipboard write failed";
+    fallbackEl.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        hideFallback();
+      } else if (event.key === "Tab") {
+        if (transferBusy) {
+          event.preventDefault();
+          fallbackTextEl.focus();
+        } else if (event.shiftKey && event.target === fallbackTextEl) {
+          event.preventDefault();
+          fallbackActionEl.focus();
+        } else if (!event.shiftKey && event.target === fallbackActionEl) {
+          event.preventDefault();
+          fallbackTextEl.focus();
         }
-        return;
       }
-      if (fallbackMode === "copy") {
-        try {
+    });
+    fallbackActionEl.addEventListener("click", async () => {
+      if (transferBusy || !fallbackMode) return;
+      const mode = fallbackMode;
+      const actionLabel = fallbackActionEl.textContent;
+      transferBusy = true;
+      updateTransferControls();
+      fallbackActionEl.setAttribute("aria-busy", "true");
+      fallbackActionEl.textContent = mode === "paste" ? "Sending..." : "Copying...";
+      fallbackTextEl.focus();
+      fallbackErrorEl.textContent = "";
+      try {
+        if (mode === "paste") {
+          await pasteTextIntoRemote(fallbackTextEl.value);
+        } else {
           await setLocalClipboardText(fallbackTextEl.value);
-          hideFallback();
-          setStatus("Fallback text copied to local clipboard");
-        } catch (error) {
-          fallbackErrorEl.textContent = error.message || "Native clipboard write failed";
-          fallbackTextEl.select();
         }
+      } catch (error) {
+        fallbackErrorEl.textContent = error.message || "Clipboard write failed";
+        if (mode === "copy") fallbackTextEl.select();
         return;
+      } finally {
+        transferBusy = false;
+        fallbackActionEl.removeAttribute("aria-busy");
+        fallbackActionEl.textContent = actionLabel;
+        updateTransferControls();
       }
       hideFallback();
+      setStatus(mode === "paste" ? "Text sent; remote paste shortcut dispatched" : "Fallback text copied to local clipboard");
     });
 
     rfb = new RFB(screenEl, wsUrl, { credentials: {} });
@@ -527,13 +531,18 @@
     rfb.focusOnClick = true;
     rfb.addEventListener("connect", () => {
       remoteConnected = true;
+      updateTransferControls();
       focusRemoteSession();
-      setStatus("Connected", false, { persistent: true });
+      connectionEl.textContent = "Connected";
+      connectionEl.setAttribute("data-state", "connected");
     });
     rfb.addEventListener("disconnect", (event) => {
       remoteConnected = false;
+      updateTransferControls();
       const clean = event.detail?.clean;
-      setStatus(clean ? "Disconnected" : "Connection lost", !clean, { persistent: true });
+      connectionEl.textContent = clean ? "Disconnected" : "Connection lost";
+      connectionEl.setAttribute("data-state", "disconnected");
+      setStatus("");
     });
   </script>
 </body>

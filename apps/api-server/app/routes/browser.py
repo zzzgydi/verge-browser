@@ -75,7 +75,10 @@ async def cdp_browser_proxy(websocket: WebSocket, sandbox_id: str) -> None:
         return
 
     try:
-        async with websockets.connect(upstream_url, ping_interval=20, ping_timeout=20, max_queue=100) as upstream:
+        # Full accessibility trees and CDP screenshots can exceed websockets' 1 MiB default.
+        async with websockets.connect(
+            upstream_url, ping_interval=20, ping_timeout=20, max_queue=100, max_size=16 * 1024 * 1024,
+        ) as upstream:
             async def client_to_upstream() -> None:
                 while True:
                     message = await websocket.receive()

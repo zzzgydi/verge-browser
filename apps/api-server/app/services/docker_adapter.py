@@ -57,6 +57,28 @@ class DockerAdapter:
             return False
         return proc.returncode == 0
 
+    def cloak_image_supported(self, image_name: str) -> bool:
+        try:
+            proc = subprocess.run(
+                ["docker", "image", "inspect", image_name, "--format", "{{json .Config.Labels}}"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+        if proc.returncode != 0:
+            return False
+        try:
+            labels = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            return False
+        if not isinstance(labels, dict) or labels.get("io.verge.browser.launcher-version") != "1":
+            return False
+        engines = labels.get("io.verge.browser.experimental-engines")
+        return isinstance(engines, str) and "cloakbrowser-linux-amd64" in engines.split()
+
     def create_container(
         self,
         *,
@@ -74,7 +96,7 @@ class DockerAdapter:
         no_proxy: str | None = None,
     ) -> ContainerCreateResult:
         settings = get_settings()
-        image_name = image or (settings.cloak_runtime_image if browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(kind))
+        image_name = image or (settings.cloak_runtime_image_for_kind(kind) if browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(kind))
         if not self.image_exists(image_name):
             return ContainerCreateResult(
                 container_id=None,

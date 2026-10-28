@@ -59,6 +59,15 @@ ENV XMODIFIERS="@im=fcitx" \
 
 RUN mkdir -p /workspace/downloads /workspace/uploads /workspace/browser-profile /var/log/sandbox /run/sandbox /opt/sandbox/scripts /root/.config/fcitx
 
+COPY apps/runtime-common/requirements-cloak.txt /opt/sandbox/requirements-cloak.txt
+# Install only the wrapper; the proprietary browser stays in a private volume.
+RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
+      python3 -m venv /opt/sandbox/cloak-venv && \
+      /opt/sandbox/cloak-venv/bin/pip install --no-cache-dir --only-binary=:all: --require-hashes \
+        -r /opt/sandbox/requirements-cloak.txt; \
+    fi
+
+COPY apps/runtime-common/*.py /opt/sandbox/cloak/
 COPY apps/runtime-xpra/scripts/ /opt/sandbox/scripts/
 COPY apps/runtime-xpra/openbox/ /opt/sandbox/openbox/
 COPY apps/runtime-xpra/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
@@ -69,5 +78,9 @@ RUN chmod +x /opt/sandbox/scripts/*.sh
 RUN fc-cache -f
 
 EXPOSE 9223 14500
+
+LABEL io.verge.browser.engines="chromium" \
+      io.verge.browser.experimental-engines="cloakbrowser-linux-amd64" \
+      io.verge.browser.launcher-version="1"
 
 CMD ["/bin/bash", "/opt/sandbox/scripts/start_all.sh"]

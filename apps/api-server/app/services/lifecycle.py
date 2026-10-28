@@ -31,7 +31,7 @@ class SandboxLifecycleService:
     async def create(self, req: CreateSandboxRequest) -> SandboxRecord:
         settings = get_settings()
         if req.browser_engine == BrowserEngine.CLOAKBROWSER:
-            reason = cloak_unavailable_reason()
+            reason = cloak_unavailable_reason(req.kind)
             if reason:
                 raise HTTPException(status_code=409, detail=reason)
         sandbox_id = f"sb_{secrets.token_hex(6)}"
@@ -48,7 +48,7 @@ class SandboxLifecycleService:
         container_id = None
         host = "127.0.0.1"
         status = SandboxStatus.FAILED
-        image_name = req.image or (settings.cloak_runtime_image if req.browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(req.kind))
+        image_name = req.image or (settings.cloak_runtime_image_for_kind(req.kind) if req.browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(req.kind))
         runtime = runtime_endpoint_for_kind(req.kind)
         if docker_adapter.is_available():
             if not docker_adapter.image_exists(image_name):
@@ -168,7 +168,7 @@ class SandboxLifecycleService:
         if sandbox is None or sandbox.status not in {SandboxStatus.STOPPED, SandboxStatus.FAILED}:
             return False
         if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER:
-            reason = cloak_unavailable_reason()
+            reason = cloak_unavailable_reason(sandbox.kind, image=sandbox.image)
             if reason:
                 raise HTTPException(status_code=409, detail=reason)
             if sandbox.container_id:
@@ -181,7 +181,7 @@ class SandboxLifecycleService:
             registry.put(sandbox)
             return False
         settings = get_settings()
-        image_name = sandbox.image or (settings.cloak_runtime_image if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(sandbox.kind))
+        image_name = sandbox.image or (settings.cloak_runtime_image_for_kind(sandbox.kind) if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(sandbox.kind))
         if not docker_adapter.image_exists(image_name):
             sandbox.status = SandboxStatus.FAILED
             sandbox.updated_at = utcnow()
@@ -231,7 +231,7 @@ class SandboxLifecycleService:
             return False
 
         if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER:
-            reason = cloak_unavailable_reason()
+            reason = cloak_unavailable_reason(sandbox.kind, image=sandbox.image)
             if reason:
                 raise HTTPException(status_code=409, detail=reason)
 

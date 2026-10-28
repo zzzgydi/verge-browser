@@ -93,10 +93,12 @@ def test_prepare_refuses_existing_chromium_profile(modules, installed):
         modules.runtime.prepare_profile(root, profile, root / "state", "zh-CN", "UTC")
 
 
-def test_native_headed_args_keep_verge_cdp_and_geometry(modules, installed):
+@pytest.mark.parametrize("display", [":99", ":100"])
+def test_native_headed_args_keep_verge_cdp_and_geometry(modules, installed, display):
     root, _, binary = installed
     saved = modules.runtime.prepare_profile(root, root / "profile", root / "state", "zh-CN", "UTC")
-    args = modules.runtime.launch_args(binary, root / "profile", saved, {"BROWSER_WINDOW_WIDTH": "1400", "DEFAULT_URL": "--not-a-flag"})
+    args = modules.runtime.launch_args(binary, root / "profile", saved, {"DISPLAY": display, "BROWSER_WINDOW_WIDTH": "1400", "DEFAULT_URL": "--not-a-flag"})
+    assert f"--display={display}" in args
     assert "--window-size=1400,1024" in args
     assert "--remote-debugging-port=9222" in args
     assert "--remote-debugging-address=127.0.0.1" in args
@@ -487,10 +489,13 @@ def test_stop_falls_back_to_supervisor_and_reports_warning(modules, tmp_path, mo
     assert (result["error"]["code"] if result["error"] else None) == error
 
 
-def test_runtime_script_keeps_chromium_default_and_disables_cloak_retries():
+@pytest.mark.parametrize("runtime", ["runtime-xvfb", "runtime-xpra"])
+def test_runtime_script_keeps_chromium_default_and_disables_cloak_retries(runtime):
     root = Path(__file__).resolve().parents[2]
-    script = (root / "apps/runtime-xvfb/scripts/start_all.sh").read_text()
-    config = (root / "apps/runtime-xvfb/supervisor/supervisord.conf").read_text()
+    script = (root / "apps" / runtime / "scripts/start_all.sh").read_text()
+    config = (root / "apps" / runtime / "supervisor/supervisord.conf").read_text()
+    browser = (root / "apps" / runtime / "scripts/start_browser.sh").read_text()
+    dockerfile = (root / "docker" / f"{runtime}.Dockerfile").read_text()
     assert '${BROWSER_ENGINE:-chromium}' in script
     assert "BROWSER_AUTORESTART=false BROWSER_STARTRETRIES=0" in script
     assert "[unix_http_server]" in config
@@ -499,6 +504,17 @@ def test_runtime_script_keeps_chromium_default_and_disables_cloak_retries():
     assert "BROWSER_STARTRETRIES=3 BROWSER_STOPASGROUP=false BROWSER_STARTSECS=1" in script
     assert "BROWSER_STARTRETRIES=0 BROWSER_STOPASGROUP=true BROWSER_STARTSECS=0" in script
     assert "startsecs=%(ENV_BROWSER_STARTSECS)s" in config
+    assert "stopasgroup=%(ENV_BROWSER_STOPASGROUP)s" in config
+    assert "killasgroup=%(ENV_BROWSER_STOPASGROUP)s" in config
+    assert "/run/sandbox/supervisor.sock" in config
+    assert "cloak_runtime.py prepare" in script
+    assert "cloak_runtime.py launch" in browser
+    assert browser.index("cloak_runtime.py launch") < browser.index("exec chromium")
+    assert "COPY apps/runtime-common/*.py /opt/sandbox/cloak/" in dockerfile
+    assert 'io.verge.browser.launcher-version="1"' in dockerfile
+    assert 'io.verge.browser.experimental-engines="cloakbrowser-linux-amd64"' in dockerfile
+    assert "--require-hashes" in dockerfile
+    assert "cloakbrowser install" not in dockerfile
 
 
 def test_api_contract_exposes_engine_with_chromium_default():
@@ -506,6 +522,32 @@ def test_api_contract_exposes_engine_with_chromium_default():
 
     assert CreateSandboxRequest().browser_engine == "chromium"
     assert CreateSandboxRequest(browser_engine="cloakbrowser").browser_engine == "cloakbrowser"
+
+
+@pytest.mark.parametrize("engine,prepare_exit", [("chromium", 0), ("cloakbrowser", 0), ("cloakbrowser", 1), ("unknown", 0)])
+def test_xpra_entrypoint_prepares_cloak_before_supervisor(tmp_path, engine, prepare_exit):
+    import os
+    import subprocess
+
+    root = Path(__file__).resolve().parents[2]
+    launcher = tmp_path / "prepare"
+    launcher.write_text(f'#!/bin/sh\necho prepare >> "$TRACE"\nexit {prepare_exit}\n')
+    supervisor = tmp_path / "supervisor"
+    supervisor.write_text('#!/bin/sh\nprintf "supervisor:%s:%s:%s:%s\\n" "$BROWSER_AUTORESTART" "$BROWSER_STARTRETRIES" "$BROWSER_STOPASGROUP" "$BROWSER_STARTSECS" >> "$TRACE"\n')
+    launcher.chmod(0o755)
+    supervisor.chmod(0o755)
+    script = (root / "apps/runtime-xpra/scripts/start_all.sh").read_text()
+    script = script.replace("/opt/sandbox/cloak-venv/bin/python", str(launcher)).replace("/usr/bin/supervisord", str(supervisor))
+    trace = tmp_path / "trace"
+    result = subprocess.run(["bash", "-c", script], env={**os.environ, "BROWSER_ENGINE": engine, "TRACE": str(trace)}, capture_output=True, text=True)
+    events = trace.read_text().splitlines() if trace.exists() else []
+    if engine == "chromium":
+        assert result.returncode == 0 and events == ["supervisor:true:3:false:1"]
+    elif engine == "cloakbrowser" and prepare_exit == 0:
+        assert result.returncode == 0 and events == ["prepare", "supervisor:false:0:true:0"]
+    else:
+        assert result.returncode != 0
+        assert events == (["prepare"] if engine == "cloakbrowser" else [])
 
 
 def test_control_start_clears_stale_denial_before_supervisor_start(modules, tmp_path, monkeypatch, capsys):

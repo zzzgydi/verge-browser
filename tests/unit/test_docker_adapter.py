@@ -10,6 +10,35 @@ from app.models.sandbox import SandboxKind
 from app.services.docker_adapter import ContainerCreateResult, DockerAdapter
 
 
+@pytest.mark.parametrize("labels,expected", [
+    ('{"io.verge.browser.launcher-version":"1","io.verge.browser.experimental-engines":"cloakbrowser-linux-amd64"}', True),
+    ("null", False),
+    ("{}", False),
+    ('{"io.verge.browser.launcher-version":"1"}', False),
+    ('{"io.verge.browser.launcher-version":"2","io.verge.browser.experimental-engines":"cloakbrowser-linux-amd64"}', False),
+    ("not-json", False),
+])
+def test_cloak_image_support_requires_launcher_labels(monkeypatch, labels, expected):
+    def inspect(cmd, **kwargs):
+        assert cmd == ["docker", "image", "inspect", "candidate:1", "--format", "{{json .Config.Labels}}"]
+        assert kwargs["timeout"] == 5
+        return subprocess.CompletedProcess(cmd, 0, stdout=labels, stderr="")
+    monkeypatch.setattr("app.services.docker_adapter.subprocess.run", inspect)
+    assert DockerAdapter().cloak_image_supported("candidate:1") is expected
+
+
+@pytest.mark.parametrize("failure", ["missing", "timeout", "no-cli"])
+def test_cloak_image_inspection_failure_is_not_supported(monkeypatch, failure):
+    def inspect(cmd, **kwargs):
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(cmd, 5)
+        if failure == "no-cli":
+            raise FileNotFoundError("docker")
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="image not found")
+    monkeypatch.setattr("app.services.docker_adapter.subprocess.run", inspect)
+    assert DockerAdapter().cloak_image_supported("missing:1") is False
+
+
 @pytest.mark.parametrize("network", ["bridge", "verge-test_default"])
 def test_create_container_passes_matching_xvfb_and_browser_dimensions(monkeypatch, network: str) -> None:
     monkeypatch.setattr(get_settings(), "sandbox_runtime_network", network)

@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     cloak_binary_dir: Path = Path("/opt/verge/cloak")
     cloak_binary_volume: str = "verge-browser-cloak-binaries"
     cloak_runtime_image: str = "verge-browser-runtime-xvfb:latest"
+    cloak_runtime_image_xpra: str = "verge-browser-runtime-xpra:latest"
     cloak_locale: str = "zh-CN"
     cloak_timezone: str = "UTC"
 
@@ -76,6 +77,11 @@ class Settings(BaseSettings):
         if kind == SandboxKind.XPRA:
             return self.sandbox_runtime_image_xpra
         return self.sandbox_runtime_image_xvfb_vnc
+
+    def cloak_runtime_image_for_kind(self, kind: SandboxKind) -> str:
+        if kind == SandboxKind.XPRA:
+            return self.cloak_runtime_image_xpra
+        return self.cloak_runtime_image
 
     def session_port_for_kind(self, kind: SandboxKind) -> int:
         if kind == SandboxKind.XPRA:

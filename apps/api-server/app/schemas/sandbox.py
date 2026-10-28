@@ -23,8 +23,8 @@ class CreateSandboxRequest(BaseModel):
     @model_validator(mode="after")
     def validate_engine(self) -> "CreateSandboxRequest":
         if self.browser_engine == BrowserEngine.CLOAKBROWSER:
-            if self.kind != SandboxKind.XVFB_VNC or self.enable_gpu:
-                raise ValueError("CloakBrowser currently requires xvfb_vnc with GPU disabled")
+            if self.enable_gpu:
+                raise ValueError("CloakBrowser currently requires GPU disabled")
             if self.image is not None:
                 raise ValueError("Configure the CloakBrowser image on the server, not per sandbox")
             if any("@" in value for value in (self.http_proxy or "", self.https_proxy or "")):

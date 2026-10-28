@@ -7,9 +7,9 @@ from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.main import _check_container_health, _reconcile_runtime_state, app
-from app.models.sandbox import BrowserEngine, SandboxRecord, SandboxStatus
+from app.models.sandbox import BrowserEngine, SandboxKind, SandboxRecord, SandboxStatus
 from app.schemas.sandbox import CreateSandboxRequest
-from app.services.docker_adapter import ContainerCreateResult, ManagedContainer, docker_adapter
+from app.services.docker_adapter import ContainerCreateResult, DockerAdapter, ManagedContainer, docker_adapter
 from app.services.engines import cloak_unavailable_reason
 from app.services.lifecycle import SandboxLifecycleService, lifecycle_service
 from app.services.registry import SandboxRegistry, registry
@@ -22,6 +22,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("VERGE_CLOAK_ENABLED", "false")
     monkeypatch.setattr(docker_adapter, "is_available", lambda: True)
     monkeypatch.setattr(docker_adapter, "image_exists", lambda _: True)
+    monkeypatch.setattr(docker_adapter, "cloak_image_supported", lambda name: docker_adapter.image_exists(name))
     for sandbox in tuple(registry.all()):
         registry.delete(sandbox.id)
     yield
@@ -43,12 +44,12 @@ def configured(tmp_path):
     return settings
 
 
-@pytest.fixture
-def sandbox(tmp_path):
+@pytest.fixture(params=list(SandboxKind))
+def sandbox(tmp_path, request):
     workspace = tmp_path / "sandboxes/sb_cloak/workspace"
     workspace.mkdir(parents=True)
     item = SandboxRecord(
-        id="sb_cloak", browser_engine=BrowserEngine.CLOAKBROWSER, status=SandboxStatus.RUNNING,
+        id="sb_cloak", kind=request.param, browser_engine=BrowserEngine.CLOAKBROWSER, status=SandboxStatus.RUNNING,
         image="pinned-runtime:1", workspace_dir=workspace, downloads_dir=workspace / "downloads",
         uploads_dir=workspace / "uploads", browser_profile_dir=workspace / "browser-profile", container_id="cid-cloak",
     )
@@ -62,6 +63,7 @@ def test_engine_discovery_requires_auth_and_never_returns_key(configured):
     response = client.get("/runtime/engines", headers={"Authorization": "Bearer dev-admin-token"})
     assert response.status_code == 200
     assert response.json()["data"][1]["available"] is True
+    assert response.json()["data"][1]["kinds"] == [kind.value for kind in SandboxKind]
     assert "test-not-a-real-key" not in response.text
     assert str(configured.cloak_license_file) not in response.text
 
@@ -98,7 +100,7 @@ def test_missing_cloak_configuration_does_not_block_chromium(monkeypatch):
     assert response.json()["data"]["browser_engine"] == "chromium"
 
 
-@pytest.mark.parametrize("payload", [{"kind": "xpra"}, {"enable_gpu": True}, {"image": "arbitrary:latest"}, {"http_proxy": "http://u:p@proxy"}, {"browser_engine": "unknown"}])
+@pytest.mark.parametrize("payload", [{"enable_gpu": True}, {"image": "arbitrary:latest"}, {"http_proxy": "http://u:p@proxy"}, {"browser_engine": "unknown"}])
 def test_unsupported_engine_combinations_fail_before_creation(payload):
     client = TestClient(app)
     response = client.post("/sandbox", json={"browser_engine": "cloakbrowser", **payload}, headers={"Authorization": "Bearer dev-admin-token"})
@@ -118,7 +120,8 @@ def test_config_readiness_detects_missing_key_binary_and_image(configured, monke
     assert "image" in cloak_unavailable_reason()
 
 
-def test_docker_mounts_cloak_state_outside_workspace(configured, tmp_path, monkeypatch):
+@pytest.mark.parametrize("kind", list(SandboxKind))
+def test_docker_mounts_cloak_state_outside_workspace(configured, tmp_path, monkeypatch, kind):
     calls = []
     def run(cmd, **kwargs):
         calls.append(cmd)
@@ -128,12 +131,19 @@ def test_docker_mounts_cloak_state_outside_workspace(configured, tmp_path, monke
     workspace = tmp_path / "sb_cloak/workspace"
     workspace.mkdir(parents=True)
     result = docker_adapter.create_container(
-        sandbox_id="sb_cloak", kind=CreateSandboxRequest().kind, browser_engine=BrowserEngine.CLOAKBROWSER,
+        sandbox_id="sb_cloak", kind=kind, browser_engine=BrowserEngine.CLOAKBROWSER,
         workspace_dir=workspace, width=1280, height=1024, default_url=None, image=None,
     )
     assert result.container_id == "cid-cloak"
     cmd = calls[0]
     assert "BROWSER_ENGINE=cloakbrowser" in cmd
+    assert cmd[-1] == configured.cloak_runtime_image_for_kind(kind)
+    assert "--platform" in cmd and "linux/amd64" in cmd
+    assert f"DISPLAY={configured.display_for_kind(kind)}" in cmd
+    if kind == SandboxKind.XPRA:
+        assert "XPRA_PORT=14500" in cmd
+        assert "XPRA_DISPLAY=:100" in cmd
+        assert not any(value.startswith("WEBSOCKET_PROXY_PORT=") for value in cmd)
     assert f"type=bind,src={workspace.parent / 'cloak-state'},dst=/root/.cloakbrowser" in cmd
     assert f"type=bind,src={configured.cloak_license_file},dst=/root/.cloakbrowser/license.key,readonly" in cmd
     assert "test-not-a-real-key" not in str(cmd)
@@ -142,7 +152,8 @@ def test_docker_mounts_cloak_state_outside_workspace(configured, tmp_path, monke
 
 
 @pytest.mark.asyncio
-async def test_create_resume_and_recreate_keep_engine(configured, monkeypatch):
+@pytest.mark.parametrize("kind", list(SandboxKind))
+async def test_create_resume_and_recreate_keep_engine(configured, monkeypatch, kind):
     service = SandboxLifecycleService()
     calls = []
     def create(**kwargs):
@@ -152,17 +163,101 @@ async def test_create_resume_and_recreate_keep_engine(configured, monkeypatch):
         registry.get(sandbox_id).status = SandboxStatus.RUNNING
     monkeypatch.setattr(docker_adapter, "create_container", create)
     monkeypatch.setattr(service, "_wait_until_ready", ready)
+    monkeypatch.setattr(service, "_schedule_readiness_probe", lambda *args, **kwargs: None)
     monkeypatch.setattr(docker_adapter, "container_exists", lambda _: True)
     monkeypatch.setattr(docker_adapter, "cloak_control", lambda *args: {"stopped": True, "error": None})
     monkeypatch.setattr(docker_adapter, "remove_container", lambda _: True)
-    item = await service.create(CreateSandboxRequest(alias="cloak-alias", browser_engine="cloakbrowser"))
+    item = await service.create(CreateSandboxRequest(alias="cloak-alias", kind=kind, browser_engine="cloakbrowser"))
+    image = configured.cloak_runtime_image_for_kind(kind)
+    assert item.image == image
+    assert item.runtime.display == configured.display_for_kind(kind)
+    assert item.runtime.session_port == configured.session_port_for_kind(kind)
+    # Existing profiles keep their selected runtime even after defaults change.
+    configured.cloak_runtime_image = "new-xvfb:latest"
+    configured.cloak_runtime_image_xpra = "new-xpra:latest"
+    monkeypatch.setattr(docker_adapter, "image_exists", lambda name: name == image)
     assert service.pause(item.alias)
     assert await service.resume(item.alias)
     monkeypatch.setattr(docker_adapter, "container_exists", lambda _: False)
     assert await service.restart_browser(item.alias)
     assert len(calls) == 3
     assert all(call["browser_engine"] == BrowserEngine.CLOAKBROWSER for call in calls)
-    assert calls[1]["image"] == configured.cloak_runtime_image
+    assert all(call["kind"] == kind for call in calls)
+    assert all(call["image"] == image for call in calls[1:])
+
+
+@pytest.mark.parametrize("available_kind", list(SandboxKind))
+def test_discovery_and_creation_check_only_selected_runtime(configured, monkeypatch, available_kind):
+    monkeypatch.setattr(docker_adapter, "cloak_image_supported", DockerAdapter().cloak_image_supported)
+    def inspect(cmd, **kwargs):
+        assert cmd[:3] == ["docker", "image", "inspect"]
+        labels = {
+            "io.verge.browser.launcher-version": "1",
+            "io.verge.browser.experimental-engines": "cloakbrowser-linux-amd64",
+        } if cmd[3] == configured.cloak_runtime_image_for_kind(available_kind) else None
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(labels), stderr="")
+    monkeypatch.setattr("app.services.docker_adapter.subprocess.run", inspect)
+    headers = {"Authorization": "Bearer dev-admin-token"}
+    client = TestClient(app)
+    engine = client.get("/runtime/engines", headers=headers).json()["data"][1]
+    assert engine["available"] is True
+    assert engine["kinds"] == [available_kind.value]
+    assert cloak_unavailable_reason(available_kind) is None
+    missing_kind = next(kind for kind in SandboxKind if kind != available_kind)
+    response = client.post("/sandbox", headers=headers, json={"browser_engine": "cloakbrowser", "kind": missing_kind.value})
+    assert response.status_code == 409
+    assert missing_kind.value in response.json()["message"]
+    assert not tuple(registry.all())
+
+
+def test_discovery_has_no_available_kinds_without_cloak_configuration():
+    response = TestClient(app).get("/runtime/engines", headers={"Authorization": "Bearer dev-admin-token"})
+    engine = response.json()["data"][1]
+    assert engine["available"] is False
+    assert engine["kinds"] == []
+
+
+@pytest.mark.parametrize("kind", list(SandboxKind))
+def test_legacy_image_is_rejected_before_creating_cloak_profile(configured, monkeypatch, kind):
+    monkeypatch.setattr(docker_adapter, "cloak_image_supported", DockerAdapter().cloak_image_supported)
+    def inspect(cmd, **kwargs):
+        assert cmd[:3] == ["docker", "image", "inspect"]
+        return subprocess.CompletedProcess(cmd, 0, stdout="null", stderr="")
+    monkeypatch.setattr("app.services.docker_adapter.subprocess.run", inspect)
+    headers = {"Authorization": "Bearer dev-admin-token"}
+    client = TestClient(app)
+    engine = client.get("/runtime/engines", headers=headers).json()["data"][1]
+    assert engine["available"] is False and engine["kinds"] == []
+    response = client.post("/sandbox", headers=headers, json={"browser_engine": "cloakbrowser", "kind": kind.value})
+    assert response.status_code == 409 and "rebuild" in response.json()["message"]
+    assert not tuple(registry.all())
+    assert not list(configured.sandbox_base_dir.glob("sb_*"))
+
+
+def test_api_creates_cloak_xpra_with_background_readiness(configured, monkeypatch):
+    calls, scheduled = [], []
+    def create(**kwargs):
+        calls.append(kwargs)
+        return ContainerCreateResult("cid-xpra-cloak", "172.18.0.2")
+    async def no_version(*args):
+        return {}
+    def no_viewport(*args):
+        raise RuntimeError("starting")
+    monkeypatch.setattr(docker_adapter, "create_container", create)
+    monkeypatch.setattr(lifecycle_service, "_schedule_readiness_probe", lambda sid, **kwargs: scheduled.append(sid))
+    monkeypatch.setattr("app.routes.sandboxes.browser_service.browser_version", no_version)
+    monkeypatch.setattr("app.routes.sandboxes.browser_service.get_viewport", no_viewport)
+    response = TestClient(app).post(
+        "/sandbox", headers={"Authorization": "Bearer dev-admin-token"},
+        json={"kind": "xpra", "browser_engine": "cloakbrowser"},
+    )
+    assert response.status_code == 201
+    data = response.json()["data"]
+    assert data["status"] == "STARTING" and data["kind"] == "xpra"
+    assert data["browser_engine"] == "cloakbrowser"
+    assert calls[0]["kind"] == SandboxKind.XPRA
+    assert scheduled == [data["id"]]
+    assert registry.get(data["id"]).image == configured.cloak_runtime_image_xpra
 
 
 @pytest.mark.parametrize("operation", ["pause", "destroy"])

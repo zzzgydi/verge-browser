@@ -43,6 +43,7 @@ type EngineAvailability = {
   browser_engine: Sandbox["browser_engine"];
   available: boolean;
   reason: string | null;
+  kinds: Sandbox["kind"][];
 };
 
 type ApiEnvelope<T> = {
@@ -217,6 +218,7 @@ export function App() {
     { refreshInterval: 30000 },
   );
   const cloak = engines?.find((engine) => engine.browser_engine === "cloakbrowser");
+  const createKinds = createEngine === "cloakbrowser" ? (cloak?.kinds ?? []) : ["xvfb_vnc", "xpra"];
   const { detail: selected } = useSandboxDetail(token, selectedId);
   const selectedStatus = selected?.status ?? null;
   const canPauseSelected = selectedStatus ? canPause(selectedStatus) : false;
@@ -423,7 +425,9 @@ export function App() {
                 const engine = event.target.value as Sandbox["browser_engine"];
                 setCreateEngine(engine);
                 if (engine === "cloakbrowser") {
-                  setCreateKind("xvfb_vnc");
+                  if (!cloak?.kinds.includes(createKind)) {
+                    setCreateKind(cloak?.kinds[0] ?? "xvfb_vnc");
+                  }
                   setCreateEnableGpu(false);
                 }
               }}
@@ -435,13 +439,12 @@ export function App() {
               aria-label="Desktop runtime"
               className="toolbar-select"
               value={createKind}
-              disabled={createEngine === "cloakbrowser"}
               onChange={(event) =>
                 setCreateKind(event.target.value as "xvfb_vnc" | "xpra")
               }
             >
-              <option value="xvfb_vnc">xvfb + vnc</option>
-              <option value="xpra">xpra</option>
+              <option value="xvfb_vnc" disabled={!createKinds.includes("xvfb_vnc")}>xvfb + vnc</option>
+              <option value="xpra" disabled={!createKinds.includes("xpra")}>xpra</option>
             </select>
             <select
               className="toolbar-select"
@@ -470,13 +473,14 @@ export function App() {
             <button
               className="create-btn"
               onClick={() => void createSandbox()}
-              disabled={isActionLoading || (createEngine === "cloakbrowser" && !cloak?.available)}
+              disabled={isActionLoading || !createKinds.includes(createKind) || (createEngine === "cloakbrowser" && !cloak?.available)}
             >
               {isActionLoading ? "Creating..." : "Create Sandbox"}
             </button>
           </div>
           {cloak && !cloak.available ? <p className="muted engine-hint">{cloak.reason}</p> : null}
           {createEngine === "cloakbrowser" ? <p className="muted engine-hint">Free keys support one running browser at a time. Pause it before creating another.</p> : null}
+          {createEngine === "cloakbrowser" && createKind === "xpra" ? <p className="muted engine-hint">The Cloak Xpra adapter is experimental; real-runtime validation is still required.</p> : null}
         </div>
       </section>
 

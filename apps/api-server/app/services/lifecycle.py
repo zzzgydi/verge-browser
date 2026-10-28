@@ -393,6 +393,12 @@ class SandboxLifecycleService:
                 raise
             except Exception:
                 logger.exception("background sandbox readiness failed for %s", sandbox_id)
+                sandbox = registry.get(sandbox_id)
+                if sandbox is not None and sandbox.status == SandboxStatus.STARTING:
+                    sandbox.status = SandboxStatus.DEGRADED
+                    sandbox.updated_at = utcnow()
+                    sandbox.metadata["runtime_error"] = "Sandbox background readiness failed; inspect API logs. Container and profile preserved."
+                    registry.put(sandbox)
 
         task = asyncio.create_task(runner())
         self._readiness_tasks[sandbox_id] = task

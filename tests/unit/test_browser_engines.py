@@ -1,3 +1,4 @@
+import asyncio
 import json
 import subprocess
 
@@ -371,3 +372,74 @@ async def test_restart_cloak_closes_before_start(sandbox, configured, monkeypatc
     monkeypatch.setattr(lifecycle_service, "_wait_until_ready", ready)
     assert await lifecycle_service.restart_browser(sandbox.id)
     assert events == ["close", "start"]
+
+
+@pytest.mark.asyncio
+async def test_background_readiness_exception_preserves_runtime_and_persists_error(sandbox, monkeypatch):
+    sandbox.status = SandboxStatus.STARTING
+    sandbox.browser_profile_dir.mkdir()
+    profile_file = sandbox.browser_profile_dir / "test-profile"
+    profile_file.write_text("preserved")
+    registry.put(sandbox)
+    before = sandbox.updated_at
+    service = SandboxLifecycleService()
+    async def fail(*args, **kwargs):
+        raise RuntimeError("synthetic-sensitive-upstream-detail")
+    monkeypatch.setattr(service, "_wait_until_ready", fail)
+    service._schedule_readiness_probe(sandbox.id, timeout_sec=1)
+    await service._readiness_tasks[sandbox.id]
+    await asyncio.sleep(0)
+    assert sandbox.status == SandboxStatus.DEGRADED
+    assert sandbox.updated_at >= before
+    assert sandbox.container_id == "cid-cloak" and sandbox.workspace_dir.exists()
+    assert profile_file.read_text() == "preserved"
+    assert "background readiness failed" in sandbox.metadata["runtime_error"]
+    assert "sensitive" not in sandbox.metadata["runtime_error"]
+    saved = json.loads((sandbox.workspace_dir.parent / "meta.json").read_text())
+    assert saved["status"] == "DEGRADED"
+    assert saved["metadata"]["runtime_error"] == sandbox.metadata["runtime_error"]
+    assert sandbox.id not in service._readiness_tasks
+
+
+@pytest.mark.asyncio
+async def test_background_readiness_cancellation_does_not_mark_failed(sandbox, monkeypatch):
+    sandbox.status = SandboxStatus.STARTING
+    registry.put(sandbox)
+    service = SandboxLifecycleService()
+    started = asyncio.Event()
+    async def wait(*args, **kwargs):
+        started.set()
+        await asyncio.Event().wait()
+    monkeypatch.setattr(service, "_wait_until_ready", wait)
+    service._schedule_readiness_probe(sandbox.id, timeout_sec=1)
+    task = service._readiness_tasks[sandbox.id]
+    await started.wait()
+    service._cancel_readiness_task(sandbox.id)
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert sandbox.status == SandboxStatus.STARTING
+    assert "runtime_error" not in sandbox.metadata
+    assert sandbox.id not in service._readiness_tasks
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("later_state", ["deleted", "stopped", "degraded"])
+async def test_background_readiness_exception_does_not_overwrite_later_state(sandbox, monkeypatch, later_state):
+    sandbox.status = SandboxStatus.STARTING
+    service = SandboxLifecycleService()
+    async def fail(*args, **kwargs):
+        if later_state == "deleted":
+            registry.delete(sandbox.id)
+        else:
+            sandbox.status = SandboxStatus.STOPPED if later_state == "stopped" else SandboxStatus.DEGRADED
+            sandbox.metadata["runtime_error"] = "existing diagnostic"
+            registry.put(sandbox)
+        raise RuntimeError("late failure")
+    monkeypatch.setattr(service, "_wait_until_ready", fail)
+    service._schedule_readiness_probe(sandbox.id, timeout_sec=1)
+    await service._readiness_tasks[sandbox.id]
+    if later_state == "deleted":
+        assert registry.get(sandbox.id) is None
+    else:
+        assert sandbox.metadata["runtime_error"] == "existing diagnostic"
+        assert sandbox.status == (SandboxStatus.STOPPED if later_state == "stopped" else SandboxStatus.DEGRADED)

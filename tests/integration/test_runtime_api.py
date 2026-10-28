@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -154,6 +155,33 @@ def test_runtime_browser_endpoints(docker_runtime_ready: None, clean_sandbox_bas
         clipboard_read = client.get(f"/sandbox/{sandbox_id}/clipboard", cookies=client.cookies)
         assert clipboard_read.status_code == 200
         assert clipboard_read.json() == {"status": "ok", "text": "hello clipboard"}
+
+        cdp_ticket = body(client.post(f"/sandbox/{sandbox_id}/cdp/apply", headers=AUTH_HEADERS))
+        with client.websocket_connect(_testclient_ws_target(cdp_ticket["cdp_url"])) as ws:
+            counter = itertools.count(1)
+            target = _cdp_call(ws, counter, "Target.createTarget", {"url": "about:blank"})
+            target_id = target["targetId"]
+            session_id = _cdp_call(ws, counter, "Target.attachToTarget", {"targetId": target_id, "flatten": True})["sessionId"]
+            _cdp_call(ws, counter, "Runtime.evaluate", {
+                "expression": "document.body.innerHTML = '<textarea id=clipboard-test></textarea>'; document.querySelector('textarea').focus()",
+            }, session_id=session_id)
+            _cdp_call(ws, counter, "Page.bringToFront", session_id=session_id)
+            pasted = client.post(
+                f"/sandbox/{sandbox_id}/browser/actions",
+                json={"actions": [{"type": "HOTKEY", "keys": ["ctrl", "v"]}]},
+                headers=AUTH_HEADERS,
+            )
+            assert pasted.status_code == 200
+            for _ in range(30):
+                value = _cdp_call(ws, counter, "Runtime.evaluate", {
+                    "expression": "document.querySelector('textarea').value", "returnByValue": True,
+                }, session_id=session_id)
+                if value["result"].get("value") == "hello clipboard":
+                    break
+                time.sleep(0.1)
+            else:
+                pytest.fail("X11 clipboard text was not pasted into Chromium")
+            _cdp_call(ws, counter, "Target.closeTarget", {"targetId": target_id})
     finally:
         deleted = client.delete(f"/sandbox/{sandbox_id}", headers=AUTH_HEADERS)
         assert deleted.status_code == 200

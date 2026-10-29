@@ -182,6 +182,11 @@ Request:
 
 Capture a screenshot.
 
+Window screenshots include the browser chrome. Xvfb captures the visible desktop
+region; Xpra captures the browser window directly, because its root desktop does
+not contain the redirected window pixels. On Xpra, capturing an unmapped browser
+window makes that window visible even when no HTML5 session is connected.
+
 Request:
 
 ```json

@@ -2,7 +2,6 @@ import { FormEvent, useState } from "react";
 import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
 
-// GitHub Icon Component
 function GitHubIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -15,6 +14,77 @@ function GitHubIcon({ className }: { className?: string }) {
     >
       <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
     </svg>
+  );
+}
+
+function Icon({
+  name,
+}: {
+  name:
+    | "plus"
+    | "refresh"
+    | "external"
+    | "code"
+    | "browser"
+    | "search"
+    | "logout";
+}) {
+  const paths = {
+    plus: "M12 5v14M5 12h14",
+    refresh:
+      "M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17",
+    external:
+      "M14 4h6v6M20 4l-9 9M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5",
+    code: "m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16",
+    browser:
+      "M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM3 9h18M7 6.5h.01M10 6.5h.01",
+    search: "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Zm5-1.5L21 21",
+    logout: "M9 4H4v16h5M9 12h12m-5-5 5 5-5 5",
+  };
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={paths[name]} />
+    </svg>
+  );
+}
+
+function Status({ value }: { value: string }) {
+  const icons: Record<string, string> = {
+    RUNNING: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM10 8l6 4-6 4Z",
+    STOPPED: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9 8v8M15 8v8",
+    STARTING: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2",
+    DEGRADED: "M12 3 2 21h20ZM12 9v5M12 17h.01",
+    FAILED: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9 9l6 6M15 9l-6 6",
+  };
+  return (
+    <span className={`status status-${value.toLowerCase()}`}>
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path
+          d={icons[value] ?? "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM8 12h8"}
+        />
+      </svg>
+      {value.toLowerCase()}
+    </span>
   );
 }
 
@@ -119,9 +189,7 @@ async function api<T>(
   });
 
   if (response.status === 401) {
-    const message = "Unauthorized. Check the admin token.";
-    toast.error(message);
-    throw new Error(message);
+    throw new Error("Unauthorized. Check the admin token.");
   }
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as {
@@ -132,7 +200,6 @@ async function api<T>(
       payload?.message ||
       payload?.detail ||
       `Request failed with ${response.status}`;
-    toast.error(message);
     throw new Error(message);
   }
   const payload = (await response.json()) as ApiEnvelope<T> | T;
@@ -169,18 +236,25 @@ function useSandboxes(token: string) {
 }
 
 function useSandboxDetail(token: string, idOrAlias: string | null) {
-  const { data, error, isLoading } = useSWR<Sandbox>(
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useSWR<Sandbox>(
     token && idOrAlias
       ? [`${SWR_CONFIG_KEY}/${idOrAlias}`, token, idOrAlias]
       : null,
     ([, t, id]: [string, string, string]) =>
       api<Sandbox>(`/sandbox/${id}`, t, { method: "GET" }),
+    { refreshInterval: 30000 },
   );
 
   return {
     detail: data || null,
     error,
     isLoading,
+    refresh,
   };
 }
 
@@ -197,29 +271,53 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createAlias, setCreateAlias] = useState("");
   const [createKind, setCreateKind] = useState<"xvfb_vnc" | "xpra">("xvfb_vnc");
-  const [createEngine, setCreateEngine] = useState<Sandbox["browser_engine"]>("chromium");
+  const [createEngine, setCreateEngine] =
+    useState<Sandbox["browser_engine"]>("chromium");
   const [createResolution, setCreateResolution] = useState("1280x1024");
   const [createEnableGpu, setCreateEnableGpu] = useState(false);
   const [sessionPresetKey, setSessionPresetKey] = useState(
     DEFAULT_SESSION_PRESET_KEY,
   );
   const [cdpPresetKey, setCdpPresetKey] = useState(DEFAULT_CDP_PRESET_KEY);
-  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const isActionLoading = pendingAction !== null;
 
   const {
     sandboxes,
     isLoading: isListLoading,
     isValidating,
+    error: listError,
     refresh,
   } = useSandboxes(token);
-  const { data: engines, mutate: refreshEngines } = useSWR<EngineAvailability[]>(
+  const {
+    data: engines,
+    error: enginesError,
+    mutate: refreshEngines,
+  } = useSWR<EngineAvailability[]>(
     token ? ["browser-engines", token] : null,
-    ([, t]: [string, string]) => api<EngineAvailability[]>("/runtime/engines", t),
+    ([, t]: [string, string]) =>
+      api<EngineAvailability[]>("/runtime/engines", t),
     { refreshInterval: 30000 },
   );
-  const cloak = engines?.find((engine) => engine.browser_engine === "cloakbrowser");
-  const createKinds = createEngine === "cloakbrowser" ? (cloak?.kinds ?? []) : ["xvfb_vnc", "xpra"];
-  const { detail: selected } = useSandboxDetail(token, selectedId);
+  const cloak = engines?.find(
+    (engine) => engine.browser_engine === "cloakbrowser",
+  );
+  const createKinds =
+    createEngine === "cloakbrowser"
+      ? (cloak?.kinds ?? [])
+      : ["xvfb_vnc", "xpra"];
+  const {
+    detail: selected,
+    error: detailError,
+    isLoading: isDetailLoading,
+    refresh: refreshDetail,
+  } = useSandboxDetail(token, selectedId);
+  const visibleSandboxes = sandboxes.filter((sandbox) =>
+    `${sandbox.alias ?? ""} ${sandbox.id} ${sandbox.browser_engine} ${sandbox.status}`
+      .toLowerCase()
+      .includes(search.trim().toLowerCase()),
+  );
   const selectedStatus = selected?.status ?? null;
   const canPauseSelected = selectedStatus ? canPause(selectedStatus) : false;
   const canResumeSelected = selectedStatus ? canResume(selectedStatus) : false;
@@ -237,12 +335,12 @@ export function App() {
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
     localStorage.setItem(TOKEN_KEY, inputToken);
-    localStorage.setItem(API_URL_KEY, inputApiUrl);
+    localStorage.setItem(API_URL_KEY, inputApiUrl.trim().replace(/\/+$/, ""));
     setToken(inputToken);
   }
 
   async function createSandbox() {
-    setIsActionLoading(true);
+    setPendingAction("create");
     try {
       const [resW, resH] = createResolution.split("x").map(Number);
       const detail = await api<Sandbox>("/sandbox", token, {
@@ -260,14 +358,25 @@ export function App() {
       await refresh();
       setSelectedId(detail.id);
       if (detail.status === "FAILED" || detail.status === "DEGRADED") {
-        toast.error(String(detail.metadata.runtime_error || "Sandbox did not become ready. Inspect its details."));
+        toast.error(
+          String(
+            detail.metadata.runtime_error ||
+              "Sandbox did not become ready. Inspect its details.",
+          ),
+        );
       } else {
-        toast.success(`Sandbox ${detail.alias || detail.id.slice(0, 8)} created successfully`);
+        toast.success(
+          `Sandbox ${detail.alias || detail.id.slice(0, 8)} created successfully`,
+        );
       }
-    } catch {
-      // Error is already toasted by api()
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not create sandbox. Try again.",
+      );
     } finally {
-      setIsActionLoading(false);
+      setPendingAction(null);
     }
   }
 
@@ -275,7 +384,7 @@ export function App() {
     action: "pause" | "resume" | "delete" | "session" | "cdp",
     sandbox: Sandbox,
   ) {
-    setIsActionLoading(true);
+    setPendingAction(action);
     let sessionWindow: Window | null = null;
     try {
       if (action === "delete") {
@@ -332,11 +441,14 @@ export function App() {
         toast.success(`Sandbox ${action}d successfully`);
       }
       await refresh();
-    } catch {
+      if (action !== "delete") await refreshDetail();
+    } catch (error) {
       sessionWindow?.close();
-      // Error is already toasted by api()
+      toast.error(
+        error instanceof Error ? error.message : "Action failed. Try again.",
+      );
     } finally {
-      setIsActionLoading(false);
+      setPendingAction(null);
     }
   }
 
@@ -349,9 +461,12 @@ export function App() {
 
   if (!token) {
     return (
-      <main className="shell login-shell">
+      <main className="login-shell">
         <section className="login-card">
-          <p className="eyebrow">Welcome to Verge Browser</p>
+          <div className="brand">
+            <Icon name="browser" />
+            <span>Verge Browser</span>
+          </div>
           <h1>Admin Console</h1>
           <p className="muted">
             Use the shared admin token to manage every sandbox on this control
@@ -364,6 +479,8 @@ export function App() {
                 value={inputApiUrl}
                 onChange={(event) => setInputApiUrl(event.target.value)}
                 placeholder={DEFAULT_API_URL}
+                type="url"
+                required
               />
             </label>
             <label>
@@ -373,9 +490,12 @@ export function App() {
                 onChange={(event) => setInputToken(event.target.value)}
                 placeholder="Bearer token value"
                 type="password"
+                required
               />
             </label>
-            <button type="submit">Open Console</button>
+            <button type="submit">
+              Open Console <Icon name="external" />
+            </button>
           </form>
         </section>
       </main>
@@ -383,270 +503,472 @@ export function App() {
   }
 
   return (
-    <main className="shell">
-      <section className="toolbar">
-        <div className="toolbar-titlebox">
-          <p className="eyebrow">
-            <span>Verge Browser</span>
-          </p>
-          <h1 className="toolbar-title">Sandbox Control</h1>
+    <div className="shell">
+      <a className="skip-link" href="#sandbox-workspace">
+        Skip to sandboxes
+      </a>
+      <header className="topbar">
+        <div className="console-heading">
+          <Icon name="browser" />
+          <h1>Verge Browser</h1>
         </div>
-        <div>
-          <div className="toolbar-actions">
-            <button className="ghost" onClick={() => { void refresh(); void refreshEngines(); }}>
-              Refresh
-            </button>
-            <button className="ghost" onClick={logout}>
-              Logout
-            </button>
-            <a
-              href="https://github.com/zzzgydi/verge-browser"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="github-link"
-              title="View on GitHub"
-            >
-              <GitHubIcon />
-            </a>
-          </div>
+        <nav className="toolbar-actions" aria-label="Console actions">
+          <button
+            className="ghost"
+            aria-label={isValidating ? "Syncing..." : "Refresh"}
+            title="Refresh now (automatically refreshes every 30 seconds)"
+            onClick={() => {
+              void refresh();
+              void refreshEngines();
+              void refreshDetail();
+            }}
+            disabled={isValidating}
+          >
+            <Icon name="refresh" />
+            <span>{isValidating ? "Syncing..." : "Refresh"}</span>
+          </button>
+          <button
+            className="ghost"
+            onClick={logout}
+            aria-label="Logout"
+            title="Logout"
+          >
+            <Icon name="logout" />
+            <span>Logout</span>
+          </button>
+          <a
+            href="https://github.com/zzzgydi/verge-browser"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="github-link"
+            aria-label="View on GitHub"
+            title="View on GitHub"
+          >
+            <GitHubIcon />
+          </a>
+        </nav>
+      </header>
 
-          <div className="toolbar-actions" style={{ marginTop: 8 }}>
-            <input
-              className="toolbar-input"
-              value={createAlias}
-              onChange={(event) => setCreateAlias(event.target.value)}
-              placeholder="alias (optional)"
-            />
-            <select
-              aria-label="Browser engine"
-              className="toolbar-select"
-              value={createEngine}
-              onChange={(event) => {
-                const engine = event.target.value as Sandbox["browser_engine"];
-                setCreateEngine(engine);
-                if (engine === "cloakbrowser") {
-                  if (!cloak?.kinds.includes(createKind)) {
-                    setCreateKind(cloak?.kinds[0] ?? "xvfb_vnc");
+      <main>
+        <section className="create-panel" aria-labelledby="create-heading">
+          <h2 id="create-heading">Create a sandbox</h2>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void createSandbox();
+            }}
+          >
+            <fieldset className="create-fields" disabled={isActionLoading}>
+              <label className="alias-field">
+                <span>
+                  Alias <span className="optional">(optional)</span>
+                </span>
+                <input
+                  value={createAlias}
+                  onChange={(event) => setCreateAlias(event.target.value)}
+                  placeholder="e.g. research-browser"
+                />
+              </label>
+              <label>
+                Browser engine
+                <select
+                  value={createEngine}
+                  onChange={(event) => {
+                    const engine = event.target
+                      .value as Sandbox["browser_engine"];
+                    setCreateEngine(engine);
+                    if (engine === "cloakbrowser") {
+                      if (!cloak?.kinds.includes(createKind))
+                        setCreateKind(cloak?.kinds[0] ?? "xvfb_vnc");
+                      setCreateEnableGpu(false);
+                    }
+                  }}
+                >
+                  <option value="chromium">Chromium</option>
+                  <option value="cloakbrowser" disabled={!cloak?.available}>
+                    CloakBrowser{cloak?.available ? "" : " (not configured)"}
+                  </option>
+                </select>
+              </label>
+              <label>
+                Desktop runtime
+                <select
+                  value={createKind}
+                  onChange={(event) =>
+                    setCreateKind(event.target.value as Sandbox["kind"])
                   }
-                  setCreateEnableGpu(false);
-                }
-              }}
-            >
-              <option value="chromium">Chromium</option>
-              <option value="cloakbrowser" disabled={!cloak?.available}>CloakBrowser{cloak?.available ? "" : " (not configured)"}</option>
-            </select>
-            <select
-              aria-label="Desktop runtime"
-              className="toolbar-select"
-              value={createKind}
-              onChange={(event) =>
-                setCreateKind(event.target.value as "xvfb_vnc" | "xpra")
-              }
-            >
-              <option value="xvfb_vnc" disabled={!createKinds.includes("xvfb_vnc")}>xvfb + vnc</option>
-              <option value="xpra" disabled={!createKinds.includes("xpra")}>xpra</option>
-            </select>
-            <select
-              className="toolbar-select"
-              value={createResolution}
-              onChange={(event) => setCreateResolution(event.target.value)}
-            >
-              <option value="1280x1024">1280x1024</option>
-              <option value="1366x768">1366x768</option>
-              <option value="1440x900">1440x900</option>
-              <option value="1920x1080">1920x1080</option>
-              <option value="2560x1440">2560x1440</option>
-            </select>
-            <label className="toggle-chip" aria-label="Enable GPU acceleration">
-              <input
-                type="checkbox"
-                checked={createEnableGpu}
-                disabled={createEngine === "cloakbrowser"}
-                onChange={(e) => setCreateEnableGpu(e.target.checked)}
-              />
-              <span className="toggle-indicator" aria-hidden="true" />
-              <span className="toggle-text">
-                <strong>GPU</strong>
-                <small>Support WebGL</small>
-              </span>
-            </label>
-            <button
-              className="create-btn"
-              onClick={() => void createSandbox()}
-              disabled={isActionLoading || !createKinds.includes(createKind) || (createEngine === "cloakbrowser" && !cloak?.available)}
-            >
-              {isActionLoading ? "Creating..." : "Create Sandbox"}
-            </button>
-          </div>
-          {cloak && !cloak.available ? <p className="muted engine-hint">{cloak.reason}</p> : null}
-          {createEngine === "cloakbrowser" ? <p className="muted engine-hint">Free keys support one running browser at a time. Pause it before creating another.</p> : null}
-          {createEngine === "cloakbrowser" && createKind === "xpra" ? <p className="muted engine-hint">The Cloak Xpra adapter is experimental; real-runtime validation is still required.</p> : null}
-        </div>
-      </section>
-
-      <section className="grid">
-        <article className="panel">
-          <div className="panel-header">
-            <h2>Sandboxes</h2>
-            <span>
-              {isListLoading || isValidating
-                ? "Syncing..."
-                : `${sandboxes.length} total`}
-            </span>
-          </div>
-          <div className="list">
-            {sandboxes.map((sandbox) => (
-              <button
-                key={sandbox.id}
-                className={`list-item ${selectedId === sandbox.id ? "active" : ""}`}
-                onClick={() => setSelectedId(sandbox.id)}
-              >
-                <strong>{sandbox.alias || sandbox.id}</strong>
-                <span>{sandbox.id}</span>
-                <span>{sandbox.browser_engine === "cloakbrowser" ? "CloakBrowser" : "Chromium"}</span>
-                <span>{sandbox.status}</span>
-              </button>
-            ))}
-            {!sandboxes.length ? (
-              <p className="muted">No sandboxes yet.</p>
-            ) : null}
-          </div>
-        </article>
-
-        <article className="panel detail-panel">
-          {selected ? (
-            <>
-              <div className="panel-header">
-                <div className="header-info">
-                  <h2>{selected.alias || selected.id}</h2>
-                  <p className="muted">{selected.id}</p>
-                </div>
-
-                <div className="header-actions">
-                  <div
-                    className={`status-box status status-${selected.status.toLowerCase()}`}
+                >
+                  <option
+                    value="xvfb_vnc"
+                    disabled={!createKinds.includes("xvfb_vnc")}
                   >
-                    {selected.status}
-                  </div>
+                    Xvfb + VNC
+                  </option>
+                  <option value="xpra" disabled={!createKinds.includes("xpra")}>
+                    Xpra
+                  </option>
+                </select>
+              </label>
+              <label>
+                Resolution
+                <select
+                  value={createResolution}
+                  onChange={(event) => setCreateResolution(event.target.value)}
+                >
+                  <option value="1280x1024">1280 x 1024</option>
+                  <option value="1366x768">1366 x 768</option>
+                  <option value="1440x900">1440 x 900</option>
+                  <option value="1920x1080">1920 x 1080</option>
+                  <option value="2560x1440">2560 x 1440</option>
+                </select>
+              </label>
+              <label className="gpu-field">
+                <span>Acceleration</span>
+                <span className="checkbox-control">
+                  <input
+                    type="checkbox"
+                    checked={createEnableGpu}
+                    disabled={createEngine === "cloakbrowser"}
+                    onChange={(event) =>
+                      setCreateEnableGpu(event.target.checked)
+                    }
+                  />
+                  <span>Enable GPU</span>
+                </span>
+              </label>
+              <button
+                className="create-btn"
+                type="submit"
+                disabled={
+                  isActionLoading ||
+                  !createKinds.includes(createKind) ||
+                  (createEngine === "cloakbrowser" && !cloak?.available)
+                }
+              >
+                <Icon name="plus" />
+                {pendingAction === "create" ? "Creating..." : "Create Sandbox"}
+              </button>
+            </fieldset>
+          </form>
+          {enginesError ? (
+            <p className="engine-hint error-text" role="alert">
+              Could not check browser availability. Refresh to try again.
+            </p>
+          ) : null}
+          {cloak && !cloak.available ? (
+            <p className="muted engine-hint">{cloak.reason}</p>
+          ) : null}
+          {createEngine === "cloakbrowser" ? (
+            <p className="muted engine-hint">
+              Free keys support one running browser at a time. Pause it before
+              creating another.
+            </p>
+          ) : null}
+          {createEngine === "cloakbrowser" && createKind === "xpra" ? (
+            <p className="muted engine-hint">
+              The Cloak Xpra adapter is experimental; real-runtime validation is
+              still required.
+            </p>
+          ) : null}
+        </section>
 
-                  <div className="header-action-row">
+        <section
+          className="workspace"
+          id="sandbox-workspace"
+          aria-label="Sandbox workspace"
+          tabIndex={-1}
+        >
+          <aside className="inventory" aria-labelledby="sandboxes-heading">
+            <div className="inventory-heading">
+              <h2 id="sandboxes-heading">
+                Sandboxes <span className="count">{sandboxes.length}</span>
+              </h2>
+            </div>
+            <div className="search-field">
+              <Icon name="search" />
+              <input
+                aria-label="Search sandboxes"
+                placeholder="Search name, ID or status"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                type="search"
+              />
+            </div>
+            {listError ? (
+              <div className="list-notice error-text" role="alert">
+                <strong>Could not load sandboxes</strong>
+                <p>{listError.message}</p>
+                <button className="ghost" onClick={() => void refresh()}>
+                  Try again
+                </button>
+              </div>
+            ) : null}
+            <div className="sandbox-list" aria-busy={isListLoading}>
+              {isListLoading ? (
+                <div className="loading-state" role="status">
+                  <p>Loading sandboxes...</p>
+                  <div className="skeleton" />
+                  <div className="skeleton" />
+                  <div className="skeleton" />
+                </div>
+              ) : (
+                visibleSandboxes.map((sandbox) => (
+                  <button
+                    key={sandbox.id}
+                    className={`list-item ${selectedId === sandbox.id ? "active" : ""}`}
+                    onClick={() => setSelectedId(sandbox.id)}
+                    aria-pressed={selectedId === sandbox.id}
+                  >
+                    <span className="list-item-title">
+                      <strong>{sandbox.alias || sandbox.id}</strong>
+                      <Status value={sandbox.status} />
+                    </span>
+                    {sandbox.alias ? (
+                      <span className="mono sandbox-id">{sandbox.id}</span>
+                    ) : null}
+                    <span className="list-item-meta">
+                      <span>
+                        {sandbox.browser_engine === "cloakbrowser"
+                          ? "CloakBrowser"
+                          : "Chromium"}
+                      </span>
+                      <span>
+                        {sandbox.kind === "xpra" ? "Xpra" : "Xvfb + VNC"}
+                      </span>
+                    </span>
+                  </button>
+                ))
+              )}
+              {!isListLoading && !listError && !visibleSandboxes.length ? (
+                <div className="list-notice">
+                  <strong>
+                    {search ? "No matching sandboxes" : "No sandboxes yet"}
+                  </strong>
+                  <p>
+                    {search
+                      ? "Try another name, ID or status."
+                      : "Create a sandbox to get started."}
+                  </p>
+                  {search ? (
+                    <button className="ghost" onClick={() => setSearch("")}>
+                      Clear search
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </aside>
+
+          <article
+            className="detail-panel"
+            aria-label="Sandbox details"
+            aria-busy={isDetailLoading}
+          >
+            {selected ? (
+              <>
+                <header className="detail-header">
+                  <div className="header-info">
+                    <div className="detail-title">
+                      <h2>{selected.alias || selected.id}</h2>
+                      <Status value={selected.status} />
+                    </div>
+                    {selected.alias ? (
+                      <p className="mono muted">{selected.id}</p>
+                    ) : null}
+                  </div>
+                  <div
+                    className="lifecycle-actions"
+                    aria-label="Sandbox lifecycle"
+                  >
                     <button
+                      className="ghost"
                       onClick={() => void runAction("pause", selected)}
                       disabled={isActionLoading || !canPauseSelected}
                     >
-                      Pause
+                      {pendingAction === "pause" ? "Pausing..." : "Pause"}
                     </button>
                     <button
+                      className="ghost"
                       onClick={() => void runAction("resume", selected)}
                       disabled={isActionLoading || !canResumeSelected}
                     >
-                      Resume
+                      {pendingAction === "resume" ? "Resuming..." : "Resume"}
                     </button>
                     <button
                       className="danger"
                       onClick={() => void runAction("delete", selected)}
                       disabled={isActionLoading}
                     >
-                      Delete
+                      {pendingAction === "delete" ? "Deleting..." : "Delete"}
                     </button>
                   </div>
-                </div>
-              </div>
-
-              <div className="detail-grid">
-                <div>
-                  <label>Browser</label>
-                  <p>{selected.browser_engine === "cloakbrowser" ? "CloakBrowser" : "Chromium"}</p>
-                </div>
-                <div>
-                  <label>Kind</label>
-                  <p>{selected.kind}</p>
-                </div>
-                <div>
-                  <label>Viewport</label>
-                  <p>
-                    {selected.width} x {selected.height}
+                </header>
+                {detailError ? (
+                  <p className="error-text" role="alert">
+                    Could not refresh these details. Showing the last loaded
+                    state. Use Refresh to retry.
                   </p>
-                </div>
-                <div>
-                  <label>GPU</label>
-                  <p>{selected.enable_gpu ? "Enabled" : "Disabled"}</p>
-                </div>
-                <div>
-                  <label>Created</label>
-                  <p>{new Date(selected.created_at).toLocaleString()}</p>
-                </div>
-                <div>
-                  <label>Updated</label>
-                  <p>{new Date(selected.updated_at).toLocaleString()}</p>
-                </div>
-              </div>
+                ) : null}
+                {selected.metadata.runtime_error ? (
+                  <p className="action-hint error-text" role="alert">
+                    {String(selected.metadata.runtime_error)}
+                  </p>
+                ) : null}
+                <dl className="detail-grid">
+                  <div>
+                    <dt>Browser engine</dt>
+                    <dd>
+                      {selected.browser_engine === "cloakbrowser"
+                        ? "CloakBrowser"
+                        : "Chromium"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Desktop runtime</dt>
+                    <dd>{selected.kind === "xpra" ? "Xpra" : "Xvfb + VNC"}</dd>
+                  </div>
+                  <div>
+                    <dt>Viewport</dt>
+                    <dd className="numeric">
+                      {selected.width} x {selected.height}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>GPU acceleration</dt>
+                    <dd>{selected.enable_gpu ? "Enabled" : "Disabled"}</dd>
+                  </div>
+                  <div>
+                    <dt>Created</dt>
+                    <dd className="numeric">
+                      {new Date(selected.created_at).toLocaleString()}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Updated</dt>
+                    <dd className="numeric">
+                      {new Date(selected.updated_at).toLocaleString()}
+                    </dd>
+                  </div>
+                </dl>
 
-              <div className="action-row">
-                <div className="action-with-option">
-                  <button
-                    onClick={() => void runAction("session", selected)}
-                    disabled={isActionLoading || !canOpenSessionSelected}
-                  >
-                    Open Session
-                  </button>
-                  <select
-                    aria-label="Session link expiry"
-                    value={sessionPresetKey}
-                    onChange={(event) =>
-                      setSessionPresetKey(event.target.value)
-                    }
-                    disabled={isActionLoading}
-                  >
-                    {ACCESS_PRESETS.map((preset) => (
-                      <option key={preset.key} value={preset.key}>
-                        {preset.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="action-with-option">
-                  <button
-                    onClick={() => void runAction("cdp", selected)}
-                    disabled={isActionLoading || !canOpenSessionSelected}
-                  >
-                    Connect CDP
-                  </button>
-                  <select
-                    aria-label="CDP link expiry"
-                    value={cdpPresetKey}
-                    onChange={(event) => setCdpPresetKey(event.target.value)}
-                    disabled={isActionLoading}
-                  >
-                    {ACCESS_PRESETS.map((preset) => (
-                      <option key={preset.key} value={preset.key}>
-                        {preset.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              {selectedActionHint ? (
-                <p className="muted">{selectedActionHint}</p>
-              ) : null}
+                <section
+                  className="connections"
+                  aria-labelledby="connections-heading"
+                >
+                  <h3 id="connections-heading">Connect</h3>
+                  <div className="connection-row">
+                    <div className="connection-description">
+                      <Icon name="browser" />
+                      <div>
+                        <h4>Browser session</h4>
+                        <p>Open the desktop in a new tab.</p>
+                      </div>
+                    </div>
+                    <div className="connection-actions">
+                      <label>
+                        <span>Link expiry</span>
+                        <select
+                          aria-label="Session link expiry"
+                          value={sessionPresetKey}
+                          onChange={(event) =>
+                            setSessionPresetKey(event.target.value)
+                          }
+                          disabled={isActionLoading}
+                        >
+                          {ACCESS_PRESETS.map((preset) => (
+                            <option key={preset.key} value={preset.key}>
+                              {preset.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        onClick={() => void runAction("session", selected)}
+                        disabled={isActionLoading || !canOpenSessionSelected}
+                      >
+                        {pendingAction === "session"
+                          ? "Opening..."
+                          : "Open Session"}
+                        <Icon name="external" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="connection-row">
+                    <div className="connection-description">
+                      <Icon name="code" />
+                      <div>
+                        <h4>Chrome DevTools Protocol</h4>
+                        <p>Copy a URL for your automation client.</p>
+                      </div>
+                    </div>
+                    <div className="connection-actions">
+                      <label>
+                        <span>Link expiry</span>
+                        <select
+                          aria-label="CDP link expiry"
+                          value={cdpPresetKey}
+                          onChange={(event) =>
+                            setCdpPresetKey(event.target.value)
+                          }
+                          disabled={isActionLoading}
+                        >
+                          {ACCESS_PRESETS.map((preset) => (
+                            <option key={preset.key} value={preset.key}>
+                              {preset.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        className="ghost"
+                        onClick={() => void runAction("cdp", selected)}
+                        disabled={isActionLoading || !canOpenSessionSelected}
+                      >
+                        {pendingAction === "cdp" ? "Copying..." : "Connect CDP"}
+                        <Icon name="code" />
+                      </button>
+                    </div>
+                  </div>
+                  {selectedActionHint ? (
+                    <p className="action-hint">{selectedActionHint}</p>
+                  ) : null}
+                </section>
 
-              <div className="metadata">
-                <label>Metadata</label>
-                <pre>{JSON.stringify(selected.metadata, null, 2)}</pre>
+                <details className="metadata" key={selected.id}>
+                  <summary>
+                    Metadata <span>JSON</span>
+                  </summary>
+                  <pre>{JSON.stringify(selected.metadata, null, 2)}</pre>
+                </details>
+              </>
+            ) : isDetailLoading ? (
+              <div className="loading-state detail-loading" role="status">
+                <p>Loading sandbox details...</p>
+                <div className="skeleton" />
+                <div className="skeleton" />
+                <div className="skeleton" />
               </div>
-            </>
-          ) : (
-            <div className="empty-state">
-              <p className="eyebrow">Details</p>
-              <h2>Select a sandbox</h2>
-              <p className="muted">
-                The right panel shows CDP, timestamps and action entry points
-                for the selected sandbox.
-              </p>
-            </div>
-          )}
-        </article>
-      </section>
-    </main>
+            ) : detailError ? (
+              <div className="empty-state" role="alert">
+                <h2>Could not load this sandbox</h2>
+                <p>{detailError.message}</p>
+                <button className="ghost" onClick={() => void refreshDetail()}>
+                  Try again
+                </button>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <Icon name="browser" />
+                <h2>Select a sandbox</h2>
+                <p>
+                  Choose a sandbox to view its details, open a session or
+                  connect over CDP.
+                </p>
+              </div>
+            )}
+          </article>
+        </section>
+      </main>
+    </div>
   );
 }

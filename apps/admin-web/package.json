@@ -6,6 +6,7 @@
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "test": "vitest run --environment jsdom",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
@@ -16,10 +17,13 @@
     "swr": "^2.4.1"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.4.1",
+    "jsdom": "^26.1.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vitest": "^3.2.0"
   }
 }

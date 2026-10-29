@@ -8,6 +8,11 @@ import "./styles.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
-    <Toaster position="top-center" richColors closeButton />
+    <Toaster
+      className="console-toaster"
+      position="top-center"
+      richColors
+      closeButton
+    />
   </React.StrictMode>,
 );

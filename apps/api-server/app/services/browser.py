@@ -12,7 +12,7 @@ import httpx
 import websockets
 from fastapi import HTTPException, status
 
-from app.models.sandbox import SandboxRecord, SandboxStatus
+from app.models.sandbox import SandboxKind, SandboxRecord, SandboxStatus
 from app.schemas.browser import BrowserAction, BrowserActionType, BrowserActionsRequest, BrowserActionsResponse, ScreenshotEnvelope, ScreenshotMetadata, ScreenshotType
 from app.services.docker_adapter import docker_adapter
 
@@ -204,9 +204,23 @@ class BrowserService:
         if not sandbox.container_id:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="sandbox container unavailable")
         crop = f'{window["width"]}x{window["height"]}+{window["x"]}+{window["y"]}'
+        command = f'import -window root -crop "{crop}" png:-'
+        if sandbox.kind == SandboxKind.XPRA:
+            # Xpra redirects window pixels away from the root desktop and leaves
+            # windows unmapped until a client opens them. Map only this window.
+            window_id = shlex.quote(window["window_id"])
+            command = f'''set -e
+if ! xwininfo -id {window_id} | grep -q 'Map State: IsViewable'; then
+  xpra_wid="$(xprop -id {window_id} _XPRA_WID | awk '/_XPRA_WID\\(CARDINAL\\)/ {{print $3}}')"
+  case "$xpra_wid" in
+    ''|*[!0-9]*) echo 'Xpra window ID unavailable' >&2; exit 1 ;;
+  esac
+  xpra control "$DISPLAY" map "$xpra_wid" >/dev/null
+fi
+import -window {window_id} png:-'''
         proc = docker_adapter.exec_shell(
             sandbox.container_id,
-            self._with_display(sandbox, f'import -window root -crop "{crop}" png:-'),
+            self._with_display(sandbox, command),
             text=False,
         )
         if proc.returncode != 0:

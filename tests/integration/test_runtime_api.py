@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 import itertools
+import base64
+import io
 import json
 import time
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import pytest
+from PIL import Image
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from app.main import app
+from app.config import get_settings
 from app.services.docker_adapter import docker_adapter
+from app.services.browser import browser_service
 from app.services.registry import registry
 
 
@@ -84,7 +89,7 @@ def cleanup_managed_runtime_containers() -> None:
 @pytest.fixture()
 def clean_sandbox_base(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     base_dir = tmp_path / "sandboxes"
-    monkeypatch.setenv("VERGE_SANDBOX_BASE_DIR", str(base_dir))
+    monkeypatch.setattr(get_settings(), "sandbox_base_dir", base_dir)
     return base_dir
 
 
@@ -238,26 +243,90 @@ def test_cdp_websocket_rejects_invalid_ticket(docker_runtime_ready: None, clean_
 
 def test_xpra_session_assets_open(docker_runtime_xpra_ready: None, clean_sandbox_base: Path) -> None:
     del clean_sandbox_base
+    # Keep the event loop alive for Xpra's asynchronous readiness probe.
+    with TestClient(app) as client:
+        created = client.post("/sandbox", json={"kind": "xpra", "default_url": "about:blank"}, headers=AUTH_HEADERS)
+        assert created.status_code == 201, created.text
+        sandbox_id = body(created)["id"]
+
+        try:
+            for _ in range(60):
+                details = client.get(f"/sandbox/{sandbox_id}", headers=AUTH_HEADERS)
+                assert details.status_code == 200, details.text
+                if body(details)["status"] == "RUNNING":
+                    break
+                time.sleep(0.5)
+            else:
+                pytest.fail("Xpra did not become ready")
+            ticket_resp = client.post(f"/sandbox/{sandbox_id}/session/apply", headers=AUTH_HEADERS)
+            assert ticket_resp.status_code == 200
+            ticket = body(ticket_resp)["ticket"]
+
+            session_entry = client.get(f"/sandbox/{sandbox_id}/session/?ticket={ticket}")
+            assert session_entry.status_code == 200
+            assert client.cookies.get("sandbox_session")
+
+            session_asset = client.get(
+                f"/sandbox/{sandbox_id}/session/js/lib/jquery-ui.js",
+                cookies=client.cookies,
+            )
+            assert session_asset.status_code == 200
+            assert "jQuery UI" in session_asset.text
+        finally:
+            deleted = client.delete(f"/sandbox/{sandbox_id}", headers=AUTH_HEADERS)
+            assert deleted.status_code == 200
+
+
+@pytest.mark.parametrize("kind", ["xpra", "xvfb_vnc"])
+def test_window_screenshot_contains_browser_pixels_without_session(kind: str, clean_sandbox_base: Path) -> None:
+    _require_runtime_image(f"verge-browser-runtime-{'xpra' if kind == 'xpra' else 'xvfb'}:latest")
+    html = '<body style="margin:0;background:rgb(220,40,60)"><h1>Screenshot test</h1>' \
+           '<div style="height:220px;background:rgb(30,100,220)">Blue panel</div></body>'
     client = TestClient(app)
-    created = client.post("/sandbox", json={"kind": "xpra", "default_url": "about:blank"}, headers=AUTH_HEADERS)
+    created = client.post("/sandbox", json={
+        "kind": kind, "default_url": "data:text/html," + quote(html),
+    }, headers=AUTH_HEADERS)
     assert created.status_code == 201, created.text
     sandbox_id = body(created)["id"]
-
+    sandbox = registry.get(sandbox_id)
+    assert sandbox is not None
     try:
-        ticket_resp = client.post(f"/sandbox/{sandbox_id}/session/apply", headers=AUTH_HEADERS)
-        assert ticket_resp.status_code == 200
-        ticket = body(ticket_resp)["ticket"]
+        # Xpra creation returns STARTING before Chromium has an X11 window.
+        for _ in range(60):
+            details = client.get(f"/sandbox/{sandbox_id}", headers=AUTH_HEADERS)
+            assert details.status_code == 200, details.text
+            browser = body(details)["browser"]
+            if (browser.get("active_window") or {}).get("window_id") and browser["web_socket_debugger_url_present"]:
+                break
+            time.sleep(0.5)
+        else:
+            pytest.fail("Browser did not expose its window and CDP endpoint")
+        window = browser_service._discover_window(sandbox)
+        if kind == "xpra":
+            state = docker_adapter.exec_shell(sandbox.container_id,
+                browser_service._with_display(sandbox, f'xwininfo -id {window["window_id"]}'))
+            assert "Map State: IsUnviewable" in state.stdout
 
-        session_entry = client.get(f"/sandbox/{sandbox_id}/session/?ticket={ticket}")
-        assert session_entry.status_code == 200
-        assert client.cookies.get("sandbox_session")
-
-        session_asset = client.get(
-            f"/sandbox/{sandbox_id}/session/js/lib/jquery-ui.js",
-            cookies=client.cookies,
-        )
-        assert session_asset.status_code == 200
-        assert "jQuery UI" in session_asset.text
+        # No HTML5/VNC client is connected. Verify pixels, not just a nonempty PNG.
+        for _ in range(2):
+            response = client.post(f"/sandbox/{sandbox_id}/browser/screenshot",
+                json={"type": "window", "format": "png"}, headers=AUTH_HEADERS)
+            assert response.status_code == 200, response.text
+            shot = body(response)
+            image = Image.open(io.BytesIO(base64.b64decode(shot["data_base64"]))).convert("RGB")
+            assert shot["media_type"] == "image/png"
+            assert image.size == (shot["metadata"]["width"], shot["metadata"]["height"])
+            colors = dict((rgb, count) for count, rgb in image.getcolors(image.width * image.height))
+            assert colors.get((220, 40, 60), 0) > image.width * image.height * 0.1
+            assert colors.get((30, 100, 220), 0) > image.width * image.height * 0.1
+        if kind == "xpra":
+            root_capture = docker_adapter.exec_shell(sandbox.container_id,
+                browser_service._with_display(sandbox,
+                    f'import -window root -crop "{window["width"]}x{window["height"]}+0+0" png:-'), text=False)
+            assert root_capture.returncode == 0
+            desktop = Image.open(io.BytesIO(root_capture.stdout)).convert("RGB")
+            # The former implementation returns a valid but empty desktop image.
+            colors = dict((rgb, count) for count, rgb in desktop.getcolors(desktop.width * desktop.height))
+            assert colors.get((220, 40, 60), 0) == 0
     finally:
-        deleted = client.delete(f"/sandbox/{sandbox_id}", headers=AUTH_HEADERS)
-        assert deleted.status_code == 200
+        assert client.delete(f"/sandbox/{sandbox_id}", headers=AUTH_HEADERS).status_code == 200

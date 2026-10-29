@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -95,12 +96,174 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
 describe("sandbox dashboard", () => {
+  it("refreshes the inventory within its configured SWR cache", async () => {
+    let current = [sandbox];
+    vi.mocked(fetch).mockImplementation(
+      async (url) =>
+        response(
+          String(url).endsWith("/sandbox") ? current : engines,
+        ) as Response,
+    );
+    renderApp();
+    await screen.findByRole("button", { name: /research-browser/ });
+    current = [{ ...sandbox, id: "sb_new", alias: "new-browser" }];
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(
+      await screen.findByRole("button", { name: /new-browser/ }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: /research-browser/ }),
+    ).toBeNull();
+  });
+
+  it("adds a created sandbox to the inventory and loads its screenshot", async () => {
+    const created = { ...sandbox, id: "sb_created", alias: "created-browser" };
+    let current = [sandbox];
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const path = String(url);
+      if (path.endsWith("/sandbox") && init?.method === "POST") {
+        current = [sandbox, created];
+        return response(created) as Response;
+      }
+      return response(
+        path.endsWith("/sandbox")
+          ? current
+          : path.endsWith("/runtime/engines")
+            ? engines
+            : path.endsWith("/browser/screenshot")
+              ? screenshot
+              : created,
+      ) as Response;
+    });
+    renderApp();
+    await screen.findByRole("button", { name: /research-browser/ });
+    fireEvent.click(screen.getByRole("button", { name: "Create Sandbox" }));
+    expect(
+      await screen.findByRole("button", { name: /created-browser/ }),
+    ).toBeTruthy();
+    expect(
+      await screen.findByRole("img", { name: /created-browser/ }),
+    ).toBeTruthy();
+  });
+
+  it("removes a deleted sandbox from the inventory and clears the preview", async () => {
+    let current = [sandbox];
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const path = String(url);
+      if (init?.method === "DELETE") current = [];
+      return response(
+        path.endsWith("/sandbox")
+          ? current
+          : path.endsWith("/runtime/engines")
+            ? engines
+            : path.endsWith("/browser/screenshot")
+              ? screenshot
+              : sandbox,
+      ) as Response;
+    });
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /research-browser/ }),
+    );
+    await screen.findByRole("img", { name: /Browser screenshot/ });
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await screen.findByText("No sandboxes yet");
+    expect(
+      screen.queryByRole("button", { name: /research-browser/ }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("img", { name: /Browser screenshot/ }),
+    ).toBeNull();
+    expect(screen.getByText("Select a sandbox")).toBeTruthy();
+  });
+
+  it("does not reuse another API server's inventory after login with the same token", async () => {
+    localStorage.setItem("verge-browser.admin.api-url", "http://server-a.test");
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      if (String(url).startsWith("http://server-b.test")) {
+        return response(null, 503) as Response;
+      }
+      return response(
+        String(url).endsWith("/sandbox") ? [sandbox] : engines,
+      ) as Response;
+    });
+    renderApp();
+    await screen.findByRole("button", { name: /research-browser/ });
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+    fireEvent.change(screen.getByLabelText("API URL"), {
+      target: { value: "http://server-b.test" },
+    });
+    fireEvent.change(screen.getByLabelText("Admin Token"), {
+      target: { value: "test-token" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open Console" }));
+    await screen.findByText("Could not load sandboxes");
+    expect(
+      screen.queryByRole("button", { name: /research-browser/ }),
+    ).toBeNull();
+  });
+
+  it("isolates engine availability, details and screenshots between API servers", async () => {
+    localStorage.setItem("verge-browser.admin.api-url", "http://server-a.test");
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      const path = String(url);
+      const onSecondServer = path.startsWith("http://server-b.test");
+      const detail = onSecondServer
+        ? { ...sandbox, alias: "second-browser", width: 800, height: 600 }
+        : sandbox;
+      if (path.endsWith("/runtime/engines"))
+        return response(onSecondServer ? [engines[0]] : engines) as Response;
+      if (path.endsWith("/browser/screenshot"))
+        return response(screenshot) as Response;
+      return response(
+        path.endsWith("/sandbox") ? [detail] : detail,
+      ) as Response;
+    });
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /research-browser/ }),
+    );
+    await screen.findByRole("img", { name: /research-browser/ });
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+    fireEvent.change(screen.getByLabelText("API URL"), {
+      target: { value: "http://server-b.test/" },
+    });
+    fireEvent.change(screen.getByLabelText("Admin Token"), {
+      target: { value: "test-token" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open Console" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /second-browser/ }),
+    );
+    await screen.findByRole("img", { name: /second-browser/ });
+    expect(screen.getByText("800 x 600")).toBeTruthy();
+    expect(
+      (
+        screen.getByRole("option", {
+          name: /CloakBrowser/,
+        }) as HTMLOptionElement
+      ).disabled,
+    ).toBe(true);
+    expect(fetch).toHaveBeenCalledWith(
+      "http://server-b.test/sandbox/sb_test/browser/screenshot",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }),
+      }),
+    );
+    expect(
+      screen.queryByRole("heading", { name: "research-browser" }),
+    ).toBeNull();
+  });
+
   it("captures a window screenshot on selection and refreshes it on demand", async () => {
     renderApp();
     expect(
@@ -186,10 +349,105 @@ describe("sandbox dashboard", () => {
       screen.getByRole("img", { name: /Browser screenshot/ }),
     ).toBeTruthy();
     expect(screen.getByText(/Last successful capture/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Refresh screenshot" }));
-    await waitFor(() =>
-      expect(screen.queryByText("Service unavailable")).toBeNull(),
+    let finish!: (value: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
     );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh screenshot" }));
+    expect(screen.getByText("Capturing...")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("img", { name: /Browser screenshot/ })
+        .getAttribute("src"),
+    ).toBe(`data:image/png;base64,${screenshot.data_base64}`);
+    await act(async () =>
+      finish(response({ ...screenshot, data_base64: "new-image" }) as Response),
+    );
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("img", { name: /Browser screenshot/ })
+          .getAttribute("src"),
+      ).toBe("data:image/png;base64,new-image"),
+    );
+    expect(screen.queryByText("Service unavailable")).toBeNull();
+  });
+
+  it("times out a screenshot request and re-enables refresh", async () => {
+    const normalFetch = vi.mocked(fetch).getMockImplementation()!;
+    let signal: AbortSignal | null | undefined;
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (!String(url).endsWith("/browser/screenshot"))
+        return normalFetch(url, init);
+      signal = init?.signal;
+      return new Promise<Response>((_, reject) => {
+        signal?.addEventListener("abort", () =>
+          reject(new DOMException("Aborted", "AbortError")),
+        );
+      });
+    });
+    renderApp();
+    await screen.findByRole("button", { name: /research-browser/ });
+    vi.useFakeTimers();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /research-browser/ }));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20000);
+    });
+    expect(signal?.aborted).toBe(true);
+    expect(screen.getByText("Screenshot timed out. Try again.")).toBeTruthy();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Refresh screenshot",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+  });
+
+  it("reports invalid screenshot responses and broken images without leaving refresh disabled", async () => {
+    const normalFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation((url, init) =>
+      String(url).endsWith("/browser/screenshot")
+        ? Promise.resolve(
+            response({
+              media_type: "text/html",
+              data_base64: "bad",
+            }) as Response,
+          )
+        : normalFetch(url, init),
+    );
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /research-browser/ }),
+    );
+    expect(
+      await screen.findByText(
+        "The server returned an invalid screenshot. Try again.",
+      ),
+    ).toBeTruthy();
+    vi.mocked(fetch).mockImplementation(normalFetch);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh screenshot" }));
+    fireEvent.error(
+      await screen.findByRole("img", { name: /Browser screenshot/ }),
+    );
+    expect(
+      screen.getByText("Could not display the screenshot. Try again."),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("img", { name: /Browser screenshot/ }),
+    ).toBeNull();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Refresh screenshot",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
   });
 
   it("discards a late screenshot after switching to a different sandbox", async () => {
@@ -387,6 +645,11 @@ describe("sandbox dashboard", () => {
     expect(
       within(
         screen.getByRole("article", { name: "Sandbox details" }),
+      ).getByText("stopped"),
+    ).toBeTruthy();
+    expect(
+      within(
+        screen.getByRole("button", { name: /research-browser/ }),
       ).getByText("stopped"),
     ).toBeTruthy();
   });

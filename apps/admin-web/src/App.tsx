@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import useSWR, { mutate } from "swr";
+import useSWR from "swr";
 import { toast } from "sonner";
 
 function GitHubIcon({ className }: { className?: string }) {
@@ -173,12 +173,13 @@ const DEFAULT_API_URL = window.location.origin;
 
 const SWR_CONFIG_KEY = "sandboxes";
 
+type ApiConnection = { baseUrl: string; token: string };
+
 async function api<T>(
   path: string,
-  token: string,
+  { baseUrl, token }: ApiConnection,
   init?: RequestInit,
 ): Promise<T> {
-  const baseUrl = localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL;
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
@@ -215,11 +216,17 @@ async function api<T>(
   return payload as T;
 }
 
-function useSandboxes(token: string) {
-  const { data, error, isLoading, isValidating } = useSWR<Sandbox[]>(
-    token ? [SWR_CONFIG_KEY, token] : null,
-    ([, t]: [string, string]) =>
-      api<Sandbox[]>("/sandbox", t, { method: "GET" }),
+function useSandboxes(connection: ApiConnection) {
+  const {
+    data,
+    error,
+    isLoading,
+    isValidating,
+    mutate: refresh,
+  } = useSWR<Sandbox[]>(
+    connection.token ? [SWR_CONFIG_KEY, connection] : null,
+    ([, server]: [string, ApiConnection]) =>
+      api<Sandbox[]>("/sandbox", server, { method: "GET" }),
     {
       revalidateOnFocus: true,
       refreshInterval: 30000,
@@ -231,22 +238,22 @@ function useSandboxes(token: string) {
     error,
     isLoading,
     isValidating,
-    refresh: () => mutate([SWR_CONFIG_KEY, token]),
+    refresh,
   };
 }
 
-function useSandboxDetail(token: string, idOrAlias: string | null) {
+function useSandboxDetail(connection: ApiConnection, idOrAlias: string | null) {
   const {
     data,
     error,
     isLoading,
     mutate: refresh,
   } = useSWR<Sandbox>(
-    token && idOrAlias
-      ? [`${SWR_CONFIG_KEY}/${idOrAlias}`, token, idOrAlias]
+    connection.token && idOrAlias
+      ? [`${SWR_CONFIG_KEY}/${idOrAlias}`, connection, idOrAlias]
       : null,
-    ([, t, id]: [string, string, string]) =>
-      api<Sandbox>(`/sandbox/${id}`, t, { method: "GET" }),
+    ([, server, id]: [string, ApiConnection, string]) =>
+      api<Sandbox>(`/sandbox/${id}`, server, { method: "GET" }),
     { refreshInterval: 30000 },
   );
 
@@ -259,10 +266,10 @@ function useSandboxDetail(token: string, idOrAlias: string | null) {
 }
 
 function ScreenshotPreview({
-  token,
+  connection,
   sandbox,
 }: {
-  token: string;
+  connection: ApiConnection;
   sandbox: Sandbox;
 }) {
   const [capture, setCapture] = useState<{
@@ -285,7 +292,7 @@ function ScreenshotPreview({
 
     void api<{ media_type: string; data_base64: string }>(
       `/sandbox/${sandbox.id}/browser/screenshot`,
-      token,
+      connection,
       {
         method: "POST",
         body: JSON.stringify({ type: "window", format: "png" }),
@@ -329,7 +336,7 @@ function ScreenshotPreview({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [token, sandbox.id, available, revision]);
+  }, [connection, sandbox.id, available, revision]);
 
   return (
     <section
@@ -397,13 +404,15 @@ function ScreenshotPreview({
 
 export function App() {
   // Saved state (used for API calls)
-  const [token, setToken] = useState(localStorage.getItem(TOKEN_KEY) || "");
+  const [connection, setConnection] = useState<ApiConnection>(() => ({
+    baseUrl: localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL,
+    token: localStorage.getItem(TOKEN_KEY) || "",
+  }));
+  const { token } = connection;
 
   // Form input state (separate from saved state)
-  const savedToken = localStorage.getItem(TOKEN_KEY) || "";
-  const savedApiUrl = localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL;
-  const [inputToken, setInputToken] = useState(savedToken);
-  const [inputApiUrl, setInputApiUrl] = useState(savedApiUrl);
+  const [inputToken, setInputToken] = useState(token);
+  const [inputApiUrl, setInputApiUrl] = useState(connection.baseUrl);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createAlias, setCreateAlias] = useState("");
@@ -426,15 +435,15 @@ export function App() {
     isValidating,
     error: listError,
     refresh,
-  } = useSandboxes(token);
+  } = useSandboxes(connection);
   const {
     data: engines,
     error: enginesError,
     mutate: refreshEngines,
   } = useSWR<EngineAvailability[]>(
-    token ? ["browser-engines", token] : null,
-    ([, t]: [string, string]) =>
-      api<EngineAvailability[]>("/runtime/engines", t),
+    token ? ["browser-engines", connection] : null,
+    ([, server]: [string, ApiConnection]) =>
+      api<EngineAvailability[]>("/runtime/engines", server),
     { refreshInterval: 30000 },
   );
   const cloak = engines?.find(
@@ -449,7 +458,7 @@ export function App() {
     error: detailError,
     isLoading: isDetailLoading,
     refresh: refreshDetail,
-  } = useSandboxDetail(token, selectedId);
+  } = useSandboxDetail(connection, selectedId);
   const visibleSandboxes = sandboxes.filter((sandbox) =>
     `${sandbox.alias ?? ""} ${sandbox.id} ${sandbox.browser_engine} ${sandbox.status}`
       .toLowerCase()
@@ -471,16 +480,17 @@ export function App() {
 
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
+    const baseUrl = inputApiUrl.trim().replace(/\/+$/, "");
     localStorage.setItem(TOKEN_KEY, inputToken);
-    localStorage.setItem(API_URL_KEY, inputApiUrl.trim().replace(/\/+$/, ""));
-    setToken(inputToken);
+    localStorage.setItem(API_URL_KEY, baseUrl);
+    setConnection({ baseUrl, token: inputToken });
   }
 
   async function createSandbox() {
     setPendingAction("create");
     try {
       const [resW, resH] = createResolution.split("x").map(Number);
-      const detail = await api<Sandbox>("/sandbox", token, {
+      const detail = await api<Sandbox>("/sandbox", connection, {
         method: "POST",
         body: JSON.stringify({
           alias: createAlias || undefined,
@@ -525,7 +535,7 @@ export function App() {
     let sessionWindow: Window | null = null;
     try {
       if (action === "delete") {
-        await api(`/sandbox/${sandbox.id}`, token, { method: "DELETE" });
+        await api(`/sandbox/${sandbox.id}`, connection, { method: "DELETE" });
         toast.success("Sandbox deleted successfully");
         const remaining = sandboxes.filter((s) => s.id !== sandbox.id);
         setSelectedId(remaining[0]?.id ?? null);
@@ -542,7 +552,7 @@ export function App() {
           '<p style="font-family: sans-serif; padding: 16px;">Opening session...</p>';
         const ticket = await api<{ ticket: string; session_url: string }>(
           `/sandbox/${sandbox.id}/session/apply`,
-          token,
+          connection,
           {
             method: "POST",
             body: JSON.stringify({
@@ -558,7 +568,7 @@ export function App() {
       } else if (action === "cdp") {
         const ticket = await api<{ ticket: string; cdp_url: string }>(
           `/sandbox/${sandbox.id}/cdp/apply`,
-          token,
+          connection,
           {
             method: "POST",
             body: JSON.stringify({
@@ -572,7 +582,7 @@ export function App() {
         await navigator.clipboard.writeText(ticket.cdp_url);
         toast.success("CDP URL copied to clipboard");
       } else {
-        await api(`/sandbox/${sandbox.id}/${action}`, token, {
+        await api(`/sandbox/${sandbox.id}/${action}`, connection, {
           method: "POST",
         });
         toast.success(`Sandbox ${action}d successfully`);
@@ -591,7 +601,7 @@ export function App() {
 
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
-    setToken("");
+    setConnection({ ...connection, token: "" });
     setInputToken("");
     setSelectedId(null);
   }
@@ -953,7 +963,7 @@ export function App() {
                 ) : null}
                 <ScreenshotPreview
                   key={`${selected.id}:${selected.status}`}
-                  token={token}
+                  connection={connection}
                   sandbox={selected}
                 />
                 <dl className="detail-grid">

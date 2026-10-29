@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
 
@@ -256,6 +256,143 @@ function useSandboxDetail(token: string, idOrAlias: string | null) {
     isLoading,
     refresh,
   };
+}
+
+function ScreenshotPreview({
+  token,
+  sandbox,
+}: {
+  token: string;
+  sandbox: Sandbox;
+}) {
+  const [capture, setCapture] = useState<{
+    src: string;
+    capturedAt: Date;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [revision, setRevision] = useState(0);
+  const available = canOpenSession(sandbox.status);
+
+  useEffect(() => {
+    if (!available) return;
+    // Each selection owns its request; switching sandboxes discards late responses.
+    const controller = new AbortController();
+    let active = true;
+    const timeout = window.setTimeout(() => controller.abort(), 20000);
+    setIsLoading(true);
+    setError(null);
+
+    void api<{ media_type: string; data_base64: string }>(
+      `/sandbox/${sandbox.id}/browser/screenshot`,
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ type: "window", format: "png" }),
+        signal: controller.signal,
+        cache: "no-store",
+      },
+    )
+      .then((image) => {
+        if (!active) return;
+        if (
+          image.media_type !== "image/png" ||
+          typeof image.data_base64 !== "string" ||
+          !image.data_base64
+        ) {
+          throw new Error(
+            "The server returned an invalid screenshot. Try again.",
+          );
+        }
+        setCapture({
+          src: `data:image/png;base64,${image.data_base64}`,
+          capturedAt: new Date(),
+        });
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setError(
+          controller.signal.aborted
+            ? "Screenshot timed out. Try again."
+            : error instanceof Error
+              ? error.message
+              : "Could not capture screenshot. Try again.",
+        );
+      })
+      .finally(() => {
+        window.clearTimeout(timeout);
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [token, sandbox.id, available, revision]);
+
+  return (
+    <section
+      className="screenshot-preview"
+      aria-labelledby="screenshot-heading"
+    >
+      <div className="screenshot-heading">
+        <h3 id="screenshot-heading">Screenshot</h3>
+        {available ? (
+          <button
+            className="ghost"
+            onClick={() => setRevision((value) => value + 1)}
+            disabled={isLoading}
+            aria-label="Refresh screenshot"
+          >
+            <Icon name="refresh" />
+            {isLoading ? "Capturing..." : "Refresh"}
+          </button>
+        ) : null}
+      </div>
+      {!available ? (
+        <p className="muted screenshot-unavailable">
+          {sandbox.status === "STOPPED"
+            ? "Resume this sandbox to preview its browser."
+            : "A screenshot will be available when the browser is ready."}
+        </p>
+      ) : (
+        <>
+          <div className="screenshot-frame" aria-busy={isLoading}>
+            {capture ? (
+              <img
+                src={capture.src}
+                alt={`Browser screenshot of ${sandbox.alias || sandbox.id}`}
+                onError={() => {
+                  setCapture(null);
+                  setError("Could not display the screenshot. Try again.");
+                }}
+              />
+            ) : (
+              <p className="muted" role={isLoading ? "status" : undefined}>
+                {isLoading
+                  ? "Capturing browser window..."
+                  : "No screenshot available"}
+              </p>
+            )}
+          </div>
+          {error ? (
+            <p className="error-text screenshot-message" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {capture ? (
+            <p className="muted screenshot-message">
+              {error ? "Last successful capture" : "Captured"} at{" "}
+              <time dateTime={capture.capturedAt.toISOString()}>
+                {capture.capturedAt.toLocaleTimeString()}
+              </time>
+            </p>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
 }
 
 export function App() {
@@ -814,6 +951,11 @@ export function App() {
                     {String(selected.metadata.runtime_error)}
                   </p>
                 ) : null}
+                <ScreenshotPreview
+                  key={`${selected.id}:${selected.status}`}
+                  token={token}
+                  sandbox={selected}
+                />
                 <dl className="detail-grid">
                   <div>
                     <dt>Browser engine</dt>

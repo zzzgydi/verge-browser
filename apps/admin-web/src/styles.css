@@ -520,6 +520,43 @@ a {
 .lifecycle-actions button {
   padding: 8px 12px;
 }
+.screenshot-preview {
+  margin-top: 24px;
+}
+.screenshot-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.screenshot-frame {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+.screenshot-frame img {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+}
+.screenshot-frame p {
+  padding: 24px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+.screenshot-message,
+.screenshot-unavailable {
+  font-size: 0.86rem;
+}
+.screenshot-message {
+  margin-top: 8px;
+}
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

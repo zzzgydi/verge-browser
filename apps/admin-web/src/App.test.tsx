@@ -27,6 +27,12 @@ const sandbox = {
   metadata: {},
 };
 
+const screenshot = {
+  media_type: "image/png",
+  data_base64:
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0t8AAAAASUVORK5CYII=",
+};
+
 const engines = [
   {
     browser_engine: "chromium",
@@ -75,11 +81,13 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (url: string) =>
       response(
-        url.endsWith("/runtime/engines")
-          ? engines
-          : url.endsWith("/sandbox")
-            ? [sandbox]
-            : sandbox,
+        url.endsWith("/browser/screenshot")
+          ? screenshot
+          : url.endsWith("/runtime/engines")
+            ? engines
+            : url.endsWith("/sandbox")
+              ? [sandbox]
+              : sandbox,
       ),
     ),
   );
@@ -93,6 +101,147 @@ afterEach(() => {
 });
 
 describe("sandbox dashboard", () => {
+  it("captures a window screenshot on selection and refreshes it on demand", async () => {
+    renderApp();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) =>
+          String(url).endsWith("/browser/screenshot"),
+        ),
+    ).toBe(false);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /research-browser/ }),
+    );
+    const image = await screen.findByRole("img", {
+      name: "Browser screenshot of research-browser",
+    });
+    expect(image.getAttribute("src")).toBe(
+      `data:image/png;base64,${screenshot.data_base64}`,
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/sandbox\/sb_test\/browser\/screenshot$/),
+      expect.objectContaining({
+        method: "POST",
+        cache: "no-store",
+        body: JSON.stringify({ type: "window", format: "png" }),
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh screenshot" }));
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(([url]) =>
+            String(url).endsWith("/browser/screenshot"),
+          ),
+      ).toHaveLength(2),
+    );
+  });
+
+  it.each(["STOPPED", "STARTING", "FAILED"])(
+    "does not capture a %s sandbox",
+    async (status) => {
+      vi.mocked(fetch).mockImplementation(
+        async (url) =>
+          response(
+            String(url).endsWith("/runtime/engines")
+              ? engines
+              : String(url).endsWith("/sandbox")
+                ? [{ ...sandbox, status }]
+                : { ...sandbox, status },
+          ) as Response,
+      );
+      renderApp();
+      fireEvent.click(
+        await screen.findByRole("button", { name: /research-browser/ }),
+      );
+      await screen.findByRole("heading", { name: "Screenshot" });
+      expect(
+        screen.queryByRole("button", { name: "Refresh screenshot" }),
+      ).toBeNull();
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(([url]) =>
+            String(url).endsWith("/browser/screenshot"),
+          ),
+      ).toBe(false);
+    },
+  );
+
+  it("keeps the last capture visible when a refresh fails and allows retry", async () => {
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /research-browser/ }),
+    );
+    await screen.findByRole("img", { name: /Browser screenshot/ });
+    vi.mocked(fetch).mockResolvedValueOnce(response(null, 503) as Response);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh screenshot" }));
+    expect(await screen.findByText("Service unavailable")).toBeTruthy();
+    expect(
+      screen.getByRole("img", { name: /Browser screenshot/ }),
+    ).toBeTruthy();
+    expect(screen.getByText(/Last successful capture/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh screenshot" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Service unavailable")).toBeNull(),
+    );
+  });
+
+  it("discards a late screenshot after switching to a different sandbox", async () => {
+    let finish: (value: Response) => void = () => {};
+    let signal: AbortSignal | null | undefined;
+    const other = { ...sandbox, id: "sb_other", alias: "other-browser" };
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const path = String(url);
+      if (path.endsWith("/sb_test/browser/screenshot")) {
+        signal = init?.signal;
+        return new Promise<Response>((resolve) => {
+          finish = resolve;
+        });
+      }
+      if (path.endsWith("/browser/screenshot"))
+        return response({
+          ...screenshot,
+          data_base64: "other-image",
+        }) as Response;
+      return response(
+        path.endsWith("/runtime/engines")
+          ? engines
+          : path.endsWith("/sandbox")
+            ? [sandbox, other]
+            : path.endsWith("/sb_other")
+              ? other
+              : sandbox,
+      ) as Response;
+    });
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /research-browser/ }),
+    );
+    await screen.findByText("Capturing browser window...");
+    fireEvent.click(screen.getByRole("button", { name: /other-browser/ }));
+    const image = await screen.findByRole("img", {
+      name: "Browser screenshot of other-browser",
+    });
+    expect(signal?.aborted).toBe(true);
+    finish(response(screenshot) as Response);
+    await waitFor(() =>
+      expect(image.getAttribute("src")).toBe(
+        "data:image/png;base64,other-image",
+      ),
+    );
+    expect(
+      screen.queryByRole("img", {
+        name: "Browser screenshot of research-browser",
+      }),
+    ).toBeNull();
+  });
+
   it("keeps the title and console actions in one header", async () => {
     renderApp();
     const header = screen.getByRole("banner");

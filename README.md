@@ -9,18 +9,28 @@ Run real GUI Chromium on a headless Linux server. Automate websites through CDP 
 [Quick Start](#quick-start) · [Linux Server Deployment](./docs/guides/headless-linux.md) · [Codex + Playwright MCP](./docs/integrations/codex.md) · [Human Handoff](./docs/guides/human-handoff.md)
 
 <p align="center">
-  <img src="docs/assets/png-admin.png" alt="Verge Browser admin console" width="48%" />
-  <img src="docs/assets/png-vnc.png" alt="Verge Browser noVNC session" width="48%" />
+  <img src="docs/assets/png-admin.png" alt="Verge Browser dashboard with sandbox status icons, a browser screenshot preview, and session and CDP controls" width="100%" />
 </p>
 <p align="center">
-  <strong>Sandbox Control</strong> | <strong>noVNC Session</strong>
+  <strong>Dashboard</strong> · Search sandboxes, check their status, and preview the selected browser without opening a session.
 </p>
+
+<details>
+<summary>View the noVNC session</summary>
+
+<p align="center">
+  <img src="docs/assets/png-vnc.png" alt="Live noVNC session showing Chromium with the Verge clipboard toolbar and Connected status" width="100%" />
+</p>
+
+The session opens the same browser for manual interaction, with explicit clipboard controls. Both screenshots use a real Chromium / Xvfb + VNC sandbox displaying this repository's public GitHub page.
+
+</details>
 
 ## Core Capabilities
 
 - **Real GUI Chromium**: not headless; supports multi-tabs, downloads, popups, and full browser behavior
 - **CDP Automation**: compatible with Playwright and Puppeteer through a WebSocket endpoint
-- **GUI-Level Screenshots**: capture the full browser window, not only page content
+- **GUI-Level Screenshots**: capture the full browser window, not only page content; select a running sandbox in the dashboard to preview it and refresh on demand
 - **Human Handoff**: unified session entry for both noVNC and Xpra
 - **File Sharing**: browser and APIs share `/workspace` for uploads, downloads, and artifacts
 - **Persistent Browser Profiles**: reuse the workspace and on-disk profile after pause/resume; this is not a snapshot of running tabs or browser memory

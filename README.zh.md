@@ -9,18 +9,28 @@
 [快速开始](#快速开始) · [Linux 服务器部署](./docs/guides/headless-linux.md) · [Codex + Playwright MCP](./docs/integrations/codex.md) · [人工接管](./docs/guides/human-handoff.md)
 
 <p align="center">
-  <img src="docs/assets/png-admin.png" alt="Verge Browser 管理控制台" width="48%" />
-  <img src="docs/assets/png-vnc.png" alt="Verge Browser noVNC 会话" width="48%" />
+  <img src="docs/assets/png-admin.png" alt="Verge Browser 新版控制台，包含沙箱状态图标、浏览器截图预览和 Session、CDP 连接操作" width="100%" />
 </p>
 <p align="center">
-  <strong>控制台</strong> | <strong>noVNC 会话</strong>
+  <strong>管理控制台</strong> · 搜索沙箱、查看状态，无需打开会话即可预览选中沙箱的浏览器画面。
 </p>
+
+<details>
+<summary>查看 noVNC 会话</summary>
+
+<p align="center">
+  <img src="docs/assets/png-vnc.png" alt="真实 noVNC 会话，展示 Chromium、Verge 剪贴板工具栏和已连接状态" width="100%" />
+</p>
+
+打开会话后，可以手动操作同一个浏览器，并通过工具栏传送剪贴板文本。两张截图均来自真实的 Chromium / Xvfb + VNC 沙箱，浏览器中打开的是本仓库的公开 GitHub 页面。
+
+</details>
 
 ## 核心能力
 
 - **真实 GUI Chromium**：不是 headless，支持多标签、下载、弹窗等完整浏览器行为
 - **CDP 自动化**：可通过 WebSocket 与 Playwright、Puppeteer 兼容
-- **GUI 级截图**：抓取完整浏览器窗口，而不只是页面内容
+- **GUI 级截图**：抓取完整浏览器窗口，而不只是页面内容；在控制台选中运行中的沙箱即可预览，并按需刷新
 - **人工接管**：对 noVNC 和 Xpra 提供统一 session 入口
 - **文件共享**：浏览器与 API 共用 `/workspace`，便于上传、下载和产物交换
 - **持久化浏览器 Profile**：暂停后恢复可复用工作目录和已写入磁盘的 Profile，但不保证还原运行中的标签页或浏览器内存

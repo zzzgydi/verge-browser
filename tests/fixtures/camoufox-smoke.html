@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Verge engine smoke</title>
+<style>body{background:rgb(220,40,60);color:white;font:22px sans-serif;margin:24px}button,input{font:20px sans-serif;margin:8px}section{background:rgb(30,100,220);min-height:240px;padding:20px}</style>
+<h1>Verge engine smoke</h1>
+<section>
+<label>Name <input id="name" aria-label="Name"></label>
+<button id="save">Save state</button>
+<button id="restore">Read state</button>
+<button id="popup">Open second tab</button>
+<a href="/download" download="smoke.txt">Download file</a>
+<label>Upload <input id="file" type="file"></label>
+<p id="result">Ready</p><p id="typed"></p><p id="upload"></p>
+</section>
+<button id="gui" style="position:fixed;left:20px;bottom:20px;width:180px;height:44px;margin:0">GUI click</button>
+<script>
+const result = document.querySelector('#result');
+const nameInput = document.querySelector('#name');
+document.querySelector('#gui').onclick = event => result.textContent = 'gui-click trusted:'+event.isTrusted;
+const dbPromise = new Promise((resolve,reject)=>{
+  const request = indexedDB.open('verge-smoke',1);
+  request.onupgradeneeded = () => request.result.createObjectStore('state');
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error);
+});
+nameInput.addEventListener('input', () => document.querySelector('#typed').textContent = 'typed:'+nameInput.value);
+document.querySelector('#save').onclick = async event => {
+  localStorage.setItem('name', nameInput.value);
+  document.cookie = 'verge='+encodeURIComponent(nameInput.value)+'; Max-Age=86400; Path=/';
+  const db = await dbPromise;
+  const tx = db.transaction('state','readwrite');
+  tx.objectStore('state').put(nameInput.value,'name');
+  tx.oncomplete = () => result.textContent = 'saved:'+nameInput.value+' trusted:'+event.isTrusted;
+};
+document.querySelector('#restore').onclick = async () => {
+  const db = await dbPromise;
+  const request = db.transaction('state').objectStore('state').get('name');
+  request.onsuccess = () => result.textContent = 'local:'+localStorage.getItem('name')+' cookie:'+document.cookie+' idb:'+request.result;
+};
+document.querySelector('#popup').onclick = () => window.open('/?popup=1');
+document.querySelector('#file').onchange = async e => document.querySelector('#upload').textContent = await e.target.files[0].text();
+</script>

@@ -6,6 +6,9 @@ import websockets
 
 from app.auth.tickets import verify_ticket
 from app.deps import get_base_url, get_current_subject, require_sandbox
+from app.models.sandbox import BrowserEngine, SandboxStatus
+from app.schemas.command import BrowserCommand
+from app.services.docker_adapter import docker_adapter
 from app.schemas.browser import BrowserActionsRequest, BrowserActionsResponse, ScreenshotEnvelope, ScreenshotRequest
 from app.schemas.common import ApiEnvelope, ok
 from app.schemas.sandbox import CreateCdpTicketRequest, CreateCdpTicketResponse
@@ -13,6 +16,19 @@ from app.services.cdp_access import canonical_sandbox_id, issue_cdp_ticket_respo
 from app.services.browser import browser_service
 
 router = APIRouter(prefix="/sandbox/{sandbox_id}", tags=["browser"])
+
+
+@router.post("/browser/command")
+async def browser_command(payload: BrowserCommand, subject: str = Depends(get_current_subject), sandbox=Depends(require_sandbox)):
+    if sandbox.browser_engine != BrowserEngine.CAMOUFOX:
+        raise HTTPException(status_code=409, detail="Use agent-browser with this sandbox's ticketed CDP URL")
+    if sandbox.status != SandboxStatus.RUNNING or not sandbox.container_id:
+        raise HTTPException(status_code=409, detail="Sandbox is not running")
+    try:
+        data = await asyncio.to_thread(docker_adapter.camoufox_control, sandbox.container_id, payload.worker_command())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return ok(data)
 
 
 @router.post("/browser/screenshot", response_model=ApiEnvelope[ScreenshotEnvelope])
@@ -51,6 +67,8 @@ async def cdp_apply(
     subject: str = Depends(get_current_subject),
     sandbox=Depends(require_sandbox),
 ) -> ApiEnvelope[CreateCdpTicketResponse]:
+    if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+        raise HTTPException(status_code=409, detail="Camoufox has no CDP; use verge-browser browser commands")
     base_url = get_base_url(request).replace("http://", "ws://").replace("https://", "wss://")
     canonical_id = canonical_sandbox_id(sandbox, sandbox_id)
     ticket = issue_cdp_ticket_response(base_url=base_url, sandbox_id=canonical_id, subject=subject, request=payload)
@@ -60,6 +78,9 @@ async def cdp_apply(
 @router.websocket("/cdp/browser")
 async def cdp_browser_proxy(websocket: WebSocket, sandbox_id: str) -> None:
     sandbox = require_sandbox(sandbox_id)
+    if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+        await websocket.close(code=4409, reason="Camoufox does not support CDP")
+        return
     canonical_id = canonical_sandbox_id(sandbox, sandbox_id)
     ticket = websocket.query_params.get("ticket")
     try:

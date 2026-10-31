@@ -41,6 +41,8 @@ def _to_response(request: Request, sandbox, subject: str) -> SandboxResponse:
 async def _enrich_response(request: Request, sandbox, subject: str) -> SandboxResponse:
     if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER and sandbox.container_id and sandbox.status == SandboxStatus.RUNNING:
         lifecycle_service.check_cloak_health(sandbox)
+    if sandbox.browser_engine == BrowserEngine.CAMOUFOX and sandbox.container_id and sandbox.status == SandboxStatus.RUNNING:
+        lifecycle_service.check_camoufox_health(sandbox)
     response = _to_response(request, sandbox, subject)
     should_probe_browser = sandbox.container_id is not None and sandbox.status in {
         SandboxStatus.STARTING,

@@ -13,7 +13,7 @@ from app.models.sandbox import BrowserEngine, SandboxKind, RuntimeEndpoint, Sand
 from app.schemas.sandbox import CreateSandboxRequest, UpdateSandboxRequest
 from app.services.browser import browser_service
 from app.services.docker_adapter import docker_adapter
-from app.services.engines import cloak_unavailable_reason
+from app.services.engines import cloak_unavailable_reason, camoufox_unavailable_reason
 from app.services.registry import registry
 import httpx
 
@@ -34,6 +34,10 @@ class SandboxLifecycleService:
             reason = cloak_unavailable_reason(req.kind)
             if reason:
                 raise HTTPException(status_code=409, detail=reason)
+        if req.browser_engine == BrowserEngine.CAMOUFOX:
+            reason = camoufox_unavailable_reason()
+            if reason:
+                raise HTTPException(status_code=409, detail=reason)
         sandbox_id = f"sb_{secrets.token_hex(6)}"
         alias = self._normalize_alias(req.alias, sandbox_id=None)
         root = (settings.sandbox_base_dir / sandbox_id).resolve()
@@ -48,7 +52,7 @@ class SandboxLifecycleService:
         container_id = None
         host = "127.0.0.1"
         status = SandboxStatus.FAILED
-        image_name = req.image or (settings.cloak_runtime_image_for_kind(req.kind) if req.browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(req.kind))
+        image_name = req.image or (settings.camoufox_runtime_image if req.browser_engine == BrowserEngine.CAMOUFOX else settings.cloak_runtime_image_for_kind(req.kind) if req.browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(req.kind))
         runtime = runtime_endpoint_for_kind(req.kind)
         if docker_adapter.is_available():
             if not docker_adapter.image_exists(image_name):
@@ -87,7 +91,7 @@ class SandboxLifecycleService:
             width=req.width,
             height=req.height,
             enable_gpu=req.enable_gpu,
-            image=image_name if req.browser_engine == BrowserEngine.CLOAKBROWSER else req.image,
+            image=image_name if req.browser_engine != BrowserEngine.CHROMIUM else req.image,
             http_proxy=req.http_proxy,
             https_proxy=req.https_proxy,
             no_proxy=req.no_proxy,
@@ -167,6 +171,13 @@ class SandboxLifecycleService:
         sandbox = registry.get(sandbox_id) or registry.get_by_alias(sandbox_id)
         if sandbox is None or sandbox.status not in {SandboxStatus.STOPPED, SandboxStatus.FAILED}:
             return False
+        if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+            reason = camoufox_unavailable_reason(image=sandbox.image)
+            if reason:
+                raise HTTPException(status_code=409, detail=reason)
+            if sandbox.container_id:
+                self._remove_runtime(sandbox)
+                sandbox.container_id = None
         if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER:
             reason = cloak_unavailable_reason(sandbox.kind, image=sandbox.image)
             if reason:
@@ -181,7 +192,7 @@ class SandboxLifecycleService:
             registry.put(sandbox)
             return False
         settings = get_settings()
-        image_name = sandbox.image or (settings.cloak_runtime_image_for_kind(sandbox.kind) if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(sandbox.kind))
+        image_name = sandbox.image or (settings.camoufox_runtime_image if sandbox.browser_engine == BrowserEngine.CAMOUFOX else settings.cloak_runtime_image_for_kind(sandbox.kind) if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(sandbox.kind))
         if not docker_adapter.image_exists(image_name):
             sandbox.status = SandboxStatus.FAILED
             sandbox.updated_at = utcnow()
@@ -230,6 +241,11 @@ class SandboxLifecycleService:
         if sandbox is None:
             return False
 
+        if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+            reason = camoufox_unavailable_reason(image=sandbox.image)
+            if reason:
+                raise HTTPException(status_code=409, detail=reason)
+
         if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER:
             reason = cloak_unavailable_reason(sandbox.kind, image=sandbox.image)
             if reason:
@@ -243,7 +259,10 @@ class SandboxLifecycleService:
 
         # Check if container still exists, recreate if needed
         if sandbox.container_id and docker_adapter.container_exists(sandbox.container_id):
-            if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER:
+            if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+                self._stop_camoufox(sandbox)
+                ok = docker_adapter.restart_camoufox(sandbox.container_id)
+            elif sandbox.browser_engine == BrowserEngine.CLOAKBROWSER:
                 self._stop_cloak(sandbox)
                 ok = docker_adapter.start_cloak_browser(sandbox.container_id)
             else:
@@ -312,7 +331,7 @@ class SandboxLifecycleService:
                 window = browser_service.get_viewport(sandbox)
             except Exception:
                 window = {"window_viewport": {"width": 0}}
-            if version.get("webSocketDebuggerUrl") and window["window_viewport"]["width"] > 0:
+            if (version.get("webSocketDebuggerUrl") or version.get("camoufox_ready")) and window["window_viewport"]["width"] > 0:
                 if await self._session_ready(sandbox) and self._display_ready(sandbox):
                     if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER:
                         diagnostic = docker_adapter.cloak_control(sandbox.container_id, "status")
@@ -345,6 +364,26 @@ class SandboxLifecycleService:
             sandbox.updated_at = utcnow()
             registry.put(sandbox)
 
+    def _stop_camoufox(self, sandbox: SandboxRecord) -> None:
+        if docker_adapter.camoufox_exited(sandbox.container_id):
+            return
+        try:
+            docker_adapter.camoufox_control(sandbox.container_id, {"action": "stop"})
+        except RuntimeError as exc:
+            sandbox.status = SandboxStatus.DEGRADED
+            sandbox.metadata["runtime_error"] = str(exc)
+            registry.put(sandbox)
+            raise HTTPException(status_code=409, detail="Camoufox stop failed; container and profile preserved") from exc
+
+    def check_camoufox_health(self, sandbox: SandboxRecord) -> None:
+        try:
+            docker_adapter.camoufox_control(sandbox.container_id, {"action": "status"})
+        except RuntimeError as exc:
+            sandbox.status = SandboxStatus.DEGRADED
+            sandbox.updated_at = utcnow()
+            sandbox.metadata["runtime_error"] = str(exc)
+            registry.put(sandbox)
+
     def _stop_cloak(self, sandbox: SandboxRecord) -> None:
         result = docker_adapter.cloak_control(sandbox.container_id, "stop")
         if not result.get("stopped"):
@@ -356,7 +395,12 @@ class SandboxLifecycleService:
     def _remove_runtime(self, sandbox: SandboxRecord) -> None:
         if not sandbox.container_id:
             return
-        if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER:
+        if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+            if docker_adapter.container_exists(sandbox.container_id):
+                self._stop_camoufox(sandbox)
+            if not docker_adapter.remove_container(sandbox.container_id):
+                raise HTTPException(status_code=409, detail="Container removal failed; profile preserved")
+        elif sandbox.browser_engine == BrowserEngine.CLOAKBROWSER:
             if docker_adapter.container_exists(sandbox.container_id):
                 self._stop_cloak(sandbox)
             if not docker_adapter.remove_container(sandbox.container_id):

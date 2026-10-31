@@ -22,6 +22,11 @@ class CreateSandboxRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_engine(self) -> "CreateSandboxRequest":
+        if self.browser_engine == BrowserEngine.CAMOUFOX:
+            if self.kind != SandboxKind.XVFB_VNC or self.enable_gpu or self.image:
+                raise ValueError("Camoufox requires xvfb_vnc, GPU disabled and a server-configured image")
+            if self.http_proxy or self.https_proxy or self.no_proxy:
+                raise ValueError("Camoufox proxy configuration is not supported yet")
         if self.browser_engine == BrowserEngine.CLOAKBROWSER:
             if self.enable_gpu:
                 raise ValueError("CloakBrowser currently requires GPU disabled")
@@ -37,6 +42,7 @@ class BrowserEngineAvailability(BaseModel):
     available: bool
     reason: str | None = None
     kinds: list[SandboxKind]
+    automation: Literal["cdp", "commands"] = "cdp"
 
 
 class UpdateSandboxRequest(BaseModel):

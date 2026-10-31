@@ -20,7 +20,7 @@ async def test_cdp_proxy_forwards_large_messages(monkeypatch, binary):
 
     async with websockets.serve(upstream, "127.0.0.1", 0) as server:
         port = server.sockets[0].getsockname()[1]
-        sandbox = SimpleNamespace(id="sb_test")
+        sandbox = SimpleNamespace(browser_engine="chromium", id="sb_test")
         monkeypatch.setattr(browser, "require_sandbox", Mock(return_value=sandbox))
         verify = Mock()
         monkeypatch.setattr(browser, "verify_ticket", verify)
@@ -61,7 +61,7 @@ async def test_cdp_proxy_rejects_messages_above_limit(monkeypatch):
 
     async with websockets.serve(upstream, "127.0.0.1", 0) as server:
         port = server.sockets[0].getsockname()[1]
-        monkeypatch.setattr(browser, "require_sandbox", Mock(return_value=SimpleNamespace(id="sb_test")))
+        monkeypatch.setattr(browser, "require_sandbox", Mock(return_value=SimpleNamespace(browser_engine="chromium", id="sb_test")))
         monkeypatch.setattr(browser, "verify_ticket", Mock())
         monkeypatch.setattr(
             browser.browser_service, "upstream_browser_version",

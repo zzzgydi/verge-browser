@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Camoufox has no CDP endpoint; keep the supervised placeholder idle.
+if [ "${BROWSER_ENGINE:-chromium}" = "camoufox" ]; then
+  exec sleep infinity
+fi
+
 INTERNAL_CDP_PORT="${BROWSER_REMOTE_DEBUGGING_PORT:-9222}"
 EXPOSED_CDP_PORT="${EXPOSED_CDP_PORT:-9223}"
 

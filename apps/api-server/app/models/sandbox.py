@@ -30,6 +30,7 @@ class SandboxKind(StrEnum):
 class BrowserEngine(StrEnum):
     CHROMIUM = "chromium"
     CLOAKBROWSER = "cloakbrowser"
+    CAMOUFOX = "camoufox"
 
 
 class RuntimeEndpoint(BaseModel):

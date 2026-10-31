@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import shlex
+import struct
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -12,7 +13,7 @@ import httpx
 import websockets
 from fastapi import HTTPException, status
 
-from app.models.sandbox import SandboxKind, SandboxRecord, SandboxStatus
+from app.models.sandbox import BrowserEngine, SandboxKind, SandboxRecord, SandboxStatus
 from app.schemas.browser import BrowserAction, BrowserActionType, BrowserActionsRequest, BrowserActionsResponse, ScreenshotEnvelope, ScreenshotMetadata, ScreenshotType
 from app.services.docker_adapter import docker_adapter
 
@@ -72,6 +73,15 @@ class BrowserService:
         return await self._browser_version_payload(sandbox, normalize_ws_url=False)
 
     async def _browser_version_payload(self, sandbox: SandboxRecord, *, normalize_ws_url: bool) -> dict:
+        if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+            if not sandbox.container_id:
+                return {}
+            try:
+                data = await asyncio.to_thread(docker_adapter.camoufox_control, sandbox.container_id, {"action": "status"})
+                return {"Browser": data["version"], "Protocol-Version": "Playwright/Juggler", "camoufox_ready": data["ready"]}
+            except RuntimeError as exc:
+                logger.info("Camoufox not ready: %s", exc)
+                return {}
         url = f"http://{sandbox.runtime.host}:{sandbox.runtime.cdp_port}/json/version"
         used_exec_fallback = False
         try:
@@ -98,6 +108,9 @@ class BrowserService:
             "width": window["width"],
             "height": max(window["height"] - min(80, window["height"]), 0),
         }
+        if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+            data = docker_adapter.camoufox_control(sandbox.container_id, {"action": "status"})
+            page_viewport = {key: int(value) for key, value in data["viewport"].items()}
         return {
             "window_viewport": {
                 "x": 0,
@@ -122,18 +135,25 @@ class BrowserService:
         target_id: str | None = None,
         quality: int | None = None,
     ) -> ScreenshotEnvelope:
+        if sandbox.browser_engine == BrowserEngine.CAMOUFOX and image_format != "png":
+            raise HTTPException(status_code=422, detail="Camoufox screenshots currently support PNG")
         viewport = self.get_viewport(sandbox)
         if screenshot_type == ScreenshotType.window:
             image_bytes = await asyncio.to_thread(self._window_screenshot, sandbox)
         else:
             image_bytes = await self._page_screenshot(sandbox, target_id=target_id, image_format=image_format, quality=quality)
+        dimensions = viewport["window_viewport"]
+        if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+            # X11 can clip an offscreen border; report actual PNG pixels, not the requested window size.
+            width, height = struct.unpack(">II", image_bytes[16:24])
+            dimensions = {"width": width, "height": height}
         return ScreenshotEnvelope(
             type=screenshot_type,
             format=image_format,  # type: ignore[arg-type]
             media_type=f"image/{image_format}",
             metadata=ScreenshotMetadata(
-                width=viewport["window_viewport"]["width"],
-                height=viewport["window_viewport"]["height"],
+                width=dimensions["width"],
+                height=dimensions["height"],
                 page_viewport=viewport["page_viewport"],
                 window_viewport=viewport["window_viewport"],
                 window_id=viewport["active_window"]["window_id"],
@@ -168,6 +188,13 @@ class BrowserService:
             raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "action execution failed")
 
     async def _page_screenshot(self, sandbox: SandboxRecord, *, target_id: str | None, image_format: str, quality: int | None) -> bytes:
+        if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+            if target_id:
+                raise HTTPException(status_code=422, detail="Use browser switch to select a Camoufox tab, not a CDP target_id")
+            if image_format != "png":
+                raise HTTPException(status_code=422, detail="Camoufox page screenshots currently support PNG")
+            data = await asyncio.to_thread(docker_adapter.camoufox_control, sandbox.container_id, {"action": "screenshot"})
+            return base64.b64decode(data["data_base64"])
         version = await self.upstream_browser_version(sandbox)
         ws_url = version.get("webSocketDebuggerUrl")
         if not ws_url:
@@ -205,6 +232,8 @@ class BrowserService:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="sandbox container unavailable")
         crop = f'{window["width"]}x{window["height"]}+{window["x"]}+{window["y"]}'
         command = f'import -window root -crop "{crop}" png:-'
+        if sandbox.browser_engine == BrowserEngine.CAMOUFOX:
+            command = f'import -window {shlex.quote(window["window_id"])} png:-'
         if sandbox.kind == SandboxKind.XPRA:
             # Xpra redirects window pixels away from the root desktop and leaves
             # windows unmapped until a client opens them. Map only this window.
@@ -251,7 +280,7 @@ import -window {window_id} png:-'''
         if not sandbox.container_id:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="sandbox container unavailable")
         script = self._with_display(sandbox, r"""
-wid="$(wmctrl -lx 2>/dev/null | awk 'BEGIN{IGNORECASE=1} $3 ~ /chromium|google-chrome/ {print $1; exit}' | sed 's/^0x//')"
+wid="$(wmctrl -lx 2>/dev/null | awk 'BEGIN{IGNORECASE=1} $3 ~ /chromium|google-chrome|camoufox|firefox/ {print $1; exit}' | sed 's/^0x//')"
 if [ -n "$wid" ]; then
   wid="$((16#$wid))"
 fi

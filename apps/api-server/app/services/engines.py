@@ -21,10 +21,27 @@ def cloak_unavailable_reason(kind: SandboxKind = SandboxKind.XVFB_VNC, *, image:
 def browser_engines() -> list[BrowserEngineAvailability]:
     reasons = {kind: cloak_unavailable_reason(kind) for kind in SandboxKind}
     kinds = [kind for kind, reason in reasons.items() if reason is None]
+    camoufox_reason = camoufox_unavailable_reason()
     return [
         BrowserEngineAvailability(browser_engine=BrowserEngine.CHROMIUM, available=True, kinds=list(SandboxKind)),
         BrowserEngineAvailability(
             browser_engine=BrowserEngine.CLOAKBROWSER, available=bool(kinds),
             reason=None if kinds else reasons[SandboxKind.XVFB_VNC], kinds=kinds,
         ),
+        BrowserEngineAvailability(
+            browser_engine=BrowserEngine.CAMOUFOX, available=camoufox_reason is None,
+            reason=camoufox_reason, kinds=[] if camoufox_reason else [SandboxKind.XVFB_VNC], automation="commands",
+        ),
     ]
+
+
+def camoufox_unavailable_reason(*, image: str | None = None) -> str | None:
+    settings = get_settings()
+    if not settings.camoufox_enabled:
+        return "Camoufox is disabled. See docs/guides/camoufox.md."
+    path = settings.camoufox_binary_dir
+    if path is None or not path.is_absolute() or not (path / "camoufox-bin").is_file() or not (path / "version.json").is_file():
+        return "Configure an absolute Camoufox binary directory with camoufox-bin and version.json."
+    if not docker_adapter.camoufox_image_supported(image or settings.camoufox_runtime_image):
+        return "Build a Camoufox runtime image with the supported launcher first."
+    return None

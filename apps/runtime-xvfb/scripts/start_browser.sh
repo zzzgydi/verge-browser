@@ -40,6 +40,10 @@ done
   done
 ) &
 
+if [ "${BROWSER_ENGINE:-chromium}" = "camoufox" ]; then
+  exec /opt/sandbox/camoufox-venv/bin/python /opt/sandbox/camoufox/camoufox_worker.py
+fi
+
 if [ "${BROWSER_ENGINE:-chromium}" = "cloakbrowser" ]; then
   exec /opt/sandbox/cloak-venv/bin/python /opt/sandbox/cloak/cloak_runtime.py launch
 fi

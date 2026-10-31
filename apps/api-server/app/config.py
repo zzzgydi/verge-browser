@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     file_upload_limit_bytes: int = 100 * 1024 * 1024
     sandbox_start_timeout_sec: int = 60
 
+    camoufox_enabled: bool = False
+    camoufox_binary_dir: Path | None = None
+    camoufox_runtime_image: str = "verge-browser-runtime-camoufox:local"
+
     cloak_enabled: bool = False
     cloak_license_file: Path | None = None
     cloak_binary_dir: Path = Path("/opt/verge/cloak")

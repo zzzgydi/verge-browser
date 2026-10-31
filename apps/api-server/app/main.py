@@ -59,7 +59,7 @@ def _reconcile_runtime_state() -> None:
 
         sandbox.container_id = container.container_id
         sandbox.runtime.host = docker_adapter.inspect_container_ip(container.container_id) or "127.0.0.1"
-        sandbox.status = SandboxStatus.STARTING if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER else SandboxStatus.RUNNING
+        sandbox.status = SandboxStatus.STARTING if sandbox.browser_engine != BrowserEngine.CHROMIUM else SandboxStatus.RUNNING
         sandbox.metadata.pop("runtime_error", None)
         registry.put(sandbox)
 
@@ -83,6 +83,8 @@ def _check_container_health() -> None:
             registry.put(sandbox)
         elif sandbox.browser_engine == BrowserEngine.CLOAKBROWSER and sandbox.status == SandboxStatus.RUNNING:
             lifecycle_service.check_cloak_health(sandbox)
+        elif sandbox.browser_engine == BrowserEngine.CAMOUFOX and sandbox.status == SandboxStatus.RUNNING:
+            lifecycle_service.check_camoufox_health(sandbox)
 
 
 async def _container_health_loop() -> None:
@@ -113,7 +115,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     )
     _reconcile_runtime_state()
     for sandbox in registry.all():
-        if sandbox.browser_engine == BrowserEngine.CLOAKBROWSER and sandbox.status == SandboxStatus.STARTING:
+        if sandbox.browser_engine != BrowserEngine.CHROMIUM and sandbox.status == SandboxStatus.STARTING:
             lifecycle_service._schedule_readiness_probe(sandbox.id, timeout_sec=settings.sandbox_start_timeout_sec)
     prune_task = asyncio.create_task(_ticket_prune_loop())
     health_task = asyncio.create_task(_container_health_loop())

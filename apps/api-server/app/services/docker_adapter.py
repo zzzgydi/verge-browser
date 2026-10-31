@@ -79,6 +79,17 @@ class DockerAdapter:
         engines = labels.get("io.verge.browser.experimental-engines")
         return isinstance(engines, str) and "cloakbrowser-linux-amd64" in engines.split()
 
+    def camoufox_image_supported(self, image_name: str) -> bool:
+        try:
+            proc = subprocess.run(
+                ["docker", "image", "inspect", image_name, "--format", "{{json .Config.Labels}}"],
+                capture_output=True, text=True, timeout=5,
+            )
+            labels = json.loads(proc.stdout) if proc.returncode == 0 else None
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            return False
+        return isinstance(labels, dict) and labels.get("io.verge.browser.engines") == "camoufox" and labels.get("io.verge.browser.launcher-version") == "1"
+
     def create_container(
         self,
         *,
@@ -96,7 +107,7 @@ class DockerAdapter:
         no_proxy: str | None = None,
     ) -> ContainerCreateResult:
         settings = get_settings()
-        image_name = image or (settings.cloak_runtime_image_for_kind(kind) if browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(kind))
+        image_name = image or (settings.camoufox_runtime_image if browser_engine == BrowserEngine.CAMOUFOX else settings.cloak_runtime_image_for_kind(kind) if browser_engine == BrowserEngine.CLOAKBROWSER else settings.runtime_image_for_kind(kind))
         if not self.image_exists(image_name):
             return ContainerCreateResult(
                 container_id=None,
@@ -149,6 +160,9 @@ class DockerAdapter:
             "-v",
             f"{workspace_dir}:/workspace",
         ]
+
+        if browser_engine == BrowserEngine.CAMOUFOX:
+            cmd.extend(["--mount", f"type=bind,src={settings.camoufox_binary_dir},dst=/root/.cache/camoufox,readonly"])
 
         if browser_engine == BrowserEngine.CLOAKBROWSER:
             state = workspace_dir.parent / "cloak-state"
@@ -328,6 +342,30 @@ class DockerAdapter:
         except FileNotFoundError:
             return False
         return proc.returncode == 0 and proc.stdout.strip() == "true"
+
+    def camoufox_control(self, container_id: str, command: dict) -> dict:
+        try:
+            proc = subprocess.run(
+                ["docker", "exec", "-i", container_id, "/opt/sandbox/camoufox-venv/bin/python",
+                 "/opt/sandbox/camoufox/camoufox_control.py"],
+                input=json.dumps(command), capture_output=True, text=True, timeout=35,
+            )
+            if not proc.stdout.strip():
+                raise RuntimeError(proc.stderr.strip() or "Camoufox returned no response")
+            result = json.loads(proc.stdout)
+            if proc.returncode or not result.get("success"):
+                raise RuntimeError(result.get("error", "Camoufox command failed"))
+            return result["data"]
+        except (OSError, subprocess.TimeoutExpired, ValueError, RuntimeError, KeyError) as exc:
+            raise RuntimeError(f"Camoufox command failed (not retried): {exc}") from exc
+
+    def camoufox_exited(self, container_id: str) -> bool:
+        # Only permit recovery without an acknowledgement when no browser/worker remains.
+        proc = self.exec_shell(container_id, "supervisorctl -c /etc/supervisor/conf.d/supervisord.conf status chromium; pgrep -x camoufox-bin; pgrep -f '^/opt/sandbox/camoufox-venv/bin/python /opt/sandbox/camoufox/camoufox_worker.py$'")
+        return proc.returncode == 1 and any(state in proc.stdout for state in ("EXITED", "STOPPED", "FATAL")) and len(proc.stdout.strip().splitlines()) == 1
+
+    def restart_camoufox(self, container_id: str) -> bool:
+        return self.exec(container_id, ["supervisorctl", "-c", "/etc/supervisor/conf.d/supervisord.conf", "restart", "chromium"]).returncode == 0
 
     def restart_browser(self, container_id: str) -> bool:
         try:

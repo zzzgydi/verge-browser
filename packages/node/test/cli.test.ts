@@ -257,3 +257,37 @@ test('files download writes binary output file', async () => {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test('Camoufox commands preserve tab, refs and empty fill text', async () => {
+  const io = createIo();
+  let payload: unknown;
+  const exitCode = await runCli({
+    argv: ['browser', 'fill', 'fox', '@e2', '', '--tab', 'research', '--json'], io,
+    clientFactory: options => new VergeClient({
+      ...options, token: 'token', fetchImpl: async (input, init) => {
+        assert.match(String(input), /\/sandbox\/fox\/browser\/command$/);
+        payload = JSON.parse(String(init?.body));
+        return createJsonResponse(200, envelope({}));
+      },
+    }),
+  });
+  assert.equal(exitCode, 0);
+  assert.deepEqual(payload, {action: 'fill', tab: 'research', ref: '@e2', text: ''});
+});
+
+test('Camoufox command failure is nonzero and never retried', async () => {
+  const io = createIo();
+  let calls = 0;
+  const exitCode = await runCli({
+    argv: ['browser', 'click', 'fox', '@e999', '--json'], io,
+    clientFactory: options => new VergeClient({
+      ...options, token: 'token', fetchImpl: async () => {
+        calls++;
+        return createJsonResponse(502, {code: 502, message: 'stale ref (not retried)', data: null});
+      },
+    }),
+  });
+  assert.notEqual(exitCode, 0);
+  assert.equal(calls, 1);
+  assert.match(io.err.join(''), /stale ref/);
+});

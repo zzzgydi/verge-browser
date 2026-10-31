@@ -12,7 +12,7 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 export type JsonObject = { [key: string]: JsonValue };
 export type SandboxStatus = 'STARTING' | 'RUNNING' | 'STOPPED' | 'FAILED' | 'DEGRADED';
 export type SandboxKind = 'xvfb_vnc' | 'xpra';
-export type BrowserEngine = 'chromium' | 'cloakbrowser';
+export type BrowserEngine = 'chromium' | 'cloakbrowser' | 'camoufox';
 export type AccessTicketMode = 'one_time' | 'reusable' | 'permanent';
 export type ScreenshotFormat = 'png' | 'jpeg' | 'webp';
 export type ScreenshotType = 'window' | 'page';
@@ -320,6 +320,10 @@ export class VergeClient {
     return this.requestJson<RestartBrowserResponse>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/browser/restart`, {
       body: { level: payload.level ?? 'hard' },
     });
+  }
+
+  browserCommand(idOrAlias: string, payload: JsonObject): Promise<JsonObject> {
+    return this.requestJson<JsonObject>('POST', `/sandbox/${encodeURIComponent(idOrAlias)}/browser/command`, { body: payload });
   }
 
   getBrowserInfo(idOrAlias: string): Promise<BrowserInfoResponse> {

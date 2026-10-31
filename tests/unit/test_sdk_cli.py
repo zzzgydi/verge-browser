@@ -155,3 +155,31 @@ def test_sdk_and_cli_select_cloak_engine() -> None:
     client = VergeClient(token="test", http_client=httpx.Client(transport=httpx.MockTransport(handler), base_url="http://test"))
     client.create_sandbox(browser_engine="cloakbrowser")
     assert captured["browser_engine"] == "cloakbrowser"
+
+
+def test_camoufox_cli_keeps_tab_and_empty_text(monkeypatch, capsys):
+    monkeypatch.setenv("VERGE_BROWSER_TOKEN", "token")
+    original_client = httpx.Client
+    calls = []
+    def handler(request):
+        calls.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(200, json={"code": 0, "message": "ok", "data": {}})
+    monkeypatch.setattr("verge_browser.client.httpx.Client", lambda **kw: original_client(
+        transport=httpx.MockTransport(handler), base_url="http://test", headers=kw.get("headers")))
+    assert main(["browser", "fill", "fox", "@e2", "", "--tab", "research", "--json"]) == 0
+    assert calls == [("/sandbox/fox/browser/command", {"action": "fill", "ref": "@e2", "text": "", "tab": "research"})]
+    assert json.loads(capsys.readouterr().out) == {}
+
+
+def test_python_cdp_ticket_options_match_skill(monkeypatch, capsys):
+    monkeypatch.setenv('VERGE_BROWSER_TOKEN', 'token')
+    original_client = httpx.Client
+    calls = []
+    def handler(request):
+        calls.append(json.loads(request.content))
+        return httpx.Response(200, json={'code':0, 'message':'ok', 'data':{'cdp_url':'ws://test'}})
+    monkeypatch.setattr('verge_browser.client.httpx.Client', lambda **kw: original_client(
+        transport=httpx.MockTransport(handler), base_url='http://test', headers=kw.get('headers')))
+    assert main(['sandbox','cdp','demo','--mode','reusable','--ttl-sec','300','--json']) == 0
+    assert calls == [{'mode':'reusable','ttl_sec':300}]
+    assert json.loads(capsys.readouterr().out)['cdp_url'] == 'ws://test'

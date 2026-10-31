@@ -38,7 +38,7 @@ interface GlobalOptions {
 interface SandboxOptions extends GlobalOptions {
   alias?: string;
   kind?: "xvfb_vnc" | "xpra";
-  browserEngine?: "chromium" | "cloakbrowser";
+  browserEngine?: "chromium" | "cloakbrowser" | "camoufox";
   width?: number;
   height?: number;
   enableGpu?: boolean;
@@ -195,7 +195,7 @@ function createCli(
     )
     .option("--alias <alias>", "Sandbox alias")
     .option("--kind <kind>", "Sandbox kind: xvfb_vnc or xpra")
-    .option("--browser-engine <engine>", "Browser engine: chromium or cloakbrowser")
+    .option("--browser-engine <engine>", "Browser engine: chromium, cloakbrowser or camoufox")
     .option("--width <width>", "Viewport width in pixels", { type: ["number"] })
     .option("--height <height>", "Viewport height in pixels", {
       type: ["number"],
@@ -279,10 +279,10 @@ function createCli(
 
   cli
     .command(
-      "browser <action> <idOrAlias>",
+      "browser <action> <idOrAlias> [...args]",
       "Inspect or control the browser inside a sandbox",
     )
-    .usage("verge-browser browser <screenshot|actions> <idOrAlias> [options]")
+    .usage("verge-browser browser <screenshot|actions|open|snapshot|click|fill|press|text|tabs|switch|url|title|upload> <idOrAlias> [args] [options]")
     .option("--type <type>", "Screenshot type: window or page")
     .option("--format <format>", "Screenshot format: png, jpeg, or webp")
     .option(
@@ -290,13 +290,17 @@ function createCli(
       "Optional CDP target id for page screenshots",
     )
     .option("--output <path>", "Write screenshot bytes to a file")
+    .option("--tab <name>", "Camoufox tab name")
+    .option("-i, --interactive", "Interactive snapshot only")
+    .option("--selector <css>", "Scope snapshot to selector")
     .option("--input <file>", "JSON file for browser actions payload")
     .option("--payload <json>", "Inline JSON payload for browser actions")
     .action(
       async (
         action: string,
         idOrAlias: string,
-        options: BrowserScreenshotOptions & BrowserActionsOptions,
+        args: string[],
+        options: BrowserScreenshotOptions & BrowserActionsOptions & {tab?: string; interactive?: boolean; selector?: string},
       ) => {
         const client = clientFactory(toClientOptions(options));
         if (action === "screenshot") {
@@ -318,7 +322,20 @@ function createCli(
           const payload = await loadBrowserActionsPayload(options);
           return client.executeBrowserActions(idOrAlias, payload);
         }
-        throw new VergeConfigError(`unsupported browser command: ${action}`);
+        const fields: Record<string, string[]> = {
+          open: ["url"], snapshot: [], click: ["ref"], fill: ["ref", "text"],
+          press: ["key"], text: ["target"], tabs: [], switch: ["index"],
+          url: [], title: [], upload: ["selector", "path"],
+        };
+        const expected = fields[action];
+        if (!expected || args.length !== expected.length) {
+          throw new VergeConfigError(`Invalid arguments for browser ${action}`);
+        }
+        const payload: Record<string, string | number | boolean> = {action, tab: options.tab ?? "default"};
+        expected.forEach((field, index) => { payload[field] = field === "index" ? Number(args[index]) : args[index]!; });
+        if (options.interactive) payload.interactive = true;
+        if (options.selector) payload.selector = options.selector;
+        return client.browserCommand(idOrAlias, payload);
       },
     );
 
@@ -601,7 +618,11 @@ export async function runCli({
     matched.checkUnknownOptions();
     matched.checkOptionValue();
 
-    const positionalArgs: Array<string | undefined> = [...cli.args];
+    const positionalArgs: Array<string | string[] | undefined> = [...cli.args];
+    const variadicIndex = matched.args.findIndex((arg) => arg.variadic);
+    if (variadicIndex >= 0) {
+      positionalArgs.splice(variadicIndex, positionalArgs.length, cli.args.slice(variadicIndex));
+    }
     while (positionalArgs.length < matched.args.length) {
       positionalArgs.push(undefined);
     }

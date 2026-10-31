@@ -107,6 +107,9 @@ class VergeClient:
     def restart_browser(self, id_or_alias: str) -> dict[str, Any]:
         return self._request("POST", f"/sandbox/{quote(id_or_alias, safe='')}/browser/restart", json={"level": "hard"})
 
+    def browser_command(self, id_or_alias: str, command: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", f"/sandbox/{quote(id_or_alias, safe='')}/browser/command", json=command)
+
     def get_browser_info(self, id_or_alias: str) -> dict[str, Any]:
         return self.get_sandbox(id_or_alias)["browser"]
 

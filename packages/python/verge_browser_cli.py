@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     create = sandbox_subparsers.add_parser("create", parents=[parent_parser])
     create.add_argument("--alias", default=None)
     create.add_argument("--kind", default="xvfb_vnc", choices=["xvfb_vnc", "xpra"])
-    create.add_argument("--browser-engine", default="chromium", choices=["chromium", "cloakbrowser"])
+    create.add_argument("--browser-engine", default="chromium", choices=["chromium", "cloakbrowser", "camoufox"])
     create.add_argument("--width", type=int, default=1280)
     create.add_argument("--height", type=int, default=1024)
     create.add_argument("--enable-gpu", action="store_true", default=False)
@@ -55,6 +55,9 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("pause", "resume", "rm", "restart", "cdp", "session"):
         cmd = sandbox_subparsers.add_parser(name, parents=[parent_parser])
         cmd.add_argument("id_or_alias")
+        if name in {"cdp", "session"}:
+            cmd.add_argument("--mode", choices=["one_time", "reusable", "permanent"], default="reusable" if name == "cdp" else "one_time")
+            cmd.add_argument("--ttl-sec", type=int, default=None)
 
     # Browser subcommand
     browser = subparsers.add_parser("browser", parents=[parent_parser])
@@ -70,6 +73,20 @@ def build_parser() -> argparse.ArgumentParser:
     actions = browser_subparsers.add_parser("actions", parents=[parent_parser])
     actions.add_argument("id_or_alias")
     actions.add_argument("--input", required=True, help="JSON file with actions payload")
+
+    for action, fields in {
+        "open": ["url"], "snapshot": [], "click": ["ref"], "fill": ["ref", "text"],
+        "press": ["key"], "text": ["target"], "tabs": [], "switch": ["index"],
+        "url": [], "title": [], "upload": ["selector", "path"],
+    }.items():
+        cmd = browser_subparsers.add_parser(action, parents=[parent_parser])
+        cmd.add_argument("id_or_alias")
+        cmd.add_argument("--tab", default="default")
+        for field in fields:
+            cmd.add_argument(field, type=int if field == "index" else str)
+        if action == "snapshot":
+            cmd.add_argument("-i", "--interactive", action="store_true")
+            cmd.add_argument("--selector", default=None)
 
     # Files subcommand
     files = subparsers.add_parser("files", parents=[parent_parser])
@@ -166,7 +183,9 @@ def _dispatch(client: VergeClient, args: argparse.Namespace) -> Any:
                 continue_on_error=payload.get("continue_on_error", False),
                 screenshot_after=payload.get("screenshot_after", False),
             )
-        raise VergeConfigError(f"unsupported browser command: {args.browser_command}")
+        fields = {"url", "ref", "text", "key", "target", "selector", "path", "index", "interactive", "tab"}
+        payload = {key: value for key, value in vars(args).items() if key in fields and value is not None}
+        return client.browser_command(args.id_or_alias, {"action": args.browser_command, **payload})
 
     if args.command == "files":
         if args.files_command == "list":
@@ -224,9 +243,9 @@ def _dispatch(client: VergeClient, args: argparse.Namespace) -> Any:
     if args.sandbox_command == "restart":
         return client.restart_browser(args.id_or_alias)
     if args.sandbox_command == "cdp":
-        return client.get_cdp_info(args.id_or_alias)
+        return client.get_cdp_info(args.id_or_alias, mode=args.mode, ttl_sec=args.ttl_sec)
     if args.sandbox_command == "session":
-        return client.get_session_url(args.id_or_alias)
+        return client.get_session_url(args.id_or_alias, mode=args.mode, ttl_sec=args.ttl_sec)
     raise VergeConfigError(f"unsupported sandbox command: {args.sandbox_command}")
 
 

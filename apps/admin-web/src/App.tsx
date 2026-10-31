@@ -92,7 +92,7 @@ type Sandbox = {
   id: string;
   alias: string | null;
   kind: "xvfb_vnc" | "xpra";
-  browser_engine: "chromium" | "cloakbrowser";
+  browser_engine: "chromium" | "cloakbrowser" | "camoufox";
   status: string;
   created_at: string;
   updated_at: string;
@@ -449,10 +449,15 @@ export function App() {
   const cloak = engines?.find(
     (engine) => engine.browser_engine === "cloakbrowser",
   );
+  const camoufox = engines?.find(
+    (engine) => engine.browser_engine === "camoufox",
+  );
   const createKinds =
-    createEngine === "cloakbrowser"
-      ? (cloak?.kinds ?? [])
-      : ["xvfb_vnc", "xpra"];
+    createEngine === "camoufox"
+      ? ["xvfb_vnc"]
+      : createEngine === "cloakbrowser"
+        ? (cloak?.kinds ?? [])
+        : ["xvfb_vnc", "xpra"];
   const {
     detail: selected,
     error: detailError,
@@ -724,6 +729,10 @@ export function App() {
                     const engine = event.target
                       .value as Sandbox["browser_engine"];
                     setCreateEngine(engine);
+                    if (engine === "camoufox") {
+                      setCreateKind("xvfb_vnc");
+                      setCreateEnableGpu(false);
+                    }
                     if (engine === "cloakbrowser") {
                       if (!cloak?.kinds.includes(createKind))
                         setCreateKind(cloak?.kinds[0] ?? "xvfb_vnc");
@@ -732,6 +741,9 @@ export function App() {
                   }}
                 >
                   <option value="chromium">Chromium</option>
+                  <option value="camoufox" disabled={!camoufox?.available}>
+                    Camoufox{camoufox?.available ? " (experimental)" : " (not configured)"}
+                  </option>
                   <option value="cloakbrowser" disabled={!cloak?.available}>
                     CloakBrowser{cloak?.available ? "" : " (not configured)"}
                   </option>
@@ -775,7 +787,7 @@ export function App() {
                   <input
                     type="checkbox"
                     checked={createEnableGpu}
-                    disabled={createEngine === "cloakbrowser"}
+                    disabled={createEngine !== "chromium"}
                     onChange={(event) =>
                       setCreateEnableGpu(event.target.checked)
                     }
@@ -789,7 +801,7 @@ export function App() {
                 disabled={
                   isActionLoading ||
                   !createKinds.includes(createKind) ||
-                  (createEngine === "cloakbrowser" && !cloak?.available)
+                  (createEngine === "cloakbrowser" && !cloak?.available) || (createEngine === "camoufox" && !camoufox?.available)
                 }
               >
                 <Icon name="plus" />
@@ -877,7 +889,7 @@ export function App() {
                       <span>
                         {sandbox.browser_engine === "cloakbrowser"
                           ? "CloakBrowser"
-                          : "Chromium"}
+                          : sandbox.browser_engine === "camoufox" ? "Camoufox" : "Chromium"}
                       </span>
                       <span>
                         {sandbox.kind === "xpra" ? "Xpra" : "Xvfb + VNC"}
@@ -970,9 +982,7 @@ export function App() {
                   <div>
                     <dt>Browser engine</dt>
                     <dd>
-                      {selected.browser_engine === "cloakbrowser"
-                        ? "CloakBrowser"
-                        : "Chromium"}
+                      {selected.browser_engine === "cloakbrowser" ? "CloakBrowser" : selected.browser_engine === "camoufox" ? "Camoufox" : "Chromium"}
                     </dd>
                   </div>
                   <div>
@@ -1049,37 +1059,39 @@ export function App() {
                     <div className="connection-description">
                       <Icon name="code" />
                       <div>
-                        <h4>Chrome DevTools Protocol</h4>
-                        <p>Copy a URL for your automation client.</p>
+                        <h4>{selected.browser_engine === "camoufox" ? "Camoufox CLI commands" : "Chrome DevTools Protocol"}</h4>
+                        <p>{selected.browser_engine === "camoufox" ? "Use verge-browser browser snapshot, click and fill. CDP is unavailable." : "Copy a URL for your automation client."}</p>
                       </div>
                     </div>
-                    <div className="connection-actions">
-                      <label>
-                        <span>Link expiry</span>
-                        <select
-                          aria-label="CDP link expiry"
-                          value={cdpPresetKey}
-                          onChange={(event) =>
-                            setCdpPresetKey(event.target.value)
-                          }
-                          disabled={isActionLoading}
+                    {selected.browser_engine !== "camoufox" && (
+                      <div className="connection-actions">
+                        <label>
+                          <span>Link expiry</span>
+                          <select
+                            aria-label="CDP link expiry"
+                            value={cdpPresetKey}
+                            onChange={(event) =>
+                              setCdpPresetKey(event.target.value)
+                            }
+                            disabled={isActionLoading}
+                          >
+                            {ACCESS_PRESETS.map((preset) => (
+                              <option key={preset.key} value={preset.key}>
+                                {preset.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          className="ghost"
+                          onClick={() => void runAction("cdp", selected)}
+                          disabled={isActionLoading || !canOpenSessionSelected}
                         >
-                          {ACCESS_PRESETS.map((preset) => (
-                            <option key={preset.key} value={preset.key}>
-                              {preset.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <button
-                        className="ghost"
-                        onClick={() => void runAction("cdp", selected)}
-                        disabled={isActionLoading || !canOpenSessionSelected}
-                      >
-                        {pendingAction === "cdp" ? "Copying..." : "Connect CDP"}
-                        <Icon name="code" />
-                      </button>
-                    </div>
+                          {pendingAction === "cdp" ? "Copying..." : "Connect CDP"}
+                          <Icon name="code" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {selectedActionHint ? (
                     <p className="action-hint">{selectedActionHint}</p>

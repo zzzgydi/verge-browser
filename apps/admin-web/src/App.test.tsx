@@ -709,6 +709,24 @@ describe("sandbox dashboard", () => {
     );
   });
 
+  it("routes Camoufox to commands and hides CDP controls", async () => {
+    const fox = { ...sandbox, browser_engine: "camoufox" };
+    vi.mocked(fetch).mockImplementation(async (url) => response(
+      String(url).endsWith("/runtime/engines")
+        ? [...engines, {browser_engine: "camoufox", available: true, kinds: ["xvfb_vnc"]}]
+        : String(url).endsWith("/sandbox") ? [fox] : fox,
+    ) as Response);
+    renderApp();
+    fireEvent.click(await screen.findByRole("button", {name: /research-browser/}));
+    await screen.findByText("Camoufox CLI commands");
+    expect(screen.queryByRole("button", {name: "Connect CDP"})).toBeNull();
+    expect(screen.queryByLabelText("CDP link expiry")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Desktop runtime"), {target: {value: "xpra"}});
+    fireEvent.change(screen.getByLabelText("Browser engine"), {target: {value: "camoufox"}});
+    expect((screen.getByLabelText("Desktop runtime") as HTMLSelectElement).value).toBe("xvfb_vnc");
+    expect((screen.getByRole("checkbox", {name: /Enable GPU/}) as HTMLInputElement).disabled).toBe(true);
+  });
+
   it("copies a CDP URL with the selected ticket preset", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

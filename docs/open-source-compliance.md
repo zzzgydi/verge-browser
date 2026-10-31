@@ -34,3 +34,7 @@ Use the following checklist before publishing `runtime-xpra` images to customers
 ## Not Legal Advice
 
 These notes are engineering compliance guidance for this repository, not legal advice. For commercial external distribution, have counsel review your release process.
+
+## Optional Camoufox Runtime
+
+The Camoufox image contains the pinned Python command engine but **not** the browser artifact. Operators mount an independently obtained browser read-only. This does not clear redistribution of the browser, bundled fonts or every dependency; browser-containing public images remain gated on artifact-specific notice, source and font-license review. See [Camoufox's setup and license boundary](guides/camoufox.md). The same distro-package compliance obligations still apply to the binary-free runtime.

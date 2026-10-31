@@ -23,3 +23,9 @@ CloakBrowser's compiled browser is separately licensed by CloakHQ and is **not**
 The runtime images also install additional third-party packages from the base distribution package repositories, such as Chromium, Openbox, Supervisor, ImageMagick, and related system libraries and utilities. Each component remains licensed under its own terms.
 
 Before distributing built images externally, review the image contents and confirm that your distribution process satisfies the notice, attribution, and source-code obligations for all included components.
+
+## Optional managed Camoufox adapter
+
+The optional runtime installs the MIT-licensed Python [camoufox-cli](https://github.com/Bin-Huang/camoufox-cli) 0.7.6 and [Camoufox](https://github.com/daijro/camoufox) Python wrapper 0.4.11, with Playwright 1.52.0 (Apache-2.0). Installed packages retain their upstream license metadata. Exact Python versions are listed in `docker/camoufox-requirements.txt`; they are not relicensed under Verge's MIT license.
+
+The separately downloaded Camoufox browser is MPL-2.0 with additional third-party components and notices (including LGPL Cursory and separately licensed fonts). It is not bundled by this image. Public redistribution of a browser-containing image is not cleared; see `docs/guides/camoufox.md` before shipping artifacts. No npm camoufox-cli or camoufox-js dependency is added to Verge.

@@ -106,3 +106,12 @@ Notes:
 - Stop agent actions before manual control; opening a session URL does not pause automation. Do not use `sandbox pause` for a live handoff because it removes the runtime container.
 
 See [Human Handoff](guides/human-handoff.md), [Persistent Browser Profiles](guides/persistent-profiles.md), and [Codex with Playwright MCP](integrations/codex.md) for the complete workflows and their limits.
+
+## Camoufox engine routing
+
+A matching source build supports `sandbox create --browser-engine camoufox`. Read `sandbox get ID --json` before routing: `chromium`/`cloakbrowser` use `agent-browser --cdp`, while `camoufox` uses `verge-browser browser snapshot ID -i`, `open ID URL`, `fill ID REF TEXT`, `click ID REF` and the other [managed commands](../skills/verge-browser-usage/references/camoufox.md). Both Node and Python CLIs use the same syntax. These commands call the remote sandbox; they never start a local browser.
+
+Python: `client.browser_command("fox", {"action": "snapshot", "interactive": True})`.
+Node: `await client.browserCommand("fox", {action: "snapshot", interactive: true})`.
+
+Install matching client/server versions; do not assume a published package already contains unreleased source changes. See [setup, limitations and licenses](guides/camoufox.md).

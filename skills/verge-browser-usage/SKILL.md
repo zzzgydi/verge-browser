@@ -1,141 +1,91 @@
 ---
 name: verge-browser-usage
-description: Operate an already deployed Verge Browser service through its CLI, SDK, and API, including sandbox lifecycle, screenshots, files, human handoff, and CDP access. Use when the user already has Verge Browser running and wants practical automation workflows, especially with agent-browser.
+description: Operate a deployed Verge Browser service, selecting agent-browser over ticketed CDP for Chromium/CloakBrowser or Verge's managed camoufox-cli commands for Camoufox (Firefox/Juggler). Includes sandbox lifecycle, screenshots, files, and human handoff.
 ---
 
-# Purpose
+# Verge Browser Usage
 
-Use this skill when Verge Browser is already deployed and the user wants to create sandboxes, manage them, fetch session or CDP URLs, or combine the service with `agent-browser` for browser automation.
+Use this skill for an already deployed Verge Browser service. For installation or runtime setup, use `verge-browser-deploy` instead.
 
-This skill assumes deployment is done. If the user instead needs help installing or starting the service itself, use `verge-browser-deploy`.
+## Choose the correct automation path
 
-## Workflow
+1. Set `VERGE_BROWSER_URL` to the actual deployment URL and `VERGE_BROWSER_TOKEN` to its admin token. Do not print tokens or ticketed URLs in reports.
+2. Create or reuse the intended sandbox; read `verge-browser sandbox get ID --json` before choosing an automation client.
+3. Route by the returned **`browser_engine`**, not the User-Agent or sandbox `kind`:
 
-1. Confirm the user already has a reachable Verge Browser deployment. If not, switch to `verge-browser-deploy`.
-2. Install the latest CLI tools if they are not already present.
-3. Set `VERGE_BROWSER_URL` to the actual service URL and `VERGE_BROWSER_TOKEN` to the admin token.
-4. Create or reuse a sandbox.
-5. Decide whether the task needs CLI, SDK, session handoff, or CDP access.
-6. For `agent-browser`, get a fresh ticketed `cdp_url` and pass it to `agent-browser --cdp`.
-7. Use `/workspace` for file exchange.
+| `browser_engine` | Automation | Do not use |
+| --- | --- | --- |
+| `chromium` | `agent-browser --cdp "$CDP_URL" ...` | Camoufox commands |
+| `cloakbrowser` | `agent-browser --cdp "$CDP_URL" ...` | A separate local Cloak launch |
+| `camoufox` | `verge-browser browser open/snapshot/click/fill/... ID ...` | CDP, `agent-browser`, local `camoufox-cli open` |
+| Missing or unknown | Check server version / `GET /runtime/engines`; stop engine-specific commands until resolved | Guessing or launching a different browser |
 
-## Before You Start
+`kind` selects the display transport (`xvfb_vnc` or `xpra`), not the browser engine. Camoufox currently supports only `xvfb_vnc`. It is Firefox-based, uses Playwright/Juggler, and is **not** a non-CDP mode of agent-browser. Stock Firefox is not a supported Verge engine.
 
-This skill does not require a local checkout of the Verge Browser repository.
+The server must report RUNNING before automation. If it reports DEGRADED, inspect `metadata.runtime_error` and the session; do not silently start a replacement browser. A command timeout may have occurred after a click or submission: inspect the resulting state before retrying.
 
-You only need:
+## Client setup
 
-- a deployed Verge Browser service
-- the service URL
-- the admin token used by that service
+Use a CLI version matching the server. Camoufox support may require a source build until released; installing the published `latest` package does not prove support. Both the Python and Node Verge CLIs use the same commands below. The client machine does **not** need Python Camoufox, Firefox or a downloaded browser: the managed Python `camoufox-cli` command engine runs inside the remote sandbox.
 
-If the CLI tools are missing, install the latest versions:
-
-```bash
-npm install -g verge-browser@latest
-npm install -g agent-browser@latest
-agent-browser install
-```
-
-`VERGE_ADMIN_AUTH_TOKEN` matters here because it is also the value you should place into `VERGE_BROWSER_TOKEN` for CLI / SDK access.
-
-## Quick Start
-
-Set client variables first:
-
-```bash
-export VERGE_BROWSER_URL="http://127.0.0.1:8000"
-export VERGE_BROWSER_TOKEN="replace-with-your-admin-token"
-```
-
-If the service is exposed behind a public domain, set that domain here instead, for example:
+For Chromium/Cloak only, install `agent-browser` if missing. Remote CDP usage does not require `agent-browser install` to download a local browser. Never fall back to a bare `agent-browser open` if CDP fails.
 
 ```bash
 export VERGE_BROWSER_URL="https://verge.example.com"
-export VERGE_BROWSER_TOKEN="replace-with-your-admin-token"
-```
-
-Then the shortest lifecycle flow is:
-
-```bash
-verge-browser sandbox create --alias demo --default-url https://example.com --json
+export VERGE_BROWSER_TOKEN="replace-with-admin-token"
+verge-browser sandbox list --json
 verge-browser sandbox get demo --json
-verge-browser sandbox cdp demo --json
-verge-browser sandbox cdp demo --mode reusable --ttl-sec 300 --json
-verge-browser sandbox session demo --json
-verge-browser sandbox rm demo --json
 ```
 
-## Core Commands
-
-Chromium is the default and needs no Cloak key. A source build with engine support can create a Cloak sandbox using `verge-browser sandbox create --alias cloak-demo --browser-engine cloakbrowser --json`, once the server reports it available through `GET /runtime/engines`. Cloak uses the same lifecycle, session and CDP commands; do not launch a separate Cloak service. Free keys support one active browser, so pause the previous Cloak sandbox first. If the installed CLI does not recognize the option, use the matching source build or the API rather than assuming the published package is updated.
-
-- List sandboxes:
-  `verge-browser sandbox list --json`
-- Create a default sandbox:
-  `verge-browser sandbox create --alias demo --width 1440 --height 900 --json`
-- Create an Xpra sandbox:
-  `verge-browser sandbox create --alias demo-xpra --kind xpra --json`
-- Restart browser:
-  `verge-browser sandbox restart demo --json`
-- Pause or resume:
-  `verge-browser sandbox pause demo --json`
-  `verge-browser sandbox resume demo --json`
-- Delete:
-  `verge-browser sandbox rm demo --json`
-
-## Browser And Files
-
-- Window screenshot:
-  `verge-browser browser screenshot demo --type window --format png --output ./window.png --json`
-- Page screenshot:
-  `verge-browser browser screenshot demo --type page --format png --output ./page.png --json`
-- Execute GUI actions:
-  `verge-browser browser actions demo --input ./actions.json --json`
-- List files:
-  `verge-browser files list demo /workspace --json`
-- Upload:
-  `verge-browser files upload demo ./local-file.txt --json`
-- Download:
-  `verge-browser files download demo /workspace/notes.txt --output ./notes.txt --json`
-
-Use `/workspace/uploads` for inbound files and `/workspace/downloads` for browser-generated artifacts when possible.
-
-## Human Handoff
-
-To let a person take over the live browser, request a session URL:
+## Chromium and CloakBrowser
 
 ```bash
-verge-browser sandbox session demo --json
-```
-
-The same command works for both `xvfb_vnc` and `xpra`. The server decides which front end to return based on sandbox `kind`.
-
-## agent-browser Integration
-
-For `agent-browser`, always prefer the ticketed CDP URL returned by Verge Browser.
-
-Example:
-
-```bash
-CDP_URL="$(verge-browser sandbox cdp demo --json | jq -r '.cdp_url')"
-
+verge-browser sandbox create --alias demo --browser-engine chromium --json
+export AGENT_BROWSER_SESSION="verge-demo"
+CDP_URL="$(verge-browser sandbox cdp demo --mode reusable --ttl-sec 300 --json | jq -r '.cdp_url')"
 agent-browser --cdp "$CDP_URL" snapshot -i
-agent-browser --cdp "$CDP_URL" click @e1
+# Choose refs from the actual snapshot, not these illustrative numbers.
 agent-browser --cdp "$CDP_URL" fill @e2 "hello@example.com"
-agent-browser --cdp "$CDP_URL" press Enter
+agent-browser --cdp "$CDP_URL" snapshot -i
+agent-browser --cdp "$CDP_URL" click @e3
 ```
 
-Rules:
+Cloak uses `--browser-engine cloakbrowser` and the same CDP flow, after server configuration. Free Cloak keys support one active browser; pause the previous Cloak sandbox first.
 
-- CDP tickets default to `reusable` mode — the `cdp_url` can be reused across multiple connections until the TTL expires (default 60 seconds via `VERGE_TICKET_TTL_SEC`). Pass `mode: "permanent"` if you need a long-lived URL, or `mode: "one_time"` for single-use access.
-- Session tickets default to `one_time` mode — they are consumed on first use. Pass `mode: "reusable"` or `mode: "permanent"` if you need to reconnect.
-- request a fresh `cdp_url` if the previous ticket may have expired
-- re-run `snapshot -i` after navigation or significant DOM changes
-- if automation blocks on MFA or CAPTCHA, switch to `sandbox session`, let the human finish, then request a new CDP URL and continue
-- if `agent-browser` is not installed yet, install it with `npm install -g agent-browser@latest` and then run `agent-browser install`
+CDP tickets default to reusable with a 60-second TTL; obtain a fresh URL after expiry. Session tickets default to one-time. Avoid permanent tickets unless explicitly needed. Refresh snapshots after navigation, DOM changes, tab changes, or human input. See [references/agent-browser-examples.md](references/agent-browser-examples.md) for CDP-only examples.
 
-## References
+## Camoufox
 
-- Read `references/commands.md` for command patterns and SDK examples.
-- Read `references/agent-browser-examples.md` for end-to-end CDP workflows.
+Read [references/camoufox.md](references/camoufox.md) for supported commands, refs, tab selection, and file uploads. Short flow:
+
+```bash
+verge-browser sandbox create --alias fox --browser-engine camoufox --kind xvfb_vnc --default-url https://example.com --json
+verge-browser sandbox get fox --json
+verge-browser browser snapshot fox -i --json
+# Replace @e1 with a ref from this sandbox's latest snapshot.
+verge-browser browser click fox @e1 --json
+verge-browser browser snapshot fox -i --json
+```
+
+Do not obtain a CDP ticket for Camoufox (the API rejects it). These commands reuse the existing headed persistent context via a managed worker; they do not spawn a local browser or a native CLI daemon. Do not run upstream `install`, `open`, `close`, or `--all` against the sandbox. Use Verge lifecycle commands.
+
+## Shared lifecycle, files and human handoff
+
+```bash
+verge-browser browser screenshot demo --type window --format png --output ./window.png --json
+verge-browser browser screenshot demo --type page --format png --output ./page.png --json
+verge-browser browser actions demo --input ./actions.json --json
+verge-browser sandbox session demo --json
+verge-browser files upload demo ./local-file.txt --json
+verge-browser files list demo /workspace/downloads --json
+verge-browser files download demo /workspace/downloads/report.txt --output ./report.txt --json
+verge-browser sandbox pause demo --json
+verge-browser sandbox resume demo --json
+verge-browser sandbox restart demo --json
+```
+
+Session URLs show the same live browser used by automation. For MFA or other human-only steps, hand off through the session, then select the intended tab and take a new snapshot before continuing. Page coordinates and full-window coordinates differ; use returned viewport metadata for GUI actions, not a fixed toolbar offset. Camoufox screenshots currently require PNG and do not accept CDP target IDs.
+
+Pause/resume retains the profile and identity. Restart is explicit. `sandbox rm` deletes the sandbox **and its profile/files**; use it only when deletion is intended.
+
+See [references/commands.md](references/commands.md) for the shared API/SDK patterns. Camoufox exceptions in this skill take precedence over CDP-only examples.

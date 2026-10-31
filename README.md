@@ -65,6 +65,7 @@ For a local test that needs only page automation, standalone Playwright may be s
 - [Human handoff](./docs/guides/human-handoff.md): stop automation, complete the manual step, and read the page again.
 - [Persistent browser profiles](./docs/guides/persistent-profiles.md): what pause, resume, restart, and deletion actually preserve.
 - [Optional CloakBrowser engine](./docs/guides/cloak.md): configure a free or paid key, install privately, then select the engine in the same console; real Cloak validation is still pending.
+- [Optional Camoufox engine](./docs/guides/camoufox.md): Firefox-based Xvfb runtime using managed Python camoufox-cli commands (not CDP); browser installed separately.
 
 ## Agent Skills
 

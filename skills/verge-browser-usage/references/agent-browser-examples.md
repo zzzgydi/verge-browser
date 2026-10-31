@@ -1,11 +1,15 @@
 # agent-browser Examples
 
+For `chromium` or `cloakbrowser` only. Read `sandbox get ID --json` first; Camoufox uses the managed commands in `camoufox.md`, never CDP.
+
 Install first if needed:
 
 ```bash
 npm install -g agent-browser@latest
-agent-browser install
+export AGENT_BROWSER_SESSION="verge-ab-demo"
 ```
+
+Remote CDP does not require downloading a local browser. Never drop `--cdp` to recover from connection failures.
 
 ## Minimal Flow
 

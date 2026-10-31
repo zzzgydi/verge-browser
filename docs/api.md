@@ -359,3 +359,13 @@ Download a file as binary content. This endpoint returns the raw file body, not 
 ### `DELETE /sandbox/{sandbox_id}/files?path=/workspace/file.txt`
 
 Delete a file.
+
+## Managed Camoufox commands (experimental)
+
+`POST /sandbox/{sandbox_id}/browser/command` accepts the normal admin bearer token. Only RUNNING Camoufox sandboxes support it; Chromium/Cloak return 409 and use ticketed CDP instead. Example:
+
+```json
+{"action":"snapshot","tab":"default","interactive":true}
+```
+
+Actions: `open` (`url`), `snapshot` (`interactive`, `selector`), `click` (`ref`), `fill` (`ref`, `text`), `press` (`key`), `text` (`target`), `tabs`, `switch` (`index`), `url`, `title`, `upload` (`selector`, `path` under `/workspace/uploads`). Unknown fields/actions are rejected. All accept an optional named `tab`. Results use the normal `{code,message,data}` envelope; runtime failures return 502 without retry. Camoufox CDP ticket requests return 409 and CDP WebSocket access is rejected. Screenshots support PNG, with no CDP target ID. See [command semantics](../skills/verge-browser-usage/references/camoufox.md).

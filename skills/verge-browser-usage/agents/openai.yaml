@@ -1,4 +1,4 @@
 interface:
   display_name: "Verge Browser Usage"
-  short_description: "Operate deployed Verge Browser sandboxes and pair them with agent-browser."
-  default_prompt: "Use $verge-browser-usage to operate a deployed Verge Browser service and combine it with agent-browser for browser automation."
+  short_description: "Route Chromium/Cloak to CDP and Camoufox to managed commands."
+  default_prompt: "Use $verge-browser-usage to inspect a sandbox engine and select agent-browser CDP or managed Camoufox commands."

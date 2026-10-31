@@ -142,3 +142,7 @@ When deployment fails, check in this order:
 
 - Read `references/deploy-checklist.md` for exact commands by deployment mode.
 - Read `references/troubleshooting.md` for common runtime and path-mount failures.
+
+## Optional Camoufox engine
+
+For Firefox-based automation, follow `docs/guides/camoufox.md` in the checkout. Build the separate `runtime-camoufox` image and mount a verified official Linux browser artifact read-only; do not bake it into a public image. The API needs `VERGE_CAMOUFOX_ENABLED`, `VERGE_CAMOUFOX_BINARY_DIR` (same absolute path on API and Docker host), and optionally `VERGE_CAMOUFOX_RUNTIME_IMAGE`. Check `GET /runtime/engines`, then create a disposable Camoufox sandbox and verify its worker, noVNC, commands and persistent profile. This adapter uses Xvfb only, not Xpra/CDP, and has no proxy/GPU support. Do not run standalone `camoufox-cli open` on the user's client. After deployment use the engine-routing rules in `verge-browser-usage`.

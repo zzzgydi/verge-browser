@@ -149,3 +149,11 @@ Normal Chromium deployments need none of these settings. Use the [Cloak Compose 
 - When using [`deployments/docker-compose.yml`](../deployments/docker-compose.yml), export `PROJECT_ROOT` before starting Compose.
 - If the API server runs inside a container, `VERGE_SANDBOX_BASE_DIR` must point to a path that is visible inside the API container and matches the host mount path, otherwise runtime workspace mounts will fail.
 - When debugging session or CDP issues, start by checking `DISPLAY`, `XPRA_PORT`, `WEBSOCKET_PROXY_PORT`, and `EXPOSED_CDP_PORT`.
+
+## Optional Camoufox
+
+- `VERGE_CAMOUFOX_ENABLED`: defaults to `false`.
+- `VERGE_CAMOUFOX_BINARY_DIR`: absolute Docker-host path of a separately obtained complete Linux browser build; must also be visible at that path to the API.
+- `VERGE_CAMOUFOX_RUNTIME_IMAGE`: defaults to `verge-browser-runtime-camoufox:local`.
+
+See [Camoufox setup and license boundary](guides/camoufox.md). It does not change the default Chromium engine.

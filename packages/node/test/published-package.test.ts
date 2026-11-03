@@ -44,7 +44,7 @@ for (const [label, responses, expectedCalls, success, summaryMode = 'present'] o
           assert.equal(ms, 10000); delays++; callback();
         };
         globalThis.fetch = async (url, options) => {
-          assert.equal(url, 'https://registry.npmjs.org/verge-browser/0.4.0');
+          assert.ok(url.startsWith('https://registry.npmjs.org/verge-browser/0.4.0?write=true&t='));
           assert.ok(options.signal instanceof AbortSignal);
           const status = responses[Math.min(calls++, responses.length - 1)];
           if (status === 'network') throw new TypeError('fetch failed');

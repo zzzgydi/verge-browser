@@ -9,7 +9,7 @@ for (let attempt = 1; attempt <= 6; attempt++) {
   let actual;
   let failure;
   try {
-    response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    response = await fetch(`${url}?write=true&t=${Date.now()}-${attempt}`, { signal: AbortSignal.timeout(10_000) });
     if (response.ok) actual = await response.json();
   } catch (error) {
     if (error instanceof SyntaxError) throw error;

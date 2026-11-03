@@ -61,6 +61,7 @@ If registry verification fails after npm publish succeeds, check the exact versi
 Keep the workflow artifact and its integrity metadata for comparison. Do not blindly rerun the publishing job or reuse the published version.
 If the failure is limited to the registry check, verify the registry again; publishing is not a retry mechanism for that check.
 The registry check makes at most six read requests, with a 10-second timeout per request and 10 seconds between retries.
+Each attempt appends a unique cache-busting query, so a CDN-cached 404 cannot hide a completed publish.
 It retries network failures, HTTP 404, HTTP 429, and HTTP 5xx. Other HTTP errors and integrity mismatches fail immediately.
 Retries never repeat `npm publish`. Exhaustion fails the job and preserves the uploaded artifact for inspection.
 

@@ -48,6 +48,7 @@ class FixtureHandler(SimpleHTTPRequestHandler):
 
 
 def test_camoufox_real_cli_gui_and_persistence(tmp_path, monkeypatch):
+    node_cli = os.environ.get("VERGE_TEST_NODE_CLI")
     binary = os.environ.get("VERGE_CAMOUFOX_BINARY_DIR")
     if not binary or not docker_adapter.image_exists("verge-browser-runtime-camoufox:local"):
         pytest.skip("set VERGE_CAMOUFOX_BINARY_DIR and build the optional image")
@@ -96,7 +97,10 @@ def test_camoufox_real_cli_gui_and_persistence(tmp_path, monkeypatch):
         return response.json()["data"]
 
     def cli(*args, node=False, failure=False):
-        executable = ["node", str(ROOT / "packages/node/dist/src/cli.js")] if node else [sys.executable, "-m", "verge_browser_cli"]
+        executable = (
+            ["node", node_cli or str(ROOT / "packages/node/dist/src/cli.js")]
+            if node or node_cli else [sys.executable, "-m", "verge_browser_cli"]
+        )
         result = subprocess.run([*executable, *args, "--json"], env=env, text=True, capture_output=True, timeout=100)
         if failure:
             assert result.returncode != 0, result.stdout
@@ -114,7 +118,10 @@ def test_camoufox_real_cli_gui_and_persistence(tmp_path, monkeypatch):
         return cli("browser", "text", sid, selector)["text"]
 
     try:
-        created = api("POST", "/sandbox", json={"browser_engine": "camoufox", "default_url": url})
+        created = (
+            cli("sandbox", "create", "--browser-engine", "camoufox", "--default-url", url)
+            if node_cli else api("POST", "/sandbox", json={"browser_engine": "camoufox", "default_url": url})
+        )
         sid = created["id"]
         assert created["status"] == "RUNNING", created
         assert not created["browser"]["web_socket_debugger_url_present"]
@@ -261,7 +268,7 @@ def test_camoufox_real_cli_gui_and_persistence(tmp_path, monkeypatch):
                     "engine": "camoufox",
                     "version": created["browser"]["browser_version"],
                     "checks": [
-                        "python-cli",
+                        *([] if node_cli else ["python-cli"]),
                         "node-cli",
                         "trusted-click",
                         "refs",

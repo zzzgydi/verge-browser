@@ -33,5 +33,7 @@ serves the npm package, the project README, and this index, so there is no copy 
 
 ## Fields that differ from the package manifest
 
-`engines.dsh` here must match `packages/dsh-plugin/package.json`. The index is not generated:
-edit it in the same commit as the version bump.
+Each version's `engines.dsh` must match that published version's manifest, not the current
+development manifest. The index is not generated. Leave `0.1.0` at `0.2.1-rc.2`.
+After publishing `0.1.1`, add its version with `engines.dsh: "^0.2.0"` and its actual npm timestamp,
+then update `dist-tags.latest`. Do not list the unreleased version in advance.

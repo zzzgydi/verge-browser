@@ -33,13 +33,18 @@ This is a preview package. It is not published to npm.
 
 | Item | Requirement |
 | --- | --- |
-| DSH | `0.2.1-rc.2`. Other releases are not verified. |
+| DSH | `^0.2.0`. Later `0.3.x` releases need the exact-version exemption. Requires the host's Agent, MCP, tools, scope, system prompt, and working-directory services. |
 | Node | `>=22.12.0`. Local tests used `22.21.1`. |
 | Playwright MCP | Pinned to `0.0.80`. |
 | Verge | An accessible API, an admin token, and an existing sandbox in `RUNNING` state. |
 | Images | An image-capable model and a DSH attachment store. |
 
-Use the pinned DSH dependencies. Do not replace their versions with `latest`.
+`engines.dsh: "^0.2.0"` admits `0.2.0` and every later `0.2.x` release, including prereleases.
+It rejects `0.3.0` and its prereleases. Host DSH peers use the same range.
+For an untested DSH release, grant the exact-version exemption:
+`dsh plugin --profile YOUR_PROFILE allow-version dsh-plugin-verge-browser@0.1.1 --dsh-version <exact-version> --accept-risk`.
+Browser helpers are bundled at the tested version. Host services remain shared, not bundled.
+Development dependencies stay pinned for reproducible builds. Do not replace them with `latest`.
 
 ## Build and install
 
@@ -75,12 +80,20 @@ Use the pinned DSH dependencies. Do not replace their versions with `latest`.
    Replace `YOUR_PROFILE` with the profile name. Run this command from `packages/dsh-plugin`.
 
    ```bash
-   dsh plugin --profile YOUR_PROFILE add ./dsh-plugin-verge-browser-0.1.0.tgz
+   dsh plugin --profile YOUR_PROFILE add ./dsh-plugin-verge-browser-0.1.1.tgz --registry=https://registry.npmjs.org
    ```
 
 The archive includes the matching Verge SDK. It does not need an adjacent SDK directory at runtime.
 Archive installation does not build the plugin or download a browser.
 Source installation from a Git subdirectory is not supported.
+
+### Upgrade from 0.1.0
+
+Install the new archive into the same profile, then restart DSH.
+Do not grant a version exemption. The old npm `0.1.0` still requires DSH `0.2.1-rc.2`.
+Existing row IDs and connection settings stay the same.
+If your profile overrides the `verge-browser-registry` row's `name`, change that name to
+`dsh-plugin-verge-browser/registry`. Leave the row disabled when the scope already has `browserUse`.
 
 ### Install from a plugin index
 

@@ -34,13 +34,18 @@
 
 | 项目 | 要求 |
 | --- | --- |
-| DSH | `0.2.1-rc.2`。其他版本未验证。 |
+| DSH | `^0.2.0`。`0.3.x` 需要显式版本豁免。依赖宿主的 Agent、MCP、工具、作用域、系统提示词和工作目录服务。 |
 | Node | `>=22.12.0`。本地测试使用 `22.21.1`。 |
 | Playwright MCP | 固定为 `0.0.80`。 |
 | Verge | 可访问的 API、管理令牌，以及状态为 `RUNNING` 的已有沙箱。 |
 | 图片 | 支持图像输入的模型，以及 DSH 附件存储。 |
 
-必须使用固定的 DSH 依赖版本。不得用 `latest` 替换版本号。
+`engines.dsh: "^0.2.0"` 接受 `0.2.0` 及之后所有 `0.2.x` 版本，包括预发布版。
+它拒绝 `0.3.0` 及其预发布版。宿主 DSH 共享依赖使用同一范围。
+未测试的 DSH 版本需要显式豁免：
+`dsh plugin --profile YOUR_PROFILE allow-version dsh-plugin-verge-browser@0.1.1 --dsh-version <精确版本> --accept-risk`。
+浏览器辅助模块按测试版本打入插件包。宿主服务继续共享，不打入插件包。
+开发依赖继续固定版本，保证构建可重复。不得用 `latest` 替换开发依赖版本。
 
 ## 构建和安装
 
@@ -77,13 +82,21 @@
    在 `packages/dsh-plugin` 目录执行：
 
    ```bash
-   dsh plugin --profile YOUR_PROFILE add ./dsh-plugin-verge-browser-0.1.0.tgz
+   dsh plugin --profile YOUR_PROFILE add ./dsh-plugin-verge-browser-0.1.1.tgz --registry=https://registry.npmjs.org
    ```
 
 安装包包含对应的 Verge SDK。运行时不依赖相邻 SDK 目录。
 安装预构建包不编译插件，也不下载浏览器。
 当前不支持从 Git 子目录安装源码。
 开发工具缺少平台二进制时，必须完成该工具的批准安装流程。
+
+### 从 0.1.0 升级
+
+将新安装包加入同一个 Profile，然后重启 DSH。
+无需授予版本豁免。npm 的旧版 `0.1.0` 仍要求 DSH `0.2.1-rc.2`。
+已有配置项 ID 和连接配置保持不变。
+如果 Profile 覆盖了 `verge-browser-registry` 的 `name`，将它改为
+`dsh-plugin-verge-browser/registry`。作用域已有 `browserUse` 时，继续禁用该配置项。
 
 ### 从插件索引安装
 

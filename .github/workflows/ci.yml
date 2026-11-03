@@ -5,6 +5,27 @@ on:
   pull_request:
 
 jobs:
+  dsh-plugin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/dsh-plugin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: packages/dsh-plugin/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm check
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm pack:check
+
   node-package:
     runs-on: ubuntu-latest
     defaults:

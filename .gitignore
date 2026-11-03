@@ -35,6 +35,7 @@ htmlcov/
 .env
 .env.*
 !.env.example
+.playwright-mcp/
 
 # Project specific
 spec/

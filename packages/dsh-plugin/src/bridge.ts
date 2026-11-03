@@ -1,0 +1,21 @@
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { AttachedBrowser } from './browser.js';
+import { connectionConfig } from './config.js';
+import { instructions } from './tools.js';
+
+const parsed = connectionConfig.safeParse(JSON.parse(process.env.VERGE_DSH_CONFIG ?? '{}'));
+if (!parsed.success) throw new Error(`Invalid Verge configuration fields: ${parsed.error.issues.map(issue => issue.path.join('.')).join(', ')}`);
+const browser = new AttachedBrowser(parsed.data);
+const server = new Server({ name: 'verge-browser', version: '0.1.0' }, { capabilities: { tools: {} }, instructions });
+await browser.initialize();
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: browser.tools() }));
+server.setRequestHandler(CallToolRequestSchema, (request, extra) => browser.call(request.params.name, request.params.arguments ?? {}, extra.signal));
+let closing: Promise<void> | undefined;
+const close = () => { closing ??= browser.close().finally(() => server.close()); return closing; };
+const shutdown = () => { void close().catch(error => { console.error(String(error)); process.exitCode = 1; }); };
+server.onclose = shutdown;
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);
+await server.connect(new StdioServerTransport());

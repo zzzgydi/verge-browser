@@ -1,0 +1,55 @@
+{
+  "format": 1,
+  "title": {
+    "en": "Verge Browser plugins",
+    "zh": "Verge 浏览器插件"
+  },
+  "description": {
+    "en": "Plugins that connect DeepSeek Harness to a self-hosted Verge browser.",
+    "zh": "把 DeepSeek Harness 接到自托管 Verge 浏览器的插件。"
+  },
+  "plugins": [
+    {
+      "name": "dsh-plugin-verge-browser",
+      "title": {
+        "en": "Verge Browser",
+        "zh": "Verge 浏览器"
+      },
+      "description": {
+        "en": "Use a self-hosted visual browser with engine-aware tools, screenshots, and human handoff.",
+        "zh": "使用自托管可视浏览器，按内核选择工具，支持截图与人工接管。"
+      },
+      "icon": "../icon.svg",
+      "author": "zzzgydi",
+      "homepage": "https://github.com/zzzgydi/verge-browser/tree/main/packages/dsh-plugin",
+      "repository": {
+        "url": "https://github.com/zzzgydi/verge-browser",
+        "directory": "packages/dsh-plugin"
+      },
+      "metadata": {
+        "keywords": [
+          "dsh",
+          "dsh-plugin",
+          "deepseek-harness",
+          "browser-automation",
+          "remote-browser"
+        ]
+      },
+      "dist-tags": {
+        "latest": "0.1.0"
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793683615,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": "0.2.1-rc.2"
+          }
+        }
+      ]
+    }
+  ]
+}

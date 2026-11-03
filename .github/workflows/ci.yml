@@ -28,6 +28,10 @@ jobs:
 
   node-package:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["18", "20", "22", "24"]
     defaults:
       run:
         working-directory: packages/node
@@ -43,7 +47,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ matrix.node }}
           cache: pnpm
           cache-dependency-path: packages/node/pnpm-lock.yaml
 
@@ -58,6 +62,15 @@ jobs:
 
       - name: Verify packed artifacts
         run: pnpm run pack:check
+        env:
+          VERGE_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}/verge-node-package
+
+      - name: Upload verified package
+        uses: actions/upload-artifact@v4
+        with:
+          name: verge-browser-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/verge-node-package/
+          if-no-files-found: error
 
   test:
     runs-on: ubuntu-latest

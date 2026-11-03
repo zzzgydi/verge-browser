@@ -2,6 +2,15 @@ name: Release Node Package
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version to verify or publish (must match package.json)"
+        required: true
+        type: string
+      publish:
+        description: "Publish the verified package to npm (leave off for CI-only validation)"
+        type: boolean
+        default: false
   push:
     tags:
       - "verge-browser-v*"
@@ -27,10 +36,15 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
           cache: pnpm
           cache-dependency-path: packages/node/pnpm-lock.yaml
+
+      - name: Verify release version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: node scripts/check-release.mjs
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -43,8 +57,31 @@ jobs:
 
       - name: Verify packed artifacts
         run: pnpm run pack:check
+        env:
+          VERGE_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}/verge-node-package
+
+      - name: Upload verified package
+        uses: actions/upload-artifact@v4
+        with:
+          name: verge-browser-release
+          path: ${{ runner.temp }}/verge-node-package/
+          if-no-files-found: error
+
+      - name: Report validation-only result
+        if: github.event_name == 'workflow_dispatch' && !inputs.publish
+        run: echo 'Package checks passed. Download the verge-browser-release artifact. Nothing was published to npm.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        if: github.event_name == 'push' || inputs.publish
+        run: |
+          test -n "$NODE_AUTH_TOKEN" || { echo "::error::Set the repository NPM_TOKEN secret before publishing"; exit 1; }
+          npm publish "$PACKAGE_DIR/verge-browser.tgz" --ignore-scripts --provenance --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PACKAGE_DIR: ${{ runner.temp }}/verge-node-package
+
+      - name: Verify published package
+        if: github.event_name == 'push' || inputs.publish
+        env:
+          PACKAGE_DIR: ${{ runner.temp }}/verge-node-package
+        run: node scripts/verify-published-package.mjs

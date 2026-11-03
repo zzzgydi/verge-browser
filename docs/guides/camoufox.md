@@ -22,6 +22,8 @@ Acceptance tests do not guarantee anti-detection effectiveness.
 ## Local setup
 
 Until a release includes these changes, use a matching source checkout for the API and CLI.
+The npm `verge-browser@0.3.0` package lacks these commands; they are included in the 0.4.0 source changes.
+See the [Node build instructions](../../packages/node/README.md#version-compatibility).
 Build the optional image on the Docker host:
 
 ```bash

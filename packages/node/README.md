@@ -8,6 +8,8 @@ Node.js SDK and CLI for [Verge Browser](https://github.com/zzzgydi/verge-browser
 - **SDK and CLI** — Call the API from code or the command line.
 - **Modules** — Native ES module support.
 - **API access** — Sandbox lifecycle, browser controls, CDP tickets, visual sessions, and file operations.
+- **Engine selection** — Chromium, optional CloakBrowser, and experimental Camoufox.
+- **Camoufox commands** — Control the remote Firefox-based browser through Verge's command API, not CDP.
 - **CLI parser** — Uses `cac`.
 
 ## Installation
@@ -21,6 +23,29 @@ Or let `npx` download and run the package:
 ```bash
 npx verge-browser --help
 ```
+
+### Version compatibility
+
+This source tree prepares **0.4.0**. At the 2026-11-03 registry check, npm `latest` was **0.3.0**.
+Version 0.3.0 has neither engine selection nor managed Camoufox commands.
+Check the published version before installing:
+
+```bash
+npm view verge-browser version
+verge-browser --version
+```
+
+Until 0.4.0 is published, build from this repository:
+
+```bash
+pnpm --dir packages/node install --frozen-lockfile
+pnpm --dir packages/node build
+node packages/node/dist/src/cli.js --version
+node packages/node/dist/src/cli.js sandbox create --alias fox --browser-engine camoufox --json
+```
+
+The create command requires a configured API and Camoufox runtime.
+Upgrading this client does not upgrade the API or install a browser.
 
 ## Quick Start
 
@@ -149,6 +174,84 @@ try {
 }
 ```
 
+## Camoufox
+
+Use a matching API with the optional runtime enabled. Follow the [server setup and support boundary](https://github.com/zzzgydi/verge-browser/blob/main/docs/guides/camoufox.md).
+The tested runtime uses Camoufox `v156.0.1-beta.36` on Linux ARM64 with Xvfb/noVNC and CPU rendering.
+This is not support for stock Firefox or every Firefox release.
+Camoufox does not support Xpra, GPU rendering, proxies, CDP, or BiDi through Verge.
+
+Read `sandbox.browser_engine` before selecting an automation route:
+
+| Engine | Automation route |
+|--------|------------------|
+| `chromium`, `cloakbrowser` | Get a ticket with `getCdpInfo()` or `sandbox cdp`; connect a CDP client such as `agent-browser`. |
+| `camoufox` | Use `browserCommand()` or the managed CLI commands below. Do not request CDP. |
+
+### SDK
+
+Use a new alias for this example. Continue only when the sandbox reports `RUNNING`.
+
+```typescript
+import { VergeClient } from 'verge-browser';
+
+const client = new VergeClient();
+const sandbox = await client.createSandbox({
+  alias: 'fox-sdk',
+  browser_engine: 'camoufox',
+  default_url: 'https://example.com',
+});
+if (sandbox.status !== 'RUNNING') {
+  throw new Error(`Sandbox is ${sandbox.status}`);
+}
+const snapshot = await client.browserCommand(sandbox.id, {
+  action: 'snapshot',
+  interactive: true,
+});
+console.log(snapshot);
+```
+
+### CLI
+
+Use a 0.4.0 client or replace `verge-browser` with the source command shown above.
+These examples use a separate alias from the SDK example:
+
+```bash
+verge-browser sandbox create --alias fox-cli --browser-engine camoufox --default-url https://example.com --json
+verge-browser sandbox get fox-cli --json
+# Continue only when status is RUNNING.
+verge-browser browser snapshot fox-cli -i --json
+verge-browser browser open fox-cli https://example.org --tab research --json
+verge-browser browser tabs fox-cli --json
+verge-browser browser screenshot fox-cli --type page --format png --output ./fox.png --json
+```
+
+The commands operate on the remote sandbox, not a browser on the client machine.
+Use PNG screenshots for Camoufox. Do not pass a CDP target ID.
+Command failures return nonzero exit codes. Neither the SDK nor CLI retries failed commands.
+After a stale element reference or GUI handoff, read a new snapshot before choosing another action.
+
+| CLI after `verge-browser browser` | `browserCommand()` payload |
+|---------------------------------|----------------------------|
+| `open ID URL` | `{ action: 'open', url: 'https://example.com' }` |
+| `snapshot ID -i` | `{ action: 'snapshot', interactive: true }` |
+| `click ID REF` | `{ action: 'click', ref: '@e1' }` |
+| `fill ID REF TEXT` | `{ action: 'fill', ref: '@e2', text: '' }` |
+| `press ID KEY` | `{ action: 'press', key: 'Enter' }` |
+| `text ID TARGET` | `{ action: 'text', target: '#result' }` |
+| `tabs ID` | `{ action: 'tabs' }` |
+| `switch ID INDEX` | `{ action: 'switch', index: 0 }` |
+| `url ID` | `{ action: 'url' }` |
+| `title ID` | `{ action: 'title' }` |
+| `upload ID SELECTOR PATH` | `{ action: 'upload', selector: '#file', path: '/workspace/uploads/file.txt' }` |
+
+Replace `ID`, `REF`, and other uppercase arguments with actual values.
+Use references from the latest snapshot, not the example references in this table.
+Tab indices start at zero. `--tab NAME` selects a named tab; the default is `default`.
+Use `snapshot --selector CSS` to limit the snapshot scope.
+Upload a local file with `files upload` before passing its remote `/workspace/...` path to `browser upload`.
+For full semantics, see the [Camoufox command guide](https://github.com/zzzgydi/verge-browser/blob/main/skills/verge-browser-usage/references/camoufox.md).
+
 ## API Reference
 
 ### `VergeClient`
@@ -181,13 +284,14 @@ try {
 | `getBrowserViewport(idOrAlias)` | Get window and page viewport metadata |
 | `getBrowserScreenshot(idOrAlias, options?)` | Capture screenshot (window or page) |
 | `executeBrowserActions(idOrAlias, payload)` | Execute GUI actions; see `BrowserActionType` below |
-| `restartBrowser(idOrAlias, payload?)` | Restart Chromium inside sandbox |
+| `restartBrowser(idOrAlias, payload?)` | Restart the sandbox's selected browser engine |
+| `browserCommand(idOrAlias, payload)` | Run a managed command on a RUNNING Camoufox sandbox |
 
 #### CDP & Session
 
 | Method | Description |
 |--------|-------------|
-| `getCdpInfo(idOrAlias, options?)` | Get Chrome DevTools Protocol WebSocket URL |
+| `getCdpInfo(idOrAlias, options?)` | Get a ticketed CDP WebSocket URL for Chromium/CloakBrowser; Camoufox returns 409 |
 | `createSessionTicket(idOrAlias, options?)` | Create VNC session access ticket |
 | `getSessionUrl(idOrAlias)` | Get complete session URL with ticket |
 
@@ -217,6 +321,9 @@ try {
 ### Types
 
 ```typescript
+// Browser engine (independent of the Xvfb/Xpra desktop kind)
+type BrowserEngine = 'chromium' | 'cloakbrowser' | 'camoufox';
+
 // Sandbox status
 type SandboxStatus = 'STARTING' | 'RUNNING' | 'STOPPED' | 'FAILED' | 'DEGRADED';
 
@@ -253,6 +360,10 @@ verge-browser sandbox <command>   Manage sandboxes
 verge-browser browser <command>   Browser control
 verge-browser files <command>     File operations
 ```
+
+Use `verge-browser sandbox --help` or `verge-browser browser --help` for command options.
+Create a selected engine with `sandbox create --browser-engine chromium|cloakbrowser|camoufox`.
+The server checks engine availability and allowed desktop kinds.
 
 ## Requirements
 

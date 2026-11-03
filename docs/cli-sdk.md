@@ -1,5 +1,13 @@
 # SDK & CLI Quick Start
 
+## Client versions
+
+The Node package prepares 0.4.0 for engine selection and managed Camoufox commands.
+The npm 0.3.0 package does not include those features.
+Check `npm view verge-browser version` before installing; a source version is not proof of publication.
+Until 0.4.0 is published, use the [Node source build](../packages/node/README.md#version-compatibility) and a matching API.
+The npm package does not install the server or browser runtime.
+
 ## Environment Variables
 
 Use `dev-admin-token` only for local development. For other deployments, use the server's configured admin token.
@@ -143,3 +151,5 @@ Node: `await client.browserCommand("fox", {action: "snapshot", interactive: true
 
 Install matching client and server versions. A published package does not necessarily contain unreleased source changes.
 See [setup, limitations and licenses](guides/camoufox.md).
+
+Maintainers: see the [Node package release checklist](guides/node-release.md).

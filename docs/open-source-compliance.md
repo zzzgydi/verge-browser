@@ -1,6 +1,6 @@
 # Open Source Compliance Notes
 
-This document defines the intended license boundary for this repository and the minimum compliance steps for distributing runtime images that contain third-party open-source software.
+This document defines the repository's intended license boundary. It lists minimum compliance steps for distributing runtime images with third-party open-source software.
 
 ## License Boundary
 
@@ -12,7 +12,8 @@ This document defines the intended license boundary for this repository and the 
 
 The `runtime-xpra` image installs Xpra from the distribution package repository in [`docker/runtime-xpra.Dockerfile`](../docker/runtime-xpra.Dockerfile).
 
-Xpra is licensed under GPL v2 or later. If you distribute an image containing Xpra outside your organization, treat that image as a GPL-relevant distribution and make sure the recipient can obtain the corresponding source code for the included Xpra version and any modifications to Xpra that you made.
+Xpra uses GPL v2 or later. If you distribute an Xpra image outside your organization, treat it as a GPL-relevant distribution.
+Recipients must have access to the corresponding source for the exact included Xpra version. This includes your modifications to Xpra.
 
 ## Distribution Checklist
 
@@ -22,13 +23,13 @@ Use the following checklist before publishing `runtime-xpra` images to customers
 2. Include [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) with the distributed source tree or release materials.
 3. State clearly that the `runtime-xpra` image contains Xpra and that Xpra remains licensed under GPL v2 or later.
 4. Preserve upstream copyright and license notices for included third-party components.
-5. Provide access to the corresponding source code for the exact Xpra version included in the distributed image, plus any modifications you made to Xpra, if any.
+5. Provide the corresponding source for the exact included Xpra version, including your modifications.
 6. Re-check other image packages for additional notice or source obligations before external distribution.
 
 ## Operational Guidance
 
-- If you only distribute repository source code and do not distribute built images, the repository-level MIT license notice is still correct, but third-party notices should remain in place so downstream users understand the image composition.
-- If you publish prebuilt `runtime-xpra` images, keep a repeatable process to identify the exact Xpra package version in the image and retain the matching source package or an equivalent compliant source distribution path.
+- If you distribute only repository source, retain the MIT license and third-party notices. The notices explain the image components to downstream users.
+- If you publish prebuilt `runtime-xpra` images, record the exact Xpra package version. Retain the matching source package or provide an equivalent compliant source distribution path.
 - Do not describe the entire shipped image as "MIT licensed". Only the repository's original code is MIT licensed.
 
 ## Not Legal Advice
@@ -37,4 +38,11 @@ These notes are engineering compliance guidance for this repository, not legal a
 
 ## Optional Camoufox Runtime
 
-The Camoufox image contains the pinned Python command engine but **not** the browser artifact. Operators mount an independently obtained browser read-only. This does not clear redistribution of the browser, bundled fonts or every dependency; browser-containing public images remain gated on artifact-specific notice, source and font-license review. See [Camoufox's setup and license boundary](guides/camoufox.md). The same distro-package compliance obligations still apply to the binary-free runtime.
+The Camoufox image contains the pinned Python command engine. It does **not** contain the browser artifact.
+Operators mount a separately obtained browser read-only.
+
+This arrangement does not authorize redistribution of the browser, bundled fonts, or all dependencies.
+Before publishing an image with a browser, review that artifact's notices, source obligations, and font licenses.
+See [Camoufox's setup and license boundary](guides/camoufox.md).
+
+Distribution-package obligations also apply to the runtime without a browser binary.

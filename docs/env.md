@@ -1,17 +1,20 @@
 # Environment Variables
 
-This document summarizes the environment variables used by the project during deployment and runtime. It separates them into:
+This reference groups environment variables by the process that reads them:
 
 - API server settings read from `.env` or the process environment
 - host variables required by Docker Compose
 - runtime container variables
 - SDK / CLI variables commonly used after deployment
 
-[`apps/api-server/app/config.py`](../apps/api-server/app/config.py) uses `pydantic-settings`, reads `.env` from the API process's working directory, and applies the `VERGE_` prefix to all server-side settings. The supplied Compose service uses the repository root as its working directory.
+[`apps/api-server/app/config.py`](../apps/api-server/app/config.py) uses `pydantic-settings`.
+The API reads `.env` from its working directory. Server settings use the `VERGE_` prefix.
+The supplied Compose service uses the repository root as its working directory.
 
 ## 1. API Server
 
-The variables below are read directly by the API server and can be set in the repository root `.env` file.
+Set these variables in the API process environment or its working directory's `.env` file.
+For the supplied Compose service, that file is at the repository root.
 
 | Variable                               | Default                                    | Required        | Description                                                                                                                                    |
 | -------------------------------------- | ------------------------------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -50,7 +53,8 @@ The variables below are read directly by the API server and can be set in the re
 
 ### Recommended minimal `.env`
 
-Local development can use the defaults. For any non-trivial deployment, at minimum configure:
+Use default secrets only for local development. For a deployment, configure the following settings with your own path and random secrets.
+Do not commit `.env` or real secrets.
 
 ```dotenv
 VERGE_ENV=production
@@ -75,7 +79,9 @@ VERGE_SANDBOX_BASE_DIR=${PROJECT_ROOT}/.local/sandboxes
 
 ## 3. Runtime Container Environment
 
-These variables are used by the runtime images or injected by the API server when it launches runtime containers. In most cases they do not need to be set manually on the host, but they are part of the deployment chain and matter when customizing images or debugging runtime issues.
+Runtime images define some variables. The API supplies others when it creates a runtime container.
+Normally, you do not set these variables on the host.
+Use this reference when customizing an image or diagnosing a runtime failure.
 
 ### 3.1 Variables injected by the API server
 
@@ -121,7 +127,7 @@ These variables are used by the runtime images or injected by the API server whe
 
 ## 4. SDK / CLI Variables
 
-These variables do not affect the server deployment itself, but they are commonly used by SDK clients, test scripts, and example commands after the service is up.
+SDKs, CLIs, and test scripts read these variables. They do not configure the API server.
 
 | Variable              | Default                 | Description                                        |
 | --------------------- | ----------------------- | -------------------------------------------------- |
@@ -132,7 +138,7 @@ These variables do not affect the server deployment itself, but they are commonl
 
 ### Optional CloakBrowser engine
 
-Normal Chromium deployments need none of these settings. Use the [Cloak Compose overlay](guides/cloak.md) to mount the key and private binary volume into the API.
+Chromium does not require these settings. The [Cloak Compose overlay](guides/cloak.md) mounts the key and private binary volume into the API container.
 
 | Variable | Default | Description |
 | --- | --- | --- |
@@ -147,7 +153,7 @@ Normal Chromium deployments need none of these settings. Use the [Cloak Compose 
 
 - For production, at minimum set `VERGE_ENV`, `VERGE_SANDBOX_BASE_DIR`, `VERGE_ADMIN_AUTH_TOKEN`, and `VERGE_TICKET_SECRET`.
 - When using [`deployments/docker-compose.yml`](../deployments/docker-compose.yml), export `PROJECT_ROOT` before starting Compose.
-- If the API server runs inside a container, `VERGE_SANDBOX_BASE_DIR` must point to a path that is visible inside the API container and matches the host mount path, otherwise runtime workspace mounts will fail.
+- If the API runs in a container, use the same absolute `VERGE_SANDBOX_BASE_DIR` path on the host and inside the API container. Mismatched paths cause runtime workspace mounts to fail.
 - When debugging session or CDP issues, start by checking `DISPLAY`, `XPRA_PORT`, `WEBSOCKET_PROXY_PORT`, and `EXPOSED_CDP_PORT`.
 
 ## Optional Camoufox

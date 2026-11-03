@@ -1,6 +1,7 @@
 # Playwright and Playwright MCP over CDP
 
-Verge Browser exposes the existing Chromium browser through a ticketed Chrome DevTools Protocol WebSocket. It does not serve the Playwright wire protocol or an MCP endpoint itself.
+Verge Browser exposes the existing Chromium browser through a ticketed Chrome DevTools Protocol (CDP) WebSocket.
+It does not serve the Playwright wire protocol or an MCP endpoint.
 
 For deployment, sandbox creation, and ticket setup, follow [Codex with a Self-Hosted Browser](codex.md#1-create-or-reuse-a-sandbox). The CDP connection works independently of Codex.
 
@@ -14,7 +15,10 @@ VERGE_CDP_URL="$(verge-browser sandbox cdp codex-demo --mode reusable --ttl-sec 
 export VERGE_CDP_URL
 ```
 
-Save the following as an `.mjs` file in that Node.js project, then run it with `node`:
+Use a disposable sandbox. This example navigates an existing tab.
+
+1. Save the example as an `.mjs` file in your Node.js project.
+2. Run the file with `node`.
 
 ```javascript
 import { chromium } from "playwright";
@@ -35,9 +39,13 @@ try {
 }
 ```
 
-Use the existing default context to share the runtime's browser profile and tabs. A new incognito context does not provide the same persisted login state. For a real task, select the intended tab by URL rather than navigating an arbitrary existing tab as this disposable demo does.
+Use the existing default context to share the runtime's profile and tabs.
+A new incognito context does not share that persisted login state.
+For real tasks, select the intended tab by URL. Do not navigate an arbitrary tab as this disposable example does.
 
-`chromium.connectOverCDP()` is not `browserType.connect()`. Playwright documents CDP as a [lower-fidelity connection](https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp) than its native protocol, so do not assume every Playwright feature works identically.
+`chromium.connectOverCDP()` is not `browserType.connect()`.
+Playwright documents CDP as a [lower-fidelity connection](https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp) than its native protocol.
+Do not assume that every Playwright feature works identically.
 
 ## Playwright MCP
 
@@ -47,11 +55,19 @@ An MCP client can launch this command as a local stdio server:
 npx -y @playwright/mcp@0.0.83 --cdp-endpoint "${VERGE_CDP_URL:?Set VERGE_CDP_URL first}"
 ```
 
-This attaches to the Verge browser instead of launching local Chromium. It is a stdio server, so running it in an ordinary terminal alone does not issue browser actions. Let your MCP client launch it; [the Codex guide](codex.md#3-configure-codexs-mcp-server) supplies one configuration.
+The command attaches to the Verge browser instead of launching local Chromium.
+It starts a stdio server. Running it alone in a terminal does not issue browser actions.
+Let your MCP client launch it. The [Codex guide](codex.md#3-configure-codexs-mcp-server) provides a configuration.
 
-Pass the full ticketed WebSocket URL. Do not substitute a session URL, the API base URL, or the runtime's private `9222`/`9223` address. `--cdp-header` is available upstream but is not needed for Verge's signed-ticket connection. `--shared-browser-context` controls sharing between MCP HTTP clients; it is not required for a person to view the same Chromium through noVNC or Xpra.
+Pass the full ticketed WebSocket URL. Do not substitute a session URL, API base URL, or private runtime address on `9222`/`9223`.
+Verge's signed-ticket connection does not require `--cdp-header`.
 
-The MCP process and browser may be on different hosts. File paths in MCP tools are not automatically Verge `/workspace` paths; use the [Verge file APIs or CLI](../cli-sdk.md) when transferring files to or from the sandbox.
+`--shared-browser-context` controls sharing between MCP HTTP clients.
+A person does not need this flag to view the same Chromium through noVNC or Xpra.
+
+The MCP process and browser can run on different hosts.
+MCP tool paths do not automatically refer to Verge `/workspace` paths.
+Use the [Verge file APIs or CLI](../cli-sdk.md) to transfer sandbox files.
 
 ## Troubleshooting
 
@@ -67,4 +83,6 @@ The MCP process and browser may be on different hosts. File paths in MCP tools a
 
 Tickets authorize new connections and expire without automatic renewal. Browser restarts and pause/resume also break live connections. See [Persistent Browser Profiles](../guides/persistent-profiles.md) for the lifecycle contract.
 
-Validation covers the documented flags, MCP stdio initialization/tool listing, and repository contracts; remote Playwright and MCP browser actions still require a runtime-backed smoke test. See the [upstream MCP documentation](https://github.com/microsoft/playwright-mcp) for supported options.
+Recorded checks cover the documented flags, MCP stdio initialization, tool listing, and repository contracts.
+Remote Playwright and MCP browser actions still require a runtime-backed smoke test for this guide.
+See the [upstream MCP documentation](https://github.com/microsoft/playwright-mcp) for supported options.

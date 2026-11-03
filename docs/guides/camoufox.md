@@ -1,27 +1,59 @@
 # Camoufox (experimental)
 
-Camoufox is an optional Firefox-based engine in the existing Verge sandbox. The worker embeds the upstream **Python** `camoufox-cli` command/ref and identity implementation; it is not a new standalone CLI or a fork of `agent-browser`. Both Verge CLIs call the authenticated command API. Chromium and CloakBrowser continue using ticketed CDP with `agent-browser`.
+Camoufox is an optional Firefox-based engine in Verge sandboxes.
+The worker embeds the upstream **Python** `camoufox-cli` commands, element references (refs), and identity implementation.
+It is not a standalone CLI or an `agent-browser` fork.
 
-The initial adapter targets **Linux ARM64, Xvfb/noVNC, CPU rendering**, with a persistent headed context. Xpra, GPU, proxies, stock Firefox and CDP/BiDi access are not supported. The runtime can be built for other architectures, but they require their own acceptance tests. Anti-detection effectiveness is not an acceptance guarantee.
+Both Verge CLIs call the authenticated command API.
+Chromium and CloakBrowser continue to use `agent-browser` with ticketed CDP.
+
+The initial adapter targets **Linux ARM64, Xvfb/noVNC, and CPU rendering**. It uses a persistent browser context with a graphical interface.
+
+Unsupported features:
+
+- Xpra and GPU rendering.
+- Proxies.
+- Stock Firefox.
+- CDP or BiDi access.
+
+Other architectures require separate acceptance tests, even if the runtime builds successfully.
+Acceptance tests do not guarantee anti-detection effectiveness.
 
 ## Local setup
 
-Use a matching source checkout for the API and CLI until a release includes these changes. Build the optional image on the Docker host:
+Until a release includes these changes, use a matching source checkout for the API and CLI.
+Build the optional image on the Docker host:
 
 ```bash
 docker build -f docker/runtime-xvfb.Dockerfile -t verge-browser-runtime-xvfb:latest .
 docker build -f docker/runtime-camoufox.Dockerfile -t verge-browser-runtime-camoufox:local .
 ```
 
-The image pins `camoufox-cli==0.7.6`, `camoufox==0.4.11` and `playwright==1.52.0`, plus the resolved Python dependencies in `docker/camoufox-requirements.txt`. Do not independently upgrade one component. The npm package is not used. No browser binary or downloaded fonts are bundled into this image.
+The image pins these packages:
 
-Obtain the official browser archive **separately**, after reviewing its terms. The locally tested ARM64 tuple is [Camoufox v156.0.1-beta.36](https://github.com/daijro/camoufox/releases/tag/v156.0.1-beta.36), asset `camoufox-156.0.1-beta.36-lin.arm64.zip` (1,284,863,246 bytes), SHA-256:
+- `camoufox-cli==0.7.6`.
+- `camoufox==0.4.11`.
+- `playwright==1.52.0`.
+- Resolved dependencies in `docker/camoufox-requirements.txt`.
+
+Do not upgrade one component independently. The image does not use the npm package.
+It contains no browser binary or downloaded fonts.
+
+Review the browser terms before obtaining the official archive **separately**.
+The locally tested ARM64 artifact is:
+
+- Release: [Camoufox v156.0.1-beta.36](https://github.com/daijro/camoufox/releases/tag/v156.0.1-beta.36).
+- Asset: `camoufox-156.0.1-beta.36-lin.arm64.zip`.
+- Size: 1,284,863,246 bytes.
+- SHA-256:
 
 ```text
 8b5fd083721c807ee2a752265683482477105052fa0e21739388b527ae067c15
 ```
 
-Example from the repository root (about 1.2 GiB compressed; allow additional extraction space):
+Run the following commands from the repository root.
+Allow space for the compressed archive, about 1.2 GiB, and the extracted files.
+Before `unzip`, compare the reported SHA-256 with the value above. Stop if they differ; the shell example does not compare them automatically.
 
 ```bash
 mkdir -p .local/camoufox/binary
@@ -36,11 +68,29 @@ export VERGE_CAMOUFOX_BINARY_DIR="$PWD/.local/camoufox/binary"
 export VERGE_CAMOUFOX_RUNTIME_IMAGE=verge-browser-runtime-camoufox:local
 ```
 
-Start the API with those settings and your existing auth secrets. `VERGE_CAMOUFOX_BINARY_DIR` must be an absolute Docker-host path containing the complete extracted browser, including executable permissions. The API must see the directory at the **same path** as the Docker host. The sandbox mounts it read-only at `/root/.cache/camoufox`. For Compose with the standard `PROJECT_ROOT` bind mount, keep it below that root and add the three variables to the API environment (or its `.env` in the configured working directory). Do not expose new debug ports. GeoIP lookups, default addon downloads, native daemon idle shutdown and automatic browser recovery are disabled in the managed worker.
+Start the API with those settings and your existing authentication secrets.
+`VERGE_CAMOUFOX_BINARY_DIR` must be an absolute Docker-host path. It must contain the complete extracted browser with executable permissions.
+The API must see that directory at the **same path**. The sandbox mounts it read-only at `/root/.cache/camoufox`.
 
-`GET /runtime/engines` reports `browser_engine: camoufox`, `automation: commands` and whether configuration is available. Availability is a configuration check; creation still verifies the actual worker, display and session server. A running container alone is not a ready browser.
+For standard Compose deployments:
+
+1. Keep the binary directory below `PROJECT_ROOT`.
+2. Add the three variables to the API environment or its working directory's `.env`.
+
+Do not expose new debug ports. The managed worker disables:
+
+- GeoIP lookups.
+- Default addon downloads.
+- Native daemon idle shutdown.
+- Automatic browser recovery.
+
+`GET /runtime/engines` reports `browser_engine: camoufox` and `automation: commands`.
+It also reports configuration availability. This is not a runtime readiness check.
+Sandbox creation checks the worker, display, and session server. A running container alone does not prove browser readiness.
 
 ## Operate the existing sandbox
+
+Wait for `RUNNING` before issuing browser commands. Pause ends the live browser session; save work before running it.
 
 ```bash
 verge-browser sandbox create --alias fox --browser-engine camoufox --default-url https://example.com --json
@@ -53,9 +103,24 @@ verge-browser sandbox pause fox --json
 verge-browser sandbox resume fox --json
 ```
 
-See [the usage skill](../../skills/verge-browser-usage/SKILL.md) for routing and [Camoufox commands](../../skills/verge-browser-usage/references/camoufox.md) for refs, tabs, upload and GUI handoff. `sandbox cdp fox` intentionally returns 409. Commands never fall back to a local browser, automatically restart the worker, or retry a mutating operation.
+See the [usage skill](../../skills/verge-browser-usage/SKILL.md) for engine routing.
+See [Camoufox commands](../../skills/verge-browser-usage/references/camoufox.md) for refs, tabs, uploads, and GUI handoff.
+`sandbox cdp fox` intentionally returns 409.
 
-The profile and `camoufox-cli.json` identity live together under `/workspace/browser-profile`. Pause/resume and explicit browser restart preserve both; delete removes both. Stop waits for the context to close before container removal. If that cannot be confirmed, the API fails and leaves the container/profile for inspection. An already-exited worker/browser can be explicitly restarted or removed. Avoid replacing the mounted browser beneath active profiles; stop first, back up the profile and test a separate sandbox when upgrading.
+Commands do not start a local browser as a fallback. They do not automatically restart the worker or retry a mutating operation.
+
+The profile and `camoufox-cli.json` identity use `/workspace/browser-profile`.
+Pause/resume and explicit browser restart preserve both. Delete removes both.
+
+Stop waits for the browser context to close before container removal.
+If the API cannot confirm closure, it fails and preserves the container and profile for inspection.
+An already-exited worker or browser can be explicitly restarted or removed.
+
+Do not replace the mounted browser while profiles are active. For an upgrade:
+
+1. Stop the browser.
+2. Back up the profile.
+3. Test the new build in a separate sandbox.
 
 ## Acceptance tests
 
@@ -67,17 +132,50 @@ VERGE_CAMOUFOX_BINARY_DIR="$PWD/.local/camoufox/binary" \
   PYTHONPATH=apps/api-server .venv/bin/pytest tests/integration/test_camoufox_runtime.py
 ```
 
-The real smoke serves a local fixture and exercises both Verge CLIs, native trusted clicks, stale-ref errors, tabs, X11 clipboard input, noVNC entry, upload/download, PNG pixels, profile/identity persistence and lifecycle. It uses a distinct Docker label and deletes only its own sandbox. Set `VERGE_SMOKE_ARTIFACT_DIR` to retain screenshots and result metadata. The fixture uses `host.docker.internal` (Docker Desktop/OrbStack); Linux hosts must resolve that name to the host gateway for this fixture. On hosts with system HTTP proxies, add the runtime addresses to `NO_PROXY`; a proxy returning 502 is not a browser failure. OrbStack may use `VERGE_TEST_RUNTIME_HOST_TEMPLATE='{name}.orb.local'` in this test only.
+The runtime smoke test serves a local fixture. It covers:
+
+- Both Verge CLIs, trusted native clicks, stale-ref errors, and tabs.
+- X11 clipboard input and noVNC entry.
+- Uploads, downloads, and PNG pixels.
+- Profile and identity persistence through lifecycle operations.
+
+The test uses a distinct Docker label. It deletes only its own sandbox.
+Set `VERGE_SMOKE_ARTIFACT_DIR` to retain screenshots and result metadata.
+
+The fixture uses `host.docker.internal` on Docker Desktop or OrbStack.
+On Linux, resolve that name to the host gateway for this fixture.
+If the host uses an HTTP proxy, add runtime addresses to `NO_PROXY`.
+A proxy response of 502 is not a browser failure.
+On OrbStack, this test supports `VERGE_TEST_RUNTIME_HOST_TEMPLATE='{name}.orb.local'`.
 
 ## License boundary
 
-- [Camoufox browser](https://github.com/daijro/camoufox) is MPL-2.0, not wholly MIT. Its browser modifications and distribution obligations remain separate from Verge's original MIT code.
-- The Python Camoufox wrapper and [Python camoufox-cli](https://github.com/Bin-Huang/camoufox-cli) are MIT. Preserve their notices and the licenses of installed Python dependencies. The upstream CLI revision reviewed for 0.7.6 is `2b1e24b6b6081549df8ed050502492cfb735acf2`.
-- Browser artifacts include other components, including LGPL-covered Cursory and font bundles with separate terms. Font redistribution rights have **not** been cleared by this implementation. GeoIP database/addon downloads are not enabled.
-- This integration supports a separately obtained, locally mounted browser. It does **not** authorize publishing browser-containing images or clear commercial redistribution. Review the exact artifact's notices, corresponding-source obligations and font terms before distribution. Even a binary-free runtime has its existing distro-package obligations; do not call the entire image MIT.
+- The [Camoufox browser](https://github.com/daijro/camoufox) uses MPL-2.0, not only MIT. Browser modifications and distribution obligations remain separate from Verge's original MIT code.
+- The Python Camoufox wrapper and [Python camoufox-cli](https://github.com/Bin-Huang/camoufox-cli) use MIT. Preserve their notices and installed dependency licenses. The reviewed 0.7.6 CLI revision is `2b1e24b6b6081549df8ed050502492cfb735acf2`.
+- Browser artifacts include LGPL-covered Cursory and font bundles with separate terms. This implementation does **not** establish font redistribution rights. GeoIP database and addon downloads are disabled.
+- This integration supports a separately obtained, locally mounted browser. It does **not** authorize browser-containing images or commercial redistribution.
+- Before distribution, review the exact artifact's notices, corresponding-source obligations, and font terms. Distribution-package obligations also apply to a runtime without a browser binary. Do not call the entire image MIT.
 
-These are engineering boundaries, not a legal opinion. License review remains a release gate for public prebundled browser images, not a claim that MPL prevents this local integration.
+These are engineering boundaries, not a legal opinion.
+Public images with a bundled browser require license review before release. This does not mean that MPL prevents the local integration.
 
-To exercise the original upstream 30-minute idle boundary without keepalive requests, add `VERGE_TEST_CAMOUFOX_IDLE_SEC=1810`. The test checks that the browser PID is unchanged and a real GUI click still works afterward. To verify the Chromium route with the same fixture, set `VERGE_TEST_AGENT_BROWSER` to your installed executable; the test obtains a Verge ticket through the Python CLI, then performs snapshot/fill/native-click through `agent-browser --cdp`.
+## Recorded validation
 
-Local acceptance on 2026-10-30: Linux ARM64 under OrbStack, both engine smoke tests passed, including 1,810 seconds without worker requests/keepalives and the same browser PID afterward. Xvfb/Xpra regression plus unit tests: 260 passed; Node CLI: 17; admin UI: 26. Chromium routing was tested with agent-browser 0.41.0's ARM64 native binary; its npm Node wrapper requires Node >=24. Cloak's actual licensed binary and other Camoufox architectures were not tested in this run.
+To test the upstream 30-minute idle boundary, add `VERGE_TEST_CAMOUFOX_IDLE_SEC=1810`.
+The test sends no keepalive requests during that interval. It then checks the browser PID and a real GUI click.
+
+To test Chromium routing with the same fixture, set `VERGE_TEST_AGENT_BROWSER` to your installed executable.
+The test gets a Verge ticket through the Python CLI. It then runs snapshot, fill, and native-click actions through `agent-browser --cdp`.
+
+Local acceptance record for 2026-10-30:
+
+| Check | Result and scope |
+| --- | --- |
+| Runtime environment | Linux ARM64 under OrbStack. |
+| Camoufox and Chromium smoke tests | Both passed. |
+| Camoufox idle interval | 1,810 seconds without worker requests or keepalives. Browser PID stayed unchanged. |
+| Xvfb/Xpra regressions and unit tests | 260 passed. |
+| Node CLI tests | 17 passed. |
+| Admin UI tests | 26 passed. |
+| Chromium routing | Used the ARM64 native binary of agent-browser 0.41.0. Its npm Node wrapper requires Node >=24. |
+| Outside this run | Real licensed Cloak binary and other Camoufox architectures. |

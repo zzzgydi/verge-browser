@@ -2,12 +2,23 @@
 
 ## Environment Variables
 
+Use `dev-admin-token` only for local development. For other deployments, use the server's configured admin token.
+Keep the token and returned ticketed URLs private.
+
 ```bash
 export VERGE_BROWSER_URL=http://127.0.0.1:8000
 export VERGE_BROWSER_TOKEN=dev-admin-token
 ```
 
 ## CLI
+
+Run these as independent examples, not as one script. Each command requires the named sandbox and input files to exist.
+
+**Data loss:** back up required files before `sandbox rm` or `files rm`.
+`sandbox rm` deletes the profile and shared files. `files rm` deletes the selected file.
+The `--overwrite` example replaces existing file content.
+
+Use time-limited tickets for routine access. A `permanent` ticket has no expiry.
 
 ```bash
 verge-browser sandbox list --json
@@ -44,6 +55,8 @@ Notes:
 - `sandbox create` defaults to the `xvfb_vnc` sandbox type; use `--kind xpra` to select Xpra instead.
 
 ## Python SDK
+
+Run this example separately from the CLI and Node examples. Reusing an existing alias during creation causes a conflict.
 
 ```python
 from verge_browser import VergeClient
@@ -95,23 +108,38 @@ const session = await client.getSessionUrl("shopping");
 
 ## Human-in-the-Loop Workflow
 
-1. The agent creates a sandbox and runs initial automation.
-2. When human takeover is needed, call `get_session_url()` or `verge-browser sandbox session <id-or-alias>`.
-3. After the human completes their actions, the agent resumes automation via `get_cdp_info()` or `verge-browser sandbox cdp <id-or-alias>`.
+1. Create a sandbox for the automation task.
+2. Before manual control, stop all automation clients.
+3. Confirm that no browser action is still running.
+4. Request a session URL with `get_session_url()` or `verge-browser sandbox session <id-or-alias>`.
+5. Complete the manual action in that session.
+6. Tell the agent that manual control is complete.
+7. If CDP disconnected, obtain a fresh URL with `get_cdp_info()` or `verge-browser sandbox cdp <id-or-alias>`.
+8. Take a fresh snapshot before resuming automation.
 
 Notes:
 
 - Both `xvfb_vnc` and `xpra` sandbox types expose a unified `session_url`.
 - Whether noVNC or the Xpra page is served depends on the sandbox `kind`.
-- Stop agent actions before manual control; opening a session URL does not pause automation. Do not use `sandbox pause` for a live handoff because it removes the runtime container.
+- Opening a session URL does not stop automation.
+- Do not use `sandbox pause` for live handoff. It removes the runtime container.
 
 See [Human Handoff](guides/human-handoff.md), [Persistent Browser Profiles](guides/persistent-profiles.md), and [Codex with Playwright MCP](integrations/codex.md) for the complete workflows and their limits.
 
 ## Camoufox engine routing
 
-A matching source build supports `sandbox create --browser-engine camoufox`. Read `sandbox get ID --json` before routing: `chromium`/`cloakbrowser` use `agent-browser --cdp`, while `camoufox` uses `verge-browser browser snapshot ID -i`, `open ID URL`, `fill ID REF TEXT`, `click ID REF` and the other [managed commands](../skills/verge-browser-usage/references/camoufox.md). Both Node and Python CLIs use the same syntax. These commands call the remote sandbox; they never start a local browser.
+A matching source build supports `sandbox create --browser-engine camoufox`.
+Read `sandbox get ID --json` before selecting an automation command.
+
+| Engine | Automation |
+| --- | --- |
+| `chromium`, `cloakbrowser` | Use `agent-browser --cdp` with a ticketed CDP URL. |
+| `camoufox` | Use the [managed commands](../skills/verge-browser-usage/references/camoufox.md), such as `verge-browser browser snapshot ID -i`. |
+
+Both Node and Python CLIs use the same syntax. Managed commands call the remote sandbox. They never start a local browser.
 
 Python: `client.browser_command("fox", {"action": "snapshot", "interactive": True})`.
 Node: `await client.browserCommand("fox", {action: "snapshot", interactive: true})`.
 
-Install matching client/server versions; do not assume a published package already contains unreleased source changes. See [setup, limitations and licenses](guides/camoufox.md).
+Install matching client and server versions. A published package does not necessarily contain unreleased source changes.
+See [setup, limitations and licenses](guides/camoufox.md).

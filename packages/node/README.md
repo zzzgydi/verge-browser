@@ -4,11 +4,11 @@ Node.js SDK and CLI for [Verge Browser](https://github.com/zzzgydi/verge-browser
 
 ## Features
 
-- **TypeScript-first** — Full type definitions with IntelliSense support
-- **SDK + CLI** — Use programmatically or from command line
-- **ESM-native** — Modern ES module support
-- **Complete API coverage** — Sandbox lifecycle, browser controls, CDP, session tickets, and file operations
-- **Lightweight** — Minimal runtime dependencies (CLI uses `cac`)
+- **Types** — TypeScript definitions for SDK requests and responses.
+- **SDK and CLI** — Call the API from code or the command line.
+- **Modules** — Native ES module support.
+- **API access** — Sandbox lifecycle, browser controls, CDP tickets, visual sessions, and file operations.
+- **CLI parser** — Uses `cac`.
 
 ## Installation
 
@@ -16,7 +16,7 @@ Node.js SDK and CLI for [Verge Browser](https://github.com/zzzgydi/verge-browser
 npm install verge-browser
 ```
 
-Or use with `npx` (no installation required):
+Or let `npx` download and run the package:
 
 ```bash
 npx verge-browser --help
@@ -25,6 +25,10 @@ npx verge-browser --help
 ## Quick Start
 
 ### SDK Usage
+
+Use a disposable sandbox for this example. The last call deletes its profile and files.
+Replace `your-api-token` with your deployment's admin token. Do not commit the real token.
+Keep the console output private: the example prints a ticketed session URL.
 
 ```typescript
 import { VergeClient } from 'verge-browser';
@@ -81,6 +85,13 @@ const client = new VergeClient(); // Uses env vars automatically
 
 ### CLI Usage
 
+Use `dev-admin-token` only for local development.
+Install the CLI globally, or prefix each command with `npx`.
+Create `actions.json` and `local-file.txt` before running the commands that use them.
+
+Use a disposable sandbox. The last command deletes its profile and files.
+The `--overwrite` command replaces existing file content.
+
 ```bash
 # Set environment variables
 export VERGE_BROWSER_URL=http://127.0.0.1:8000
@@ -114,7 +125,7 @@ verge-browser sandbox rm shopping
 
 ## Error Handling
 
-Import specific error classes for fine-grained handling:
+Handle errors that your application can resolve. Rethrow other errors, as this example does:
 
 ```typescript
 import {
@@ -158,9 +169,9 @@ try {
 | `createSandbox(payload?)` | Create a new sandbox |
 | `getSandbox(idOrAlias)` | Get sandbox by ID or alias |
 | `updateSandbox(idOrAlias, payload)` | Update sandbox alias |
-| `deleteSandbox(idOrAlias)` | Delete a sandbox |
-| `pauseSandbox(idOrAlias)` | Pause a sandbox |
-| `resumeSandbox(idOrAlias)` | Resume a sandbox |
+| `deleteSandbox(idOrAlias)` | Delete the runtime, profile, and shared files |
+| `pauseSandbox(idOrAlias)` | Remove the runtime and keep the workspace |
+| `resumeSandbox(idOrAlias)` | Start a runtime with the existing workspace |
 
 #### Browser Control
 
@@ -169,7 +180,7 @@ try {
 | `getBrowserInfo(idOrAlias)` | Get browser version and viewport info |
 | `getBrowserViewport(idOrAlias)` | Get window and page viewport metadata |
 | `getBrowserScreenshot(idOrAlias, options?)` | Capture screenshot (window or page) |
-| `executeBrowserActions(idOrAlias, payload)` | Execute GUI actions (click, type, scroll, etc.) |
+| `executeBrowserActions(idOrAlias, payload)` | Execute GUI actions; see `BrowserActionType` below |
 | `restartBrowser(idOrAlias, payload?)` | Restart Chromium inside sandbox |
 
 #### CDP & Session
@@ -196,7 +207,7 @@ try {
 | Class | HTTP Status | Description |
 |-------|-------------|-------------|
 | `VergeError` | — | Base error class |
-| `VergeConfigError` | — | Configuration errors (missing token, etc.) |
+| `VergeConfigError` | — | Client configuration error, such as a missing token |
 | `VergeAuthError` | 401 | Authentication failed |
 | `VergeNotFoundError` | 404 | Resource not found |
 | `VergeConflictError` | 409 | Request conflict |

@@ -1,12 +1,16 @@
 # Deploy on a Headless Linux Server
 
-The host does not need a desktop environment or a monitor. The runtime image supplies Xvfb/Openbox or Xpra and runs **GUI Chromium**, not Chromium's headless mode.
+The host does not require a desktop environment or monitor. The runtime supplies Xvfb/Openbox or Xpra.
+Chromium runs with a graphical interface, not in headless mode.
 
-This recipe uses a single Linux Docker host and an SSH tunnel. The API has access to the host Docker socket: deploy it on a trusted host, not as an isolation boundary for mutually untrusted tenants.
+This recipe uses one Linux Docker host and an SSH tunnel.
+Deploy it only on a trusted host. The API has access to the host Docker socket.
+This deployment is not an isolation boundary between mutually untrusted tenants.
 
 ## Start a Private API with Docker Compose
 
-Prerequisites: Docker Engine with Compose, Git, OpenSSL, and permission to access the Docker daemon. Run these commands in Bash on the server:
+Install Docker Engine with Compose, Git, and OpenSSL. Your account must have access to the Docker daemon.
+Run the following commands in Bash on the server:
 
 ```bash
 set -euo pipefail
@@ -30,27 +34,43 @@ docker compose -f deployments/docker-compose.yml run -d \
 curl --fail http://127.0.0.1:8000/healthz
 ```
 
-Unlike `compose up`, `compose run` does not publish the service's default ports; the explicit `--publish` binds this container to loopback only. Do not add `--service-ports` or start the stock `api` service alongside it. Check the binding with `docker port verge-api-private 8000`: it should show `127.0.0.1:8000`.
+`compose run` does not publish the service's default ports. The explicit `--publish` binds this container to loopback only.
+Do not add `--service-ports` or start the stock `api` service alongside it. Either can expose the API beyond loopback.
 
-The Compose service sets `VERGE_SANDBOX_RUNTIME_NETWORK` to `${COMPOSE_PROJECT_NAME}_default`, so the API and the browser containers it creates share the project's network. This also follows a custom Compose project name (`-p`). If you override the network name, update this setting to match; the standalone API default, `bridge`, is a different network. Do not publish runtime ports to work around a network mismatch.
+Check the binding with `docker port verge-api-private 8000`. The expected output is `127.0.0.1:8000`.
 
-Existing runtime containers are not moved automatically when this setting changes. A sandbox pause/resume recreates its container on the configured network, but ends the live browser session; coordinate that interruption before upgrading an existing deployment.
+Compose sets `VERGE_SANDBOX_RUNTIME_NETWORK` to `${COMPOSE_PROJECT_NAME}_default`. The API and its browser containers use that network.
+A custom Compose project name (`-p`) also changes this value.
 
-The `-e` options explicitly pass the secrets into the API container; merely exporting them on the host does not change the stock Compose service environment. Store the generated values in your private secret manager before ending this shell, and securely transfer the admin token to your client. Do not commit them. Reusing the same secrets matters when recreating the API container; rotating the ticket secret invalidates previously issued tickets.
+If you override the network name, update this setting to match. The standalone API default, `bridge`, is a different network.
+Do not publish runtime ports to work around a network mismatch.
+
+Changing this setting does not move existing containers.
+Before upgrading, coordinate a browser interruption with users. A sandbox pause/resume recreates its container on the configured network and ends the live session.
+
+The `-e` options pass secrets into the API container. Host exports alone do not change the stock Compose service environment.
+
+1. Store the generated secrets in your private secret manager before ending this shell.
+2. Transfer the admin token securely to your client.
+3. Reuse the secrets when recreating the API container.
+
+Do not commit secrets. Rotating the ticket secret invalidates existing tickets.
 
 For Xpra, also build `runtime-xpra` and create a sandbox with `--kind xpra`.
 
-`/healthz` confirms only that the API is up, not that Chromium can start. Create a sandbox and verify `RUNNING`, CDP access, and the visual session using the [integration guide](../integrations/codex.md#1-create-or-reuse-a-sandbox).
+`/healthz` confirms only API liveness. It does not prove that Chromium can start.
+Use the [integration guide](../integrations/codex.md#1-create-or-reuse-a-sandbox) to check sandbox `RUNNING` status, CDP access, and the visual session.
 
 ## Access from Your Computer
 
-Run this on your computer, replacing `user@server` with your SSH destination, and leave the tunnel running:
+Replace `user@server` with your SSH destination. Run this command on your computer and leave the tunnel running:
 
 ```bash
 ssh -N -L 127.0.0.1:8000:127.0.0.1:8000 user@server
 ```
 
-Open [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin) locally and sign in with the server's admin token. Configure the CLI on that same computer:
+Open [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin) on your computer.
+Sign in with the server's admin token. Configure the CLI on the same computer:
 
 ```bash
 export VERGE_BROWSER_URL="http://127.0.0.1:8000"
@@ -58,21 +78,43 @@ read -r -s -p "Verge admin token: " VERGE_BROWSER_TOKEN; echo
 export VERGE_BROWSER_TOKEN
 ```
 
-Request CDP and session URLs through this client URL so the returned addresses are reachable from your computer. If local port 8000 is occupied, change the first port in the SSH forward and in the client URL. Do not open public runtime ports to make the client connect.
+Request CDP and session URLs through this client URL. The returned addresses must be reachable from your computer.
+If local port 8000 is occupied, change the first SSH forwarding port and the client URL port.
+Do not expose runtime ports publicly to make the client connect.
 
-For direct access through a domain instead, use HTTPS, WebSocket forwarding, correctly trusted proxy headers, strong secrets, and appropriate network restrictions. The SSH recipe avoids requiring public API exposure.
+The SSH recipe does not require a public API.
+For direct access through a domain, configure:
+
+- HTTPS.
+- WebSocket forwarding.
+- Trusted proxy headers.
+- Strong secrets.
+- Network access restrictions.
 
 ## Keep Data and Inspect Failures
 
-The supplied Compose service mounts the checkout at the same absolute path inside the API container as on the Docker host. Runtime workspaces are bind-mounted from that path under `.local/sandboxes`. Keep that directory and mount mapping when recreating the API. A machine migration or backup also needs the metadata and profile files, not just the container image.
+Compose mounts the checkout at the same absolute path on the Docker host and inside the API container.
+Runtime workspaces use bind mounts under `.local/sandboxes`.
+Keep that directory and mount mapping when recreating the API.
+
+Include metadata and profile files in a migration or backup. The container image alone does not contain sandbox data.
 
 ```bash
 docker logs --tail 100 verge-api-private
 docker ps --filter label=verge.managed=true
 ```
 
-Inspect logs locally; do not publish browser content, tokens, or ticketed URLs from them. After a host reboot, start the API container with `docker start verge-api-private`, inspect sandbox state, and resume stopped sandboxes explicitly. This command recipe does not configure automatic service startup or full session restoration.
+Inspect logs locally. Do not publish browser content, tokens, or ticketed URLs from logs.
+
+After a host reboot:
+
+1. Start the API with `docker start verge-api-private`.
+2. Inspect sandbox state.
+3. Resume stopped sandboxes explicitly.
+
+This recipe does not configure automatic startup or full session restoration.
 
 For the exact persistence behavior, see [Persistent Browser Profiles](persistent-profiles.md). For server settings, see [Environment Variables](../env.md).
 
-The Compose model and command options have been checked, but this deployment recipe still needs a live Linux/Docker smoke test before being treated as a verified deployment walkthrough.
+Static checks cover the Compose model and command options.
+A live Linux/Docker smoke test of this complete recipe has not been run. Do not treat it as a runtime-verified walkthrough.

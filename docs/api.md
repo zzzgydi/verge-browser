@@ -2,15 +2,20 @@
 
 This document describes the current Verge Browser control plane API.
 
-Base convention:
+Management API conventions:
 
 - REST resources are scoped under `/sandbox/{sandbox_id}/...`
 - WebSocket resources follow the same sandbox scoping model
-- All JSON business APIs return `{ "code": number, "message": string, "data": ... }`
+- Management JSON responses use `{ "code": number, "message": string, "data": ... }`
 - Success responses use `code = 0`
 - Error responses keep `data = null` and put actionable detail in `message`
-- All business APIs require `Authorization: Bearer <admin-token>`
+- Management APIs require `Authorization: Bearer <admin-token>`
 - `GET /healthz` remains anonymous
+
+CDP connections require a signed ticket, not the admin token. Visual sessions use a ticket for entry and a sandbox-scoped cookie afterward.
+The [clipboard API](vnc_clipboard.md#http-接口) uses that cookie and its own JSON format. File downloads return binary content.
+
+Keep tokens, ticketed URLs, and session cookies private. Each grants access within its scope.
 
 ## Health
 
@@ -26,7 +31,7 @@ Returns:
 
 ## Response Envelope
 
-All JSON business APIs use:
+Management JSON APIs use this envelope. The health, clipboard, and binary-download endpoints are exceptions.
 
 ```json
 {
@@ -77,12 +82,23 @@ Response notes:
 - Creation and detail responses no longer expose `cdp_url` or `session_url`
 - Browser runtime info is aggregated under `data.browser`
 - `kind` selects the runtime stack: `xvfb_vnc` or `xpra`
-- `browser_engine` selects `chromium` (default, no Cloak key needed) or `cloakbrowser`. Cloak requires server-side setup, GPU disabled and no per-request image override. Both `xvfb_vnc` and experimental `xpra` adapters are available; check `/runtime/engines` for configured `kinds` and see [setup and validation](guides/cloak.md).
 - If `image` is omitted, the server picks the default image for the selected `kind`
+
+`browser_engine` selects the browser:
+
+| Engine | Runtime kinds | Requirements and limits |
+| --- | --- | --- |
+| `chromium` | `xvfb_vnc`, `xpra` | Default engine. No Cloak key required. |
+| `cloakbrowser` | `xvfb_vnc`, experimental `xpra` | Requires [server setup](guides/cloak.md). No GPU, authenticated proxies, or per-request image override. |
+| `camoufox` | `xvfb_vnc` | Requires [server setup](guides/camoufox.md). No GPU, proxies, per-request image override, or CDP. |
+
+Check `/runtime/engines` for the configured `kinds` before creating a sandbox.
 
 ### `GET /runtime/engines`
 
-Report supported engines, allowed desktop kinds and configuration readiness. Requires admin authentication and never returns keys. A configured Cloak engine still depends on successful runtime license validation and available seats.
+Report supported engines, allowed runtime kinds, and configuration readiness. This endpoint requires admin authentication. It never returns license keys.
+
+Configuration readiness does not prove that a browser can start. Cloak still requires runtime license validation and an available license seat.
 
 ### `GET /sandbox`
 
@@ -147,15 +163,15 @@ Update mutable fields.
 
 ### `DELETE /sandbox/{sandbox_id}`
 
-Delete a sandbox.
+Delete the runtime, sandbox record, profile, and shared files. Back up required data before deletion.
 
 ### `POST /sandbox/{sandbox_id}/pause`
 
-Pause a sandbox.
+Remove the runtime container and retain the workspace. This ends browser connections; it does not suspend browser memory.
 
 ### `POST /sandbox/{sandbox_id}/resume`
 
-Resume a stopped sandbox.
+Create a runtime for a stopped sandbox with its existing workspace. See [lifecycle behavior](guides/persistent-profiles.md).
 
 ### Sandbox Kinds
 
@@ -182,10 +198,10 @@ Request:
 
 Capture a screenshot.
 
-Window screenshots include the browser chrome. Xvfb captures the visible desktop
-region; Xpra captures the browser window directly, because its root desktop does
-not contain the redirected window pixels. On Xpra, capturing an unmapped browser
-window makes that window visible even when no HTML5 session is connected.
+Window screenshots include the browser controls. Xvfb captures the visible desktop region. Xpra captures the browser window directly.
+The Xpra root desktop does not contain the redirected window pixels.
+
+On Xpra, a screenshot of an unmapped browser window makes that window visible. This also occurs without an HTML5 session connection.
 
 Request:
 
@@ -314,9 +330,11 @@ Response `data`:
 
 ### `GET /sandbox/{sandbox_id}/session/?ticket=...`
 
-Validate the ticket, mint a short-lived sandbox session cookie scoped to that sandbox, and return the runtime entry page.
+The server validates the ticket and creates a cookie for that sandbox.
+For a time-limited ticket, the cookie uses the ticket's remaining lifetime. A permanent ticket does not set a session expiry.
+The server then serves the runtime entry page:
 - `xpra`: returns the proxied Xpra HTML5 entry page.
-- `xvfb_vnc`: redirects to the proxied noVNC entry page.
+- `xvfb_vnc`: redirects to Verge's noVNC page with the clipboard toolbar.
 
 ### `GET /sandbox/{sandbox_id}/session/{asset_path}`
 
@@ -362,10 +380,33 @@ Delete a file.
 
 ## Managed Camoufox commands (experimental)
 
-`POST /sandbox/{sandbox_id}/browser/command` accepts the normal admin bearer token. Only RUNNING Camoufox sandboxes support it; Chromium/Cloak return 409 and use ticketed CDP instead. Example:
+`POST /sandbox/{sandbox_id}/browser/command` requires the admin bearer token. Only `RUNNING` Camoufox sandboxes support this endpoint.
+Chromium and Cloak return 409. Use ticketed CDP for those engines.
+
+Example:
 
 ```json
 {"action":"snapshot","tab":"default","interactive":true}
 ```
 
-Actions: `open` (`url`), `snapshot` (`interactive`, `selector`), `click` (`ref`), `fill` (`ref`, `text`), `press` (`key`), `text` (`target`), `tabs`, `switch` (`index`), `url`, `title`, `upload` (`selector`, `path` under `/workspace/uploads`). Unknown fields/actions are rejected. All accept an optional named `tab`. Results use the normal `{code,message,data}` envelope; runtime failures return 502 without retry. Camoufox CDP ticket requests return 409 and CDP WebSocket access is rejected. Screenshots support PNG, with no CDP target ID. See [command semantics](../skills/verge-browser-usage/references/camoufox.md).
+| Action | Fields |
+| --- | --- |
+| `open` | `url` |
+| `snapshot` | `interactive`, `selector` |
+| `click` | `ref` |
+| `fill` | `ref`, `text` |
+| `press` | `key` |
+| `text` | `target` |
+| `tabs` | None |
+| `switch` | `index` |
+| `url` | None |
+| `title` | None |
+| `upload` | `selector`, `path` under `/workspace/uploads` |
+
+All actions accept an optional named `tab`. The API rejects unknown fields and actions.
+See [command semantics](../skills/verge-browser-usage/references/camoufox.md) for field requirements.
+
+Results use the `{code,message,data}` envelope. Runtime failures return 502 without retry.
+
+Camoufox rejects CDP WebSocket access. CDP ticket requests return 409.
+Camoufox screenshots support PNG and do not accept a CDP target ID.

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Verge Browser</title>
+  <defs>
+    <linearGradient id="window" gradientUnits="userSpaceOnUse" x1="350" y1="535" x2="900" y2="645">
+      <stop stop-color="#513982"/>
+      <stop offset=".4" stop-color="#252950"/>
+      <stop offset="1" stop-color="#315887"/>
+    </linearGradient>
+    <linearGradient id="pane" gradientUnits="userSpaceOnUse" x1="360" y1="570" x2="890" y2="825">
+      <stop stop-color="#9c6bea"/>
+      <stop offset=".39" stop-color="#4c49a3"/>
+      <stop offset=".83" stop-color="#255da7"/>
+      <stop offset="1" stop-color="#184178"/>
+    </linearGradient>
+    <linearGradient id="sheen" x2="27%" y2="65%">
+      <stop stop-color="#eee5ff" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#b0bbff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rim">
+      <stop stop-color="#ddcaff"/>
+      <stop offset=".55" stop-color="#b6a9f5"/>
+      <stop offset="1" stop-color="#81caff"/>
+    </linearGradient>
+    <linearGradient id="rear">
+      <stop stop-color="#8756df"/>
+      <stop offset=".18" stop-color="#282b60"/>
+      <stop offset=".82" stop-color="#1a2c53"/>
+      <stop offset="1" stop-color="#327ed1"/>
+    </linearGradient>
+    <linearGradient id="orbit" gradientUnits="userSpaceOnUse" x1="250" y1="804" x2="978" y2="565">
+      <stop stop-color="#dfafff"/>
+      <stop offset=".31" stop-color="#ba94f6"/>
+      <stop offset=".67" stop-color="#65aff8"/>
+      <stop offset=".92" stop-color="#79defa"/>
+      <stop offset="1" stop-color="#388fdb"/>
+    </linearGradient>
+    <linearGradient id="cursor" x2="83%" y2="100%">
+      <stop stop-color="#fff"/>
+      <stop offset="1" stop-color="#b6aff3"/>
+    </linearGradient>
+    <path id="pane-shape" d="M341 592Q357 558 404 551L899 470 903 768c0 46-33 83-78 88L440 903c-54 7-99-30-99-82Z"/>
+  </defs>
+
+  <!-- Black tile keeps the mark readable on light and dark surfaces. -->
+  <rect width="512" height="512" rx="112" fill="#000"/>
+
+  <!-- The artwork is centered and fitted from its 785x545 bounds. -->
+  <g transform="translate(-97.01 -97.88) scale(.56061)">
+    <!-- Rear arc sits behind the browser window. -->
+    <path fill="url(#rear)" d="M240 748c28-92 231-202 437-250 151-35 288-36 332 34l-45 16c-1-63-119-65-279-28-205 48-374 130-397 196-5 13-3 24 6 33Z"/>
+    <!-- Browser frame, glass panel, and three controls. -->
+    <path fill="url(#window)" stroke="url(#rim)" stroke-width="6" d="M341 503c0-38 30-64 68-71l399-72c48-9 89 20 90 67l5 341c0 46-33 83-78 88l-385 47c-54 7-99-30-99-82Z"/>
+    <use href="#pane-shape" fill="url(#pane)"/>
+    <use href="#pane-shape" fill="url(#sheen)"/>
+    <path d="M341 592q16-34 63-41l495-81" fill="none" stroke="#ddd7ff" stroke-opacity=".58" stroke-width="2"/>
+    <g stroke="#fff" stroke-opacity=".3" stroke-width="1.5">
+      <circle cx="415" cy="494" r="20" fill="#ff5165"/>
+      <circle cx="478" cy="484" r="20" fill="#f5d044"/>
+      <circle cx="542" cy="474" r="20" fill="#71e95c"/>
+    </g>
+    <!-- Front arc crosses the window and joins both exposed ends. -->
+    <path fill="url(#orbit)" d="M240 748q9-29 47-30c-24 66 108 64 271 25 181-43 363-120 398-186 9-16 7-30-1-39l10-15c46 22 69 49 51 95-33 93-221 187-428 227-183 36-311 26-343-34-8-14-10-29-5-43Z"/>
+    <path d="M245 791c32 60 160 70 343 34 207-40 395-134 428-227" fill="none" stroke="#f5edff" stroke-opacity=".4" stroke-width="2"/>
+    <!-- Pointer sits above the orbit. -->
+    <path fill="url(#cursor)" stroke="#fff" stroke-opacity=".88" stroke-width="3" stroke-linejoin="round" d="M752 742c-3-15 6-23 21-16l130 70c10 5 7 14-2 16l-65 12-45 46c-7 7-13 4-15-4Z"/>
+  </g>
+</svg>

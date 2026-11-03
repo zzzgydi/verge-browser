@@ -228,6 +228,10 @@ a {
   color: var(--accent);
   flex-shrink: 0;
 }
+.console-heading > .brand-mark {
+  width: 36px;
+  height: 36px;
+}
 .console-heading h1 {
   font-size: 1.8rem;
 }
@@ -243,6 +247,16 @@ a {
   width: 23px;
   height: 23px;
   color: var(--accent);
+}
+.brand-mark {
+  display: block;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.brand .brand-mark {
+  width: 32px;
+  height: 32px;
 }
 .toolbar-actions {
   display: flex;

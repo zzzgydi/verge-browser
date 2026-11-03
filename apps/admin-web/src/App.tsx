@@ -616,7 +616,7 @@ export function App() {
       <main className="login-shell">
         <section className="login-card">
           <div className="brand">
-            <Icon name="browser" />
+            <img className="brand-mark" src="/admin/logo.svg" alt="" width={32} height={32} />
             <span>Verge Browser</span>
           </div>
           <h1>Admin Console</h1>
@@ -661,7 +661,7 @@ export function App() {
       </a>
       <header className="topbar">
         <div className="console-heading">
-          <Icon name="browser" />
+          <img className="brand-mark" src="/admin/logo.svg" alt="" width={36} height={36} />
           <h1>Verge Browser</h1>
         </div>
         <nav className="toolbar-actions" aria-label="Console actions">

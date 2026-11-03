@@ -1,6 +1,6 @@
 - insert:
     - id: verge-browser-registry
-      name: '@deepseek-ai/dsh-browser-use'
+      name: dsh-plugin-verge-browser/registry
       disabled: true
     - id: verge-browser
       name: dsh-plugin-verge-browser

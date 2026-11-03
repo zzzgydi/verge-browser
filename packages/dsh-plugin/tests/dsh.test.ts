@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Context } from '@deepseek-ai/cordis';
-import BrowserUse from '@deepseek-ai/dsh-browser-use';
 import { BrowserUseProviderName } from '@deepseek-ai/dsh-browser-use/brand';
 import Agents, { type Agent } from '@deepseek-ai/dsh-agent';
 import Tools from '@deepseek-ai/dsh-tools';
@@ -20,6 +19,7 @@ test('real Cordis provider scopes MCP tools to one live Agent and disposes clean
   const owners: ReturnType<typeof createScope>[] = [];
   const unregister: (() => any)[] = [];
   try {
+    const { default: BrowserUse } = await import(new URL('../dist/registry.js', import.meta.url).href);
     await ctx.plugin(SystemPrompt, {});
     await ctx.plugin(Tools);
     await ctx.plugin(Agents);

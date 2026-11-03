@@ -1,12 +1,22 @@
 import { writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
-// Bundle the matching in-repository SDK, but share DSH services with the host.
+// Bundle browser helpers so their release-specific manifests do not gate profile rows.
+// Agent, MCP, tools and scope imports remain external and share the host's services.
 await build({
-  entryPoints: ['src/index.ts', 'src/bridge.ts'],
+  entryPoints: ['src/index.ts', 'src/bridge.ts', 'src/registry.ts'],
   outdir: 'dist',
   bundle: true,
   packages: 'external',
+  plugins: [{
+    name: 'browser-helpers',
+    setup(builder) {
+      builder.onResolve({ filter: /^@deepseek-ai\/dsh-(browser-use|experimental-browser-use-runtime)(\/|$)/ }, args => ({
+        path: fileURLToPath(import.meta.resolve(args.path)),
+      }));
+    },
+  }],
   platform: 'node',
   format: 'esm',
   target: 'node22',

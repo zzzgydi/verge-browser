@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="460" viewBox="0 0 1280 460" role="img" aria-labelledby="title desc">
+  <title id="title">Verge Browser — 为 Agent 打造的开源浏览器沙箱。画面看得见，随时能接手。</title>
+  <desc id="desc">A browser sandbox on your server, with agent automation, a live view, and manual control.</desc>
+  <defs>
+    <radialGradient id="glow" cx="82%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#ffc53d" stop-opacity=".09"/>
+      <stop offset="1" stop-color="#111110" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#3b3b35" stroke-width=".5"/>
+    </pattern>
+  </defs>
+  <!-- Radix Sand dark + Amber palette; all artwork is local and static. -->
+  <rect width="1280" height="460" rx="16" fill="#111110"/>
+  <rect width="1280" height="460" rx="16" fill="url(#glow)"/>
+  <path d="M736 0H1264Q1280 0 1280 16V444Q1280 460 1264 460H736Z" fill="url(#grid)" opacity=".38"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <g transform="translate(56 46)" fill="none" stroke="#ffc53d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect width="30" height="25" rx="4"/>
+      <path d="M0 8H30M10 14L15 20L21 13"/>
+    </g>
+    <text x="101" y="69" fill="#eeeeec" font-size="26" font-weight="700" letter-spacing="-.7">Verge Browser</text>
+    <text x="56" y="164" fill="#eeeeec" font-size="48" font-weight="700" letter-spacing="-1">为 Agent 打造的</text>
+    <text x="56" y="228" fill="#eeeeec" font-size="48" font-weight="700" letter-spacing="-1">开源浏览器沙箱。</text>
+    <text x="56" y="313" fill="#ffc53d" font-size="42" font-weight="700" letter-spacing="-1">画面看得见，随时能接手。</text>
+    <path d="M56 378H646" stroke="#3b3b35" stroke-width=".5"/>
+    <g fill="#b5b3ad" font-size="16" font-weight="500" letter-spacing="1.4">
+      <text x="58" y="413">SELF-HOSTED</text>
+      <text x="256" y="413">VISUAL</text>
+      <text x="403" y="413">OPEN SOURCE</text>
+    </g>
+    <g transform="translate(748 108)">
+      <rect width="454" height="258" rx="12" fill="#191918" stroke="#6f6d66" stroke-width=".5"/>
+      <path d="M0 42H454" stroke="#6f6d66" stroke-width=".5"/>
+      <g fill="#6f6d66"><circle cx="22" cy="21" r="3"/><circle cx="34" cy="21" r="3"/><circle cx="46" cy="21" r="3"/></g>
+      <text x="227" y="27" fill="#b5b3ad" font-size="16" text-anchor="middle" letter-spacing="1">服务器上的浏览器</text>
+      <rect x="24" y="66" width="94" height="168" rx="5" fill="#212120"/>
+      <rect x="38" y="84" width="66" height="7" rx="3.5" fill="#6f6d66"/>
+      <rect x="38" y="108" width="48" height="5" rx="2.5" fill="#3b3b35"/>
+      <rect x="38" y="127" width="57" height="5" rx="2.5" fill="#3b3b35"/>
+      <rect x="38" y="146" width="39" height="5" rx="2.5" fill="#3b3b35"/>
+      <rect x="138" y="66" width="292" height="81" rx="5" fill="#212120"/>
+      <path d="M158 126L189 109L219 118L248 93L280 99L310 84L341 92L370 81L410 90" fill="none" stroke="#ffc53d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="138" y="167" width="132" height="67" rx="5" fill="#212120"/>
+      <rect x="290" y="167" width="140" height="67" rx="5" fill="#212120"/>
+      <path d="M155 184H225M155 198H244M155 212H206M307 184H377M307 198H404M307 212H363" stroke="#3b3b35" stroke-width=".5"/>
+    </g>
+    <g transform="translate(726 62)">
+      <rect width="142" height="52" rx="26" fill="#ffc53d"/>
+      <path d="M21 20L15 26L21 32M39 20L45 26L39 32M32 17L27 35" fill="none" stroke="#111110" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="91" y="32" fill="#111110" font-size="16" font-weight="700" text-anchor="middle">AGENT</text>
+    </g>
+    <path d="M1078 291L1084 337L1096 324L1114 324Z" fill="#ffc53d" stroke="#111110" stroke-width="2" stroke-linejoin="round"/>
+    <g transform="translate(1100 336)">
+      <rect width="112" height="48" rx="24" fill="#eeeeec"/>
+      <circle cx="25" cy="19" r="5" fill="none" stroke="#111110" stroke-width="1.5"/>
+      <path d="M17 32C17 23 33 23 33 32" fill="none" stroke="#111110" stroke-width="1.5"/>
+      <text x="70" y="30" fill="#111110" font-size="16" font-weight="700" text-anchor="middle">你</text>
+    </g>
+    <text x="975" y="413" fill="#b5b3ad" font-size="16" text-anchor="middle">CDP / noVNC / Xpra</text>
+  </g>
+</svg>

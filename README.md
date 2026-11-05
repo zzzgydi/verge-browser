@@ -1,461 +1,65 @@
-# Verge Browser
-
-English | [中文](./README.zh.md)
-
-**A self-hosted visual browser sandbox for AI agents and humans.**
-
-Run GUI Chromium on a Linux server without a host desktop.
-Use Playwright over CDP to automate websites.
-Use noVNC or Xpra to view and control the same browser.
-Stop automation before a person completes login or multi-factor authentication (MFA).
-Each sandbox has its own browser profile and shared files.
-
-[Quick Start](#quick-start) · [Linux Server Deployment](./docs/guides/headless-linux.md) · [Codex + Playwright MCP](./docs/integrations/codex.md) · [Human Handoff](./docs/guides/human-handoff.md)
+<p align="center">
+  <img src="docs/assets/hero.png" alt="Verge Browser — An open-source browser sandbox built for agents. See it live. Take over anytime." width="100%" />
+</p>
 
 <p align="center">
-  <img src="docs/assets/png-admin.png" alt="Verge Browser dashboard with sandbox status icons, a browser screenshot preview, and session and CDP controls" width="100%" />
+  Deploy it on your own server.<br />
+  Watch your agent browse the web in real time, right from your browser.<br />
+  When it reaches a login screen or gets stuck, pause automation and step in.
 </p>
+
 <p align="center">
-  <strong>Dashboard</strong> · Search sandboxes, check their status, and preview the selected browser without opening a session.
+  <a href="docs/guides/headless-linux.md"><strong>Deploy to a server →</strong></a>&emsp;
+  <a href="docs/guides/usage.md">Usage</a>&emsp;
+  <a href="docs/guides/development.md">Development</a>&emsp;
+  <a href="README.zh.md">中文</a>
 </p>
+
+---
+
+## Features
+
+- **Self-hosted browser**: run GUI Chromium in Docker on a Linux server, independently of your personal computer.
+- **Agent automation**: connect through CDP with Playwright or Puppeteer, or use the SDK, CLI, and REST API.
+- **Live view and manual control**: view the browser through noVNC or Xpra; pause automation before taking over.
+- **Persistent workspaces**: each sandbox has its own browser profile and shared files, preserved across pause and resume.
+- **Remote access**: use compatible mobile or cloud agents when the service is reachable. See [access requirements](docs/guides/usage.md#phone-and-remote-access).
 
 <details>
-<summary>View the noVNC session</summary>
+<summary>Dashboard preview</summary>
 
-<p align="center">
-  <img src="docs/assets/png-vnc.png" alt="Live noVNC session showing Chromium with the Verge clipboard toolbar and Connected status" width="100%" />
-</p>
+<br />
 
-The session provides manual control of the same browser.
-Use its clipboard buttons to transfer text between your computer and the sandbox.
-Both screenshots show a real Chromium / Xvfb + VNC sandbox on this repository's public GitHub page.
+<img src="docs/assets/png-admin.png" alt="Verge Browser dashboard showing sandbox status, a screenshot preview, and session and CDP controls" width="100%" />
 
 </details>
 
-## Core Capabilities
+## Getting Started
 
-- **GUI Chromium**: use browser tabs, downloads, and popups in a visible desktop.
-- **CDP automation**: connect Playwright or Puppeteer through a WebSocket endpoint.
-- **Window screenshots**: capture the full browser window. Select a running sandbox in the dashboard to preview or refresh it.
-- **Human handoff**: use one session entry format for noVNC and Xpra.
-- **File sharing**: browser and APIs share `/workspace` for uploads, downloads, and artifacts.
-- **Persistent browser profiles**: reuse files after pause/resume. This does not restore browser memory or guarantee the same tabs.
+Requires a Linux Docker host with Docker Compose. The host does not need a desktop environment.
 
-## When to Use It
+1. Set up the service using the [server deployment guide](docs/guides/headless-linux.md), or follow the [local Docker setup](docs/guides/deployment.md).
+2. Open `/admin` at your service address and sign in with the configured admin token.
+3. Create a sandbox, open its visual session, or connect your agent using the [usage guide](docs/guides/usage.md).
 
-- Run a visual browser on a Linux VPS without installing a desktop environment on the host.
-- Give a coding agent a remote browser for testing a reachable web application.
-- Handle login or MFA yourself, then let the agent continue in the same browser.
-- Keep separate browser profiles and files for different tasks or accounts.
-- Inspect a remote browser task without moving it to your local browser.
+The current deployment model targets a single node in a trusted environment. See [compatibility and limits](docs/guides/usage.md#compatibility-and-limits) for isolation and persistence boundaries.
 
-## Compatibility and Limits
+## Documentation
 
-| Capability | Support and boundary |
+| Topic | Guides |
 | --- | --- |
-| Self-hosted Linux / Docker | Single-node deployment; GUI Chromium runs inside the container, even when the host has no desktop |
-| Playwright / Puppeteer | Connect through the ticketed CDP WebSocket endpoint; this is not a Playwright protocol server |
-| Codex / Playwright MCP | External integration via CDP; requires client configuration and ticket renewal, not built-in Codex orchestration |
-| Human takeover | noVNC or Xpra controls the same browser; the caller must stop agent actions before a person takes over |
-| Persistent profile and files | On-disk data survives pause/resume; deletion removes it, and website login validity is not guaranteed |
-| Multiple sandboxes | Separate containers and workspaces; not a hardened, mutually untrusted multi-tenant service |
-| Full GUI screenshots | Browser window capture as well as page screenshots through CDP |
+| Deployment | [Docker setup](docs/guides/deployment.md), [Linux server](docs/guides/headless-linux.md), [environment variables](docs/env.md) |
+| Usage | [Usage guide](docs/guides/usage.md), [human handoff](docs/guides/human-handoff.md), [persistent profiles](docs/guides/persistent-profiles.md) |
+| Clients & API | [SDK & CLI](docs/cli-sdk.md), [API reference](docs/api.md) |
+| Integrations | [Codex](docs/integrations/codex.md), [Playwright MCP](docs/integrations/playwright-mcp.md), [DeepSeek Harness preview plugin](packages/dsh-plugin/README.md) |
+| Agent Skills | [Deployment skill](skills/verge-browser-deploy/SKILL.md), [usage skill](skills/verge-browser-usage/SKILL.md) |
 
-Use standalone Playwright for local page automation without a remote desktop.
-Use Verge Browser when automation and manual control must share one remote browser.
+## Development & Contributing
 
-## Integration Guides
+The project uses Python / FastAPI, React, and Docker. See the [development guide](docs/guides/development.md) for local setup, project structure, and tests.
 
-- [DeepSeek Harness plugin](./packages/dsh-plugin/README.md): preview bundle for DSH `0.2.1-rc.2`, with scoped Chromium/Camoufox tools and human handoff.
-- [Codex with a self-hosted browser](./docs/integrations/codex.md): configure Playwright MCP, use scoped CDP tickets, and hand off to a person.
-- [Playwright and Playwright MCP over CDP](./docs/integrations/playwright-mcp.md): connect to the existing browser rather than launching another one.
-- [Deploy on a headless Linux server](./docs/guides/headless-linux.md): keep the API private and access it through an SSH tunnel.
-- [Human handoff](./docs/guides/human-handoff.md): stop automation, complete the manual step, and read the page again.
-- [Persistent browser profiles](./docs/guides/persistent-profiles.md): what pause, resume, restart, and deletion actually preserve.
-- [Optional CloakBrowser engine](./docs/guides/cloak.md): configure a key and install privately. Real licensed-runtime validation remains incomplete.
-- [Optional Camoufox engine](./docs/guides/camoufox.md): Firefox-based Xvfb runtime using managed Python camoufox-cli commands (not CDP); browser installed separately.
-
-## Agent Skills
-
-This repository provides Agent Skills under [`skills/`](./skills):
-
-- [`skills/verge-browser-deploy`](./skills/verge-browser-deploy): deploy Verge Browser, configure env vars, verify health, and troubleshoot startup issues
-- [`skills/verge-browser-usage`](./skills/verge-browser-usage): operate an already deployed Verge Browser service, manage sandboxes, and combine it with `agent-browser`
-
-## Quick Start
-
-### Option 1: Docker Compose (Recommended)
-
-Use these commands for trusted local development only.
-Do not expose this development example on a public VPS.
-It publishes port 8000 on all host interfaces and uses development secrets.
-Run from the repository root.
-
-```bash
-export PROJECT_ROOT="$PWD"
-docker compose -f deployments/docker-compose.yml build api runtime-xvfb runtime-xpra
-docker compose -f deployments/docker-compose.yml up api
-```
-
-Open the [admin console](http://127.0.0.1:8000/admin).
-
-For local development, sign in with the default admin token `dev-admin-token` unless you override `VERGE_ADMIN_AUTH_TOKEN`.
-
-For a server deployment, use the [private Linux deployment guide](./docs/guides/headless-linux.md).
-
-Deployment-related environment variables are documented in [`docs/env.md`](./docs/env.md).
-
-### Option 2: Local Development
-
-Prerequisites:
-
-- Python 3.11+
-- Node.js 22+ with Corepack / pnpm
-- Docker
-
-1. Install dependencies
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-```
-
-2. Install and build the admin web
-
-```bash
-corepack enable
-pnpm --dir apps/admin-web install --frozen-lockfile
-pnpm --dir apps/admin-web build
-```
-
-This emits static files into `apps/api-server/app/static/admin`.
-
-3. Build the runtime images
-
-```bash
-docker build -f docker/runtime-xvfb.Dockerfile -t verge-browser-runtime-xvfb:latest .
-docker build -f docker/runtime-xpra.Dockerfile -t verge-browser-runtime-xpra:latest .
-```
-
-4. Start the API server
-
-Keep this development server private. `--host 0.0.0.0` listens on all host interfaces.
-
-```bash
-uvicorn app.main:app --app-dir apps/api-server --host 0.0.0.0 --port 8000 --reload
-```
-
-API: [http://127.0.0.1:8000](http://127.0.0.1:8000).
-Admin console: [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin).
-
-### Option 3: Docker Deployment
-
-Keep this API private. The command publishes port 8000 on all host interfaces.
-For a public server, use the [private deployment guide](docs/guides/headless-linux.md).
-
-Run the API server in Docker and let it manage runtime containers through the host Docker socket.
-
-```bash
-# Build runtime images
-docker build -f docker/runtime-xvfb.Dockerfile -t verge-browser-runtime-xvfb:latest .
-docker build -f docker/runtime-xpra.Dockerfile -t verge-browser-runtime-xpra:latest .
-
-# Build API server image (also bundles the admin web)
-docker build -f docker/api-server.Dockerfile -t verge-browser-api:latest .
-
-# Create a directory for sandbox persistence
-mkdir -p .local/sandboxes
-
-# Set non-default auth secrets before exposing the service
-export VERGE_ADMIN_AUTH_TOKEN="replace-with-a-long-random-token"
-export VERGE_TICKET_SECRET="replace-with-a-long-random-ticket-secret"
-
-# Run the API server container
-docker run -d \
-  --name verge-api \
-  -p 8000:8000 \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$(pwd):$(pwd)" \
-  -e VERGE_SANDBOX_BASE_DIR="$(pwd)/.local/sandboxes" \
-  -e VERGE_ADMIN_AUTH_TOKEN="$VERGE_ADMIN_AUTH_TOKEN" \
-  -e VERGE_TICKET_SECRET="$VERGE_TICKET_SECRET" \
-  -w "$(pwd)" \
-  verge-browser-api:latest
-```
-
-> **Note**: For GPU acceleration on Linux, add the device flag to `docker run`. The API container uses it to detect the GPU:
->
-> - **Intel / AMD**: `--device /dev/dri:/dev/dri`
-> - **NVIDIA** (requires [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) on the host): `--gpus all`
-
-Mount the project at the same absolute path on the host and inside the API container.
-Runtime containers use that path to mount sandbox workspaces.
-
-For a complete list of deployment env vars, see [`docs/env.md`](./docs/env.md).
-
-### Basic Usage Examples
-
-Configure `VERGE_BROWSER_URL` and `VERGE_BROWSER_TOKEN` as described in the [CLI guide](docs/cli-sdk.md).
-The examples require a running API.
-
-Install the CLI:
-
-```bash
-npm install -g verge-browser
-```
-
-Create a sandbox:
-
-```bash
-verge-browser sandbox create --alias test --width 1440 --height 900
-```
-
-Take a screenshot:
-
-```bash
-verge-browser browser screenshot test --output ./screenshot.png
-```
-
-Create `actions.json` with the actions you intend to send. See the [API reference](docs/api.md).
-
-Execute GUI actions:
-
-```bash
-verge-browser browser actions test --input ./actions.json
-```
-
-Get a human handoff URL:
-
-```bash
-verge-browser sandbox session test
-```
-
-For more commands, see [`docs/cli-sdk.md`](./docs/cli-sdk.md).
-
-## Development Guide
-
-### Admin Web Development
-
-For admin UI development, run Vite separately:
-
-```bash
-pnpm --dir apps/admin-web dev
-```
-
-The dev server listens on [http://127.0.0.1:5173](http://127.0.0.1:5173).
-
-### Run Tests
-
-Use a Docker daemon without sandboxes you want to keep.
-The `test_runtime_api.py` cleanup fixture removes all managed containers.
-
-Run the test suite:
-
-```bash
-PYTHONPATH=apps/api-server pytest
-```
-
-Run the expected local validation flow for runtime-backed changes:
-
-```bash
-docker build -f docker/runtime-xvfb.Dockerfile -t verge-browser-runtime-xvfb:latest .
-docker build -f docker/runtime-xpra.Dockerfile -t verge-browser-runtime-xpra:latest .
-PYTHONPATH=apps/api-server pytest tests/unit tests/integration/test_runtime_api.py
-```
-
-### Manual Smoke Scripts
-
-Smoke-test scripts are in [`tests/scripts`](./tests/scripts).
-
-Common flows:
-
-- `tests/scripts/create-sandbox.sh`: create a sandbox and print the IDs and follow-up URLs you need
-- `tests/scripts/get-session-url.sh`: create or reuse a sandbox and print a browser-ready session URL
-- `tests/scripts/browser-smoke.sh`: save browser metadata plus window and page screenshots under `tests/scripts/.artifacts/`
-- `tests/scripts/files-smoke.sh`: exercise the file APIs against `/workspace`
-- `tests/scripts/restart-browser.sh`: restart Chromium and save browser info before and after
-- `tests/scripts/full-manual-tour.sh`: run the most useful create + screenshot + files + session flow end to end
-- `tests/scripts/cleanup-sandbox.sh`: delete a sandbox when you pass `SANDBOX_ID=...`
-
-Example:
-
-```bash
-tests/scripts/full-manual-tour.sh
-```
-
-If your API server is not on `http://127.0.0.1:8000`, set:
-
-```bash
-export VERGE_BROWSER_URL="http://127.0.0.1:8000"
-```
-
-Management APIs require the admin bearer token. Set:
-
-```bash
-export VERGE_BROWSER_TOKEN="<admin-token>"
-```
-
-### Cleanup Development Containers
-
-Confirm that all managed development containers can be removed before running this command.
-It forcibly removes every container with `verge.managed=true` on this Docker daemon.
-
-Remove containers:
-
-```bash
-docker ps -aq --filter "label=verge.managed=true" | xargs -r docker rm -f
-docker rm -f verge-api 2>/dev/null || true
-```
-
-Back up data before running full cleanup.
-The next command also deletes `.local/sandboxes`, including browser profiles and shared files.
-
-Remove containers and persisted data:
-
-```bash
-docker ps -aq --filter "label=verge.managed=true" | xargs -r docker rm -f
-rm -rf .local/sandboxes
-```
-
-Use `down` to stop Compose services.
-Use `down -v` only when you intend to remove their volumes too:
-
-```bash
-docker compose -f deployments/docker-compose.yml down
-docker compose -f deployments/docker-compose.yml down -v
-```
-
-### Development Notes
-
-- The project targets Python 3.11+.
-- The API server is implemented with FastAPI.
-- WebSocket proxying is designed around CDP and session relay use cases.
-- File operations are constrained to the sandbox workspace root.
-- Containerized API deployment uses Docker-outside-of-Docker via `/var/run/docker.sock`.
-- The current implementation targets single-node use, not multi-tenant orchestration.
-
-## API Reference
-
-The current API follows the `/sandbox/{sandbox_id}/...` routing model.
-
-Detailed endpoint documentation lives in [`docs/api.md`](./docs/api.md).
-
-SDK and CLI usage examples live in [`docs/cli-sdk.md`](./docs/cli-sdk.md).
-
-### Scope
-
-Verge Browser focuses on browser control:
-
-- browser lifecycle: create, pause, resume, delete
-- browser automation via CDP
-- GUI screenshots and input actions
-- session-based human takeover with `xvfb_vnc` or `xpra`
-- file exchange through the sandbox workspace
-
-The API does not provide arbitrary shell command execution.
-
-## Project Architecture
-
-### System Architecture
-
-The platform has two parts:
-
-1. API server
-   Exposes REST and WebSocket endpoints for sandbox lifecycle, browser control, files, CDP proxying, and ticket-based session access.
-2. Sandbox runtime
-   Runs Chromium, the desktop stack, and shared `/workspace` inside one isolated container.
-
-```text
-Client / Agent / Human
-        |
-        v
-+------------------------------+
-| FastAPI Gateway / API Server |
-| Auth + REST + WS + Tickets   |
-+------------------------------+
-        |
-        v
-+-----------------------------------------------+
-| Sandbox Runtime Container                     |
-| xvfb_vnc or xpra + Chromium + /workspace      |
-+-----------------------------------------------+
-```
-
-### Technical Notes
-
-The project targets local development and single-node deployment.
-
-The source includes:
-
-- runtime container boot with Chromium, Xvfb/Openbox or Xpra, and a CDP relay
-- sandbox creation through the API
-- persisted sandbox metadata with startup reconciliation of surviving runtime containers; records without a running container remain `STOPPED`
-- pause and resume lifecycle for reusing an existing workspace
-- real window screenshots
-- page screenshots through CDP
-- GUI action execution through `xdotool`
-- ticket-based session entry for noVNC and Xpra
-- workspace-scoped file list, read, write, upload, download, and delete operations
-- an admin web console built into static assets and served by the API at `/admin`
-- runtime Dockerfiles, supervisor configuration, startup scripts, and Docker-backed integration coverage
-
-Areas that require further hardening:
-
-- stronger Docker lifecycle management and health-driven state transitions
-- production-ready browser crash recovery and degraded-state handling
-- file and browser integration coverage
-- broader end-to-end and failure-mode coverage
-
-### Repository Layout
-
-```text
-apps/
-  api-server/         FastAPI application
-  admin-web/          Vite + React admin console, built into API static assets
-  runtime-xvfb/       Xvfb + VNC runtime assets
-  runtime-xpra/       Xpra runtime assets
-deployments/          Local deployment assets
-docker/               Runtime and API container build files
-tests/                Unit and integration tests
-docs/                 Product, API, and technical docs
-```
-
-### Runtime Images
-
-The runtime images host:
-
-- Chromium
-- xdotool
-- supervisor
-- a TCP relay that exposes a stable CDP entry point while Chromium listens on an internal debugging port
-
-Two runtime variants are supported:
-
-- `xvfb_vnc`: Xvfb + Openbox + x11vnc + noVNC / websockify
-- `xpra`: Xpra server + HTML5 client assets
-
-### Desktop Options Comparison
-
-| Feature | `xvfb_vnc` | `xpra` |
-| --- | --- | --- |
-| Desktop stack | Xvfb + Openbox + x11vnc + noVNC | Xpra Server + HTML5 client |
-| Clipboard | Explicit text-transfer buttons. See [clipboard use](docs/vnc_clipboard.md). | Xpra client clipboard integration. Verify behavior in your target browser. |
-| Creation field | `kind: "xvfb_vnc"` | `kind: "xpra"` |
-
-Latency and network performance are not benchmarked here.
-
-How to choose:
-
-- Mostly automation, with occasional human inspection: use `xvfb_vnc`
-- Frequent manual intervention or remote debugging: use `xpra`
+Bug reports and pull requests are welcome. Include reproduction steps for bugs and relevant validation for code changes. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-Original source code uses the MIT License. See [LICENSE](./LICENSE).
-
-Runtime images contain third-party software under separate licenses.
-The `runtime-xpra` image installs Xpra under GPL v2 or later.
-Xpra retains its own license terms.
-
-See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) and [docs/open-source-compliance.md](./docs/open-source-compliance.md) before distributing container images externally.
+Original source code is [MIT licensed](LICENSE). Runtime images include separately licensed components, including Xpra (GPL v2 or later). See [third-party notices](THIRD_PARTY_NOTICES.md) and [image distribution guidance](docs/open-source-compliance.md).
